@@ -41,6 +41,9 @@
           <i class="material-icons edit-icon">edit</i>
           <div class="button-loader"></div>
         </button>
+        <button class="card-toggle-btn" title="Toggle Details">
+          <i class="material-icons toggle-icon">expand_more</i>
+        </button>
       </div>
       <div class="project-card-content">
         <div>
@@ -60,8 +63,8 @@
             ${project.contractorEmail ? `<span class="contact-email" data-email="${project.contractorEmail}" title="Click to copy email">${project.contractorEmail}</span>` : ''}
           </p>
         </div>
-        <div id="taskContainer-${project.id}" class="task-container collapsed" style="display: none;"></div>
       </div>
+      <div id="taskContainer-${project.id}" class="task-container collapsed" style="display: none;"></div>
       <div class="project-card-actions">
         <button class="project-action-btn view-details-btn" data-project-id="${project.id}" data-sheet-id="${project.sheetId || ''}">View Details</button>
         <button class="project-action-btn view-tasks-btn" data-project-id="${project.id}" data-asana-id="${project.asanaProjectId ? project.asanaProjectId.replace(/["']/g, '') : ''}">View Tasks</button>
@@ -95,6 +98,24 @@
       // Prevent multiple clicks by adding loading state
       if (!this.classList.contains('loading')) {
         this.classList.add('loading');
+      }
+    });
+    
+    // Add event listener for the toggle button
+    const toggleBtn = card.querySelector('.card-toggle-btn');
+    toggleBtn.addEventListener('click', function(event) {
+      const cardContent = card.querySelector('.project-card-content');
+      const toggleIcon = this.querySelector('.toggle-icon');
+      
+      // Toggle the expanded class (collapsed is the default state)
+      if (cardContent.classList.contains('expanded')) {
+        // Currently expanded, collapse it
+        cardContent.classList.remove('expanded');
+        toggleIcon.textContent = 'expand_more';
+      } else {
+        // Currently collapsed, expand it
+        cardContent.classList.add('expanded');
+        toggleIcon.textContent = 'expand_less';
       }
     });
     
@@ -388,9 +409,8 @@
     border-radius: 6px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     width: 100%;
-    overflow-y: scroll;
-    transition: all 0.3s ease;
-    margin-top: 10px; /* Add space between client info and tasks */
+    overflow-y: auto;
+    transition: all 0.5s ease;
   }
   
   /* Client email styles */
@@ -410,7 +430,24 @@
   }
   
   .contact-email.copied {
-    background-color: rgba(76, 175, 80, 0.2);
+    background-color: rgba(38, 113, 125, 0.1);
+    color: #26717D;
+  }
+  
+  .task-container.expanded {
+    max-height: 300px; /* Limit height to trigger scrolling */
+    min-height: 50px; /* Ensure a minimum height for visibility */
+    opacity: 1;
+    padding: 10px;
+    overflow-y: auto;
+  }
+  
+  .task-container.collapsed {
+    max-height: 0;
+    opacity: 0;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
   }
   
   /* Make task items slightly more compact */
@@ -422,24 +459,6 @@
   .toggle-header {
     padding: 6px 10px;
     font-size: 13px;
-  }
-  
-  /* Add some animation for expand/collapse */
-  .task-container.expanded {
-    max-height: 300px; /* Limit height to trigger scrolling */
-    min-height: 50px; /* Ensure a minimum height for visibility */
-    opacity: 1;
-    padding: 10px;
-    margin-top: 10px;
-    overflow-y: auto;
-  }
-  
-  .task-container.collapsed {
-    max-height: 0;
-    opacity: 0;
-    padding: 0;
-    margin: 0;
-    overflow: hidden;
   }
   
   /* Style the scrollbar */
@@ -477,7 +496,45 @@
   }
   
   .project-card-content {
+    overflow: hidden;
     transition: all 0.3s ease;
-    position: relative; /* Create positioning context */
+    max-height: 0;
+    padding: 0 15px;
+    opacity: 0;
+    pointer-events: auto; /* Change from none to auto to allow click events */
+  }
+  
+  .project-card-content.expanded {
+    max-height: 1000px;
+    opacity: 1;
+    padding: 15px;
+  }
+  
+  .card-toggle-btn {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    opacity: 0.7;
+    z-index: 10;
+  }
+  
+  .card-toggle-btn:hover {
+    background-color: rgba(255, 255, 255, 0.4);
+    opacity: 1;
+  }
+  
+  .toggle-icon {
+    transition: transform 0.3s ease;
   }
 </style> 

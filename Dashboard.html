@@ -1911,9 +1911,10 @@
       .projects-container {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        grid-gap: 20px;
+        grid-gap: 40px;
         padding: 20px;
-        max-width: 100%;
+        margin: 0 auto;
+        max-width: 1200px;
         justify-content: center;
       }
       
@@ -1945,7 +1946,7 @@
       }
       
       .project-card:hover {
-        transform: translateY(-4px);
+        transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       }
       
@@ -2033,12 +2034,8 @@
         visibility: visible;
       }
       
-      .project-card-content {
-        padding: 15px;
-      }
-      
       .project-card-status {
-        margin-top: 5px;
+        margin: 5px;
         display: flex;
         align-items: center;
       }
@@ -2752,6 +2749,7 @@
     let ganttDataMode = 'sections';  // Changed default from 'tasks' to 'sections'
     let ganttData = null; // Store the original task data
     let ganttObserver = null; // MutationObserver for detecting chart rendering
+    let currentProjectFilter = 'all'; // Track the currently selected project filter
     
     function setGanttViewMode(mode) {
       ganttViewMode = mode;
@@ -2871,16 +2869,39 @@
       
       console.log('Current view mode:', ganttDataMode);
       
+      // Filter by project if a specific project is selected
+      let filteredTasks = data.tasks;
+      
+      console.log('Filtering tasks - Available projects:', [...new Set(data.tasks.map(t => t.project))]);
+      console.log('Current project filter:', currentProjectFilter);
+      
+      if (currentProjectFilter && currentProjectFilter !== 'all') {
+        // Keep only tasks that belong to the selected project
+        filteredTasks = data.tasks.filter(task => {
+          return task.project === currentProjectFilter;
+        });
+        
+        console.log(`Filtered to ${filteredTasks.length} tasks with project=${currentProjectFilter}`);
+        
+        // If no tasks are found after filtering, display a message
+        if (filteredTasks.length === 0) {
+          document.getElementById('frappeGantt').innerHTML = 
+            '<div class="info-box">No tasks found for project "' + currentProjectFilter + '".</div>';
+          hideDashboardLoading();
+          return;
+        }
+      }
+      
       // Get tasks based on the current view mode
       let tasksToRender;
       
       if (ganttDataMode === 'sections') {
         console.log('Creating section view');
-        tasksToRender = aggregateTasksBySection(data.tasks, projectColorMap);
+        tasksToRender = aggregateTasksBySection(filteredTasks, projectColorMap);
       } else {
         console.log('Creating task view');
         // Format tasks for Frappe Gantt
-        tasksToRender = data.tasks.map(task => ({
+        tasksToRender = filteredTasks.map(task => ({
           id: task.id,
           name: task.name,
           start: task.start_on,
@@ -3132,24 +3153,13 @@
         }
       });
       
-      // Apply filter to tasks
-      if (ganttInstance) {
-        const taskElements = document.querySelectorAll('.gantt .bar-wrapper');
-        taskElements.forEach(element => {
-          const taskId = element.getAttribute('data-id');
-          const task = ganttInstance.get_task(taskId);
-          
-          if (projectName === 'all' || task.project === projectName) {
-            element.style.display = '';
-          } else {
-            element.style.display = 'none';
-          }
-        });
-        
-        // Force a refresh of the Gantt chart to ensure proper rendering
-        if (projectName === 'all') {
-          ganttInstance.refresh(ganttInstance.tasks);
-        }
+      // Store the current project filter
+      currentProjectFilter = projectName;
+      console.log('Current project filter:', currentProjectFilter);
+      
+      // If we have gantt data, redraw the chart with the new filter
+      if (ganttData) {
+        drawFrappeGantt(ganttData);
       }
     }
     
@@ -3668,8 +3678,6 @@
       // to ensure the DOM has time to process each update
       coloredTasks.forEach((task, index) => {
         setTimeout(() => {
-          console.log(`Styling task: ${task.name}, ID: ${task.id}, Color: ${task.projectColor}`);
-          
           // Use more specific and robust selectors
           let barWrappers = document.querySelectorAll(`.gantt .bar-wrapper[data-id="${task.id}"]`);
           let barElements = document.querySelectorAll(`.gantt .bar-wrapper[data-id="${task.id}"] .bar`);
@@ -3737,17 +3745,31 @@
       // Create legend container
       const legendContainer = document.createElement('div');
       legendContainer.className = 'gantt-legend';
-      legendContainer.innerHTML = '<div class="legend-title">Projects:</div>';
       
-      // Add project color squares
+      // Add "All Projects" option first
+      const allProjectsItem = document.createElement('div');
+      allProjectsItem.className = 'legend-item' + (currentProjectFilter === 'all' ? ' active' : '');
+      allProjectsItem.innerHTML = `
+        <span class="legend-color all-projects"></span>
+        <span class="legend-label">All Projects</span>
+      `;
+      allProjectsItem.onclick = function() {
+        toggleProjectFilter('all');
+      };
+      legendContainer.appendChild(allProjectsItem);
+      
+      // Add each project with its color
       Object.keys(projectMap).forEach(projectName => {
         const color = projectMap[projectName];
         const projectItem = document.createElement('div');
-        projectItem.className = 'legend-item';
+        projectItem.className = 'legend-item' + (currentProjectFilter === projectName ? ' active' : '');
         projectItem.innerHTML = `
           <div class="legend-color" style="background-color: ${color}"></div>
           <div class="legend-label">${projectName}</div>
         `;
+        projectItem.onclick = function() {
+          toggleProjectFilter(projectName);
+        };
         legendContainer.appendChild(projectItem);
       });
       
