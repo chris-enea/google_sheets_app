@@ -1,0 +1,5130 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_blank">
+    <meta charset="utf-8">
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;500;700&family=Tenor+Sans&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+      html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      
+      body {
+        font-family: 'Lato', sans-serif;
+        color: #000000;
+        background-color: #FFFFFF;
+        line-height: 1.4;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        min-height: 100%;
+        overflow: hidden;
+      }
+      
+      *, *:before, *:after {
+        box-sizing: inherit;
+      }
+      
+      .app-container {
+        display: flex;
+        height: 100%;
+      }
+      
+      /* Sidebar styles */
+      .sidebar {
+        width: 30%;
+        max-width: 320px;
+        min-width: 240px;
+        border-right: 1px solid rgba(38, 113, 125, 0.2);
+        display: flex;
+        flex-direction: row;
+        height: 100%;
+        transition: all 0.3s ease;
+      }
+      
+      .sidebar.collapsed {
+        width: 50px;
+        min-width: 50px;
+      }
+      
+      /* Vertical tabs */
+      .sidebar-tabs {
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid rgba(38, 113, 125, 0.2);
+        background-color: #f5f5f5;
+        width: 50px;
+        flex-shrink: 0;
+        overflow-y: auto;
+        max-height: 100%;
+      }
+      
+      .sidebar-tab {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        padding: 15px 0;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        height: 60px;
+      }
+      
+      /* Special height for home tab */
+      .sidebar-tab[data-tab="home"] {
+        height: 50px;
+      }
+      
+      .sidebar-tab:hover {
+        background-color: rgba(38, 113, 125, 0.05);
+      }
+      
+      .sidebar-tab.active {
+        background-color: rgba(38, 113, 125, 0.1);
+        border-right: 3px solid #26717D;
+      }
+      
+      .sidebar-tab i {
+        color: #26717D;
+        font-size: 20px;
+      }
+      
+      .sidebar-tab span {
+        margin-top: 4px;
+        font-size: 11px;
+        text-align: center;
+        display: none;
+      }
+      
+      /* Tooltip for sidebar tabs */
+      .sidebar-tab {
+        position: relative;
+      }
+      
+      /* Custom Norton logo for home tab */
+      .tab-logo {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      
+      .tab-logo svg {
+        width: 24px;
+        height: 30px;
+      }
+      
+      /* In collapsed mode, make the SVG slightly smaller */
+      .sidebar.collapsed .tab-logo svg {
+        width: 20px;
+        height: 25px;
+      }
+      
+      /* Override display none for project header */
+      .project-header {
+        display: flex !important;
+        padding: 12px;
+        border-bottom: 1px solid rgba(38, 113, 125, 0.2);
+        font-family: 'Tenor Sans', sans-serif;
+        font-weight: 400;
+        font-size: 16px;
+        color: #26717D;
+        align-items: center;
+        justify-content: space-between;
+        height: 50px;
+        box-sizing: border-box;
+      }
+      
+      .sidebar-tab:hover::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        left: 60px;
+        top: 50%;
+        transform: translateY(-50%);
+        background-color: rgba(38, 113, 125, 0.9);
+        color: white;
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        white-space: nowrap;
+        z-index: 1000;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.2s, visibility 0.2s;
+      }
+      
+      /* Only show tooltip when sidebar is collapsed */
+      .sidebar.collapsed .sidebar-tab:hover::after {
+        opacity: 1;
+        visibility: visible;
+      }
+      
+      /* Add arrow to tooltip */
+      .sidebar.collapsed .sidebar-tab:hover::before {
+        content: '';
+        position: absolute;
+        left: 50px;
+        top: 50%;
+        transform: translateY(-50%);
+        border: 6px solid transparent;
+        border-right-color: rgba(38, 113, 125, 0.9);
+        z-index: 1000;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.2s, visibility 0.2s;
+      }
+      
+      .sidebar.collapsed .sidebar-tab:hover::before {
+        opacity: 1;
+        visibility: visible;
+      }
+      
+      /* Sidebar sections container */
+      .sidebar-sections {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      
+      .sidebar-content {
+        display: none;
+        flex-direction: column;
+        flex: 1;
+        overflow-y: auto;
+      }
+      
+      .sidebar-content.active {
+        display: flex;
+      }
+      
+      .sidebar.collapsed .sidebar-sections {
+        display: none;
+      }
+      
+      .sidebar.collapsed .sidebar-tab span {
+        opacity: 0;
+        width: 0;
+      }
+      
+      .sidebar.collapsed .sidebar-content {
+        display: none;
+        flex-direction: column;
+        flex: 1;
+      }
+      
+      .sidebar.collapsed .sidebar-footer {
+        display: none;
+      }
+      
+      /* Hide sidebar headers */
+      .sidebar-content .sidebar-header {
+        display: none;
+      }
+      
+      /* Exception for rooms sidebar header */
+      #rooms-content .sidebar-header {
+        display: block;
+        padding: 16px;
+        height: auto;
+        min-height: 50px;
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      
+      #rooms-content .sidebar-header h2 {
+        margin-bottom: 15px;
+      }
+      
+      /* Add padding to the sidebarRoomManagerContent */
+      #sidebarRoomManagerContent {
+        padding: 10px;
+      }
+      
+      .sidebar-toggle {
+        position: absolute;
+        bottom: 15px;
+        left: 10px;
+        width: 30px;
+        height: 30px;
+        background: #26717D;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        z-index: 100;
+        transition: left 0.3s ease;
+      }
+      
+      .sidebar-toggle.collapsed {
+        left: 10px;
+      }
+      
+      .sidebar-icon {
+        display: none;
+        text-align: center;
+        padding: 15px 0;
+        font-size: 20px;
+        color: #26717D;
+      }
+      
+      .sidebar.collapsed .sidebar-icon {
+        display: block;
+      }
+      
+      .sidebar.collapsed .sidebar-header h2 span,
+      .sidebar.collapsed .sidebar-header h2 i.material-icons,
+      .sidebar.collapsed .sidebar-body,
+      .sidebar.collapsed .sidebar-footer {
+        display: none;
+      }
+      
+      /* Sidebar body with padding */
+      .sidebar-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 15px;
+      }
+      
+      /* Meeting-related styles */
+      .meeting-item {
+        background-color: white;
+        border-radius: 4px;
+        padding: 12px;
+        margin-bottom: 10px;
+        border-left: 3px solid #26717D;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      }
+      
+      .meeting-title {
+        font-weight: 500;
+        margin-bottom: 5px;
+      }
+      
+      .meeting-time {
+        font-size: 12px;
+        color: #666;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      
+      .meeting-time i {
+        font-size: 14px;
+      }
+      
+      .meeting-attendees {
+        font-size: 12px;
+        color: #666;
+        margin-top: 8px;
+      }
+      
+      .no-meetings {
+        text-align: center;
+        color: #6c757d;
+        padding: 20px 0;
+      }
+      
+      /* Client email styling */
+      #clientEmailContainer {
+        margin-bottom: 10px;
+      }
+      
+      #clientEmailView {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+        justify-content: space-between;
+      }
+      
+      .client-email-link {
+        color: #26717D;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 85%;
+      }
+      
+      .client-email-link:hover {
+        text-decoration: underline;
+      }
+      
+      .btn-small {
+        background-color: transparent;
+        border: 1px solid #B2C8CB;
+        border-radius: 4px;
+        cursor: pointer;
+        color: #26717D;
+        transition: all 0.2s ease;
+      }
+      
+      .btn-small:hover {
+        background-color: rgba(38, 113, 125, 0.1);
+      }
+      
+      .main-content {
+        flex: 1;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        background-color: #FFFFFF;
+        overflow-y: auto;
+      }
+      
+      .sidebar-header, .content-header {
+        padding: 0 12px;
+        border-bottom: 1px solid rgba(38, 113, 125, 0.2);
+        height: 50px;
+        align-content: center;
+      }
+      
+      .sidebar-body, .content-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 0 0 12px 0;
+      }
+      
+      .content-body {
+        padding: 12px;
+        position: relative;
+        flex: 1;
+        overflow-y: auto;
+      }
+      
+      .sidebar-footer, .content-footer {
+        padding: 8px 12px;
+        border-top: 1px solid rgba(38, 113, 125, 0.2);
+        text-align: right;
+      }
+      
+      h2 {
+        font-family: 'Tenor Sans', sans-serif;
+        font-weight: 400;
+        font-size: 18px;
+        color: #000000;
+        margin: 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      
+      h2 .material-icons {
+        font-size: 20px;
+        cursor: pointer;
+        opacity: 0.8;
+      }
+      
+      h2 .material-icons:hover {
+        opacity: 1;
+      }
+      
+      .folder {
+        margin-bottom: 2px;
+      }
+      
+      .toggle-header {
+        font-family: 'Lato', sans-serif;
+        font-weight: 400;
+        font-size: 14px;
+        cursor: pointer;
+        background: rgba(38, 113, 125, 0.05);
+        padding: 8px 12px;
+        margin-bottom: 2px;
+        display: flex;
+        align-items: center;
+        transition: background-color 0.2s;
+        color: #000000;
+      }
+      
+      .toggle-header:hover {
+        background: rgba(38, 113, 125, 0.1);
+      }
+      
+      .toggle-header .material-icons {
+        margin-right: 8px;
+        color: #26717D;
+        flex-shrink: 0;
+        font-size: 18px;
+      }
+      
+      .file-list {
+        display: none;
+        margin-left: 24px;
+        padding: 0;
+      }
+      
+      /* Asana tasks styling */
+      .task-list {
+        margin-left: 24px;
+        padding: 0;
+      }
+      
+      .task-item {
+        margin: 2px 0;
+        padding: 6px 12px;
+        display: flex;
+        align-items: flex-start;
+        font-size: 13px;
+        border-radius: 4px;
+        transition: background-color 0.2s;
+        color: #000000;
+      }
+      
+      .task-item:hover {
+        background-color: rgba(38, 113, 125, 0.1);
+      }
+      
+      .task-icon {
+        font-size: 16px;
+        margin-right: 8px;
+        color: #26717D;
+        flex-shrink: 0;
+      }
+      
+      .task-content {
+        flex: 1;
+        min-width: 0;
+      }
+      
+      .task-name {
+        word-break: break-word;
+      }
+      
+      .task-meta {
+        display: flex;
+        flex-wrap: wrap;
+        margin-top: 4px;
+        color: #7B763B;
+        font-size: 11px;
+      }
+      
+      .task-date, .task-assignee {
+        margin-right: 8px;
+      }
+      
+      .late-task {
+        color: #c7584d;
+      }
+      
+      .soon-task {
+        color: #7B763B;
+      }
+      
+      .completed-task .task-name {
+        text-decoration: line-through;
+        opacity: 0.7;
+      }
+      
+      .completed-task .task-icon {
+        color: #26717D;
+      }
+      
+      .section-label {
+        font-size: 12px;
+        color: #7B763B;
+        padding: 6px 12px;
+        margin-top: 10px;
+        margin-bottom: 4px;
+      }
+      
+      .file {
+        margin: 2px 0;
+        padding: 6px 12px;
+        display: flex;
+        align-items: center;
+        font-size: 13px;
+        border-radius: 4px;
+        transition: background-color 0.2s;
+        color: #000000;
+      }
+      
+      .file:hover {
+        background-color: rgba(38, 113, 125, 0.1);
+      }
+      
+      .file .material-icons {
+        font-size: 16px;
+        margin-right: 8px;
+        color: #26717D;
+        flex-shrink: 0;
+      }
+      
+      .file a {
+        color: #000000;
+        text-decoration: none;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        display: inline-block;
+        max-width: calc(100% - 24px);
+      }
+      
+      .file a:hover {
+        text-decoration: underline;
+      }
+      
+      .welcome-message {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        text-align: center;
+        color: #7B763B;
+        padding: 0 20px;
+      }
+      
+      .welcome-message .material-icons {
+        font-size: 48px;
+        margin-bottom: 16px;
+        color: #26717D;
+      }
+      
+      .welcome-message h3 {
+        margin: 0 0 8px 0;
+        color: #000000;
+        font-weight: 500;
+        font-family: 'Tenor Sans', sans-serif;
+      }
+      
+      .welcome-message p {
+        margin: 0;
+        font-size: 14px;
+        max-width: 400px;
+      }
+      
+      .info-box {
+        padding: 12px;
+        border-radius: 4px;
+        margin-bottom: 16px;
+        background-color: rgba(38, 113, 125, 0.1);
+        color: #26717D;
+        border: 1px solid rgba(38, 113, 125, 0.2);
+        font-size: 13px;
+      }
+      
+      .error-box {
+        padding: 12px;
+        border-radius: 4px;
+        background-color: rgba(123, 118, 59, 0.1);
+        color: #7B763B;
+        border: 1px solid rgba(123, 118, 59, 0.2);
+        font-size: 13px;
+      }
+      
+      .empty-state {
+        padding: 24px 16px;
+        text-align: center;
+        color: #7B763B;
+        font-size: 13px;
+      }
+      
+      .empty-state .material-icons {
+        font-size: 36px;
+        color: #26717D;
+        margin-bottom: 8px;
+      }
+      
+      .btn {
+        font-family: 'Tenor Sans', sans-serif;
+        background-color: #26717D;
+        color: #FFFFFF;
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        font-size: 14px;
+        font-weight: 400;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        transition: all 0.2s ease;
+      }
+      
+      .btn:hover {
+        background-color: #1d5b65;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      
+      .btn .material-icons {
+        font-size: 16px;
+        margin-right: 8px;
+      }
+      
+      .btn-outline {
+        background-color: #FFFFFF;
+        color: #26717D;
+        border: 1px solid #26717D;
+        margin-right: 8px;
+      }
+      
+      .btn-outline:hover {
+        background-color: rgba(38, 113, 125, 0.05);
+        transform: translateY(-1px);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      }
+      
+      .loading {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        color: #7B763B;
+        padding: 40px 0;
+      }
+      
+      .loading .material-icons {
+        font-size: 24px;
+        margin-right: 12px;
+      }
+      
+      .loading > .material-icons {
+        animation: rotate 2s linear infinite;
+      }
+      
+      @keyframes rotate {
+        100% { transform: rotate(360deg); }
+      }
+      
+      /* Budget styles */
+      .budget-card {
+        background-color: rgba(38, 113, 125, 0.05);
+        border-radius: 4px;
+        margin-bottom: 8px;
+        overflow: hidden;
+        transition: background-color 0.2s;
+      }
+      
+      .budget-card:hover {
+        background-color: rgba(38, 113, 125, 0.1);
+      }
+      
+      .budget-header {
+        padding: 8px 12px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      
+      .room-name {
+        font-weight: 500;
+      }
+      
+      .budget-metrics {
+        display: flex;
+        justify-content: space-between;
+        padding: 6px 12px;
+        font-size: 12px;
+        color: #7B763B;
+      }
+      
+      .budget-details {
+        display: none;
+        padding: 8px 0;
+        border-top: 1px solid rgba(38, 113, 125, 0.2);
+        font-size: 12px;
+      }
+      
+      .budget-item {
+        padding: 4px 12px;
+        display: flex;
+        justify-content: space-between;
+      }
+      
+      .budget-item:nth-child(odd) {
+        background-color: rgba(38, 113, 125, 0.03);
+      }
+      
+      .budget-summary-box {
+        background-color: rgba(38, 113, 125, 0.1);
+        border-radius: 4px;
+        padding: 12px;
+        margin-bottom: 16px;
+      }
+      
+      .budget-summary-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 4px;
+      }
+      
+      .budget-summary-row:last-child {
+        margin-top: 4px;
+        padding-top: 4px;
+        border-top: 1px solid rgba(38, 113, 125, 0.2);
+      }
+      
+      .budget-label {
+        font-weight: 500;
+      }
+      
+      .budget-value {
+        font-family: 'Tenor Sans', sans-serif;
+      }
+      
+      .budget-content {
+        padding: 20px;
+      }
+      
+      .budget-room-card {
+        background-color: #FFFFFF;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        overflow: hidden;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+      }
+      
+      .item-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+        padding: 8px 12px;
+        border-bottom: 1px solid rgba(38, 113, 125, 0.2);
+      }
+      
+      .item-header {
+        font-weight: 500;
+        color: #7B763B;
+        font-size: 13px;
+        flex: 1;
+      }
+      
+      .text-right {
+        text-align: right;
+      }
+      
+      .room-header {
+        padding: 16px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      
+      .room-name {
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 1;
+      }
+      
+      .room-name .material-icons {
+        font-size: 20px;
+        opacity: 0.7;
+      }
+      
+      .room-budget {
+        font-family: 'Tenor Sans', sans-serif;
+        color: #000000;
+        font-size: 14px;
+        margin-left: auto;
+        margin-right: 8px;
+      }
+      
+      /* Custom checkbox styling for task checkboxes */
+      input[type="checkbox"] {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 20px;
+        height: 20px;
+        border: 2px solid #B2C8CB;
+        border-radius: 3px;
+        background-color: #FFFFFF;
+        position: relative;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      
+      input[type="checkbox"]:checked {
+        background-color: #26717D;
+        border-color: #26717D;
+      }
+      
+      input[type="checkbox"]:checked::after {
+        content: '';
+        position: absolute;
+        width: 5px;
+        height: 10px;
+        border: solid white;
+        border-width: 0 2px 2px 0;
+        top: 1px;
+        left: 5px;
+        transform: rotate(45deg);
+      }
+      
+      input[type="checkbox"]:hover {
+        border-color: #26717D;
+      }
+      
+      /* Room Manager Styles (embedded ItemManager) */
+      .room-manager-content {
+        padding: 20px;
+      }
+      
+      .room-checklist {
+        margin-bottom: 20px;
+        max-height: 400px;
+        overflow-y: auto;
+        border: 1px solid rgba(38, 113, 125, 0.2);
+        border-radius: 4px;
+        padding: 5px 0;
+        background-color: #F5F3F1;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+      }
+      
+      .room-checklist-item {
+        padding: 6px 16px;
+        display: flex;
+        align-items: center;
+        transition: all 0.2s ease;
+        user-select: none;
+      }
+      
+      .room-checklist-item:hover {
+        background-color: rgba(38, 113, 125, 0.05);
+      }
+      
+      .room-checklist-item-label {
+        margin-left: 12px;
+        flex-grow: 1;
+        font-size: 14px;
+      }
+      
+      .add-room-container {
+        margin-top: 24px;
+        margin-bottom: 24px;
+        background-color: #F5F3F1;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+        border: 1px solid rgba(38, 113, 125, 0.2);
+      }
+      
+      /* Item Update Styles - New implementation matching ItemUpdate.html */
+      .column-headers {
+        display: flex;
+        margin-bottom: 16px;
+        align-items: center;
+        border-bottom: 1px solid rgba(123, 118, 59, 0.2);
+        padding-bottom: 2px;
+        column-gap: 8px;
+      }
+      
+      .column-header {
+        font-family: 'Tenor Sans', sans-serif;
+        font-size: 13px;
+        font-weight: 400;
+        color: #7B763B;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        gap: 8px;
+      }
+      
+      .item-header {
+        width: 200px;
+        margin-left: 0;
+      }
+      
+      .type-header {
+        flex: 1;
+      }
+      
+      .quantity-header {
+        width: 50px;
+        text-align: center;
+      }
+      
+      .budget-header {
+        width: 110px;
+        text-align: center;
+      }
+      
+      .actions-header {
+        text-align: center;
+      }
+      
+      .items-container {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      
+      .item-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      input[type="text"], input[type="number"] {
+        padding: 8px;
+        box-sizing: border-box;
+        border: 1px solid #B2C8CB;
+        border-radius: 4px;
+        background-color: #FFFFFF;
+        color: #000000;
+        font-family: 'Lato', sans-serif;
+        font-size: 14px;
+      }
+      
+      .item-input-container {
+        position: relative;
+        flex: 1;
+      }
+      
+      .autocomplete-list {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        z-index: 1000;
+        width: 100%;
+        max-height: 300px;
+        overflow-y: auto;
+        background-color: #fff;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        display: none;
+        margin-top: 2px;
+      }
+      
+      .autocomplete-item {
+        padding: 10px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 14px;
+        line-height: 1.4;
+        transition: background-color 0.15s ease;
+      }
+      
+      .autocomplete-item:last-child {
+        border-bottom: none;
+      }
+      
+      .autocomplete-item:hover {
+        background-color: #f5f8ff;
+      }
+      
+      .autocomplete-active {
+        background-color: #e8f0fe;
+        border-left: 3px solid #4285f4;
+        padding-left: 9px;
+      }
+      
+      .item-input {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+      
+      .item-input:focus {
+        outline: none;
+        border-color: #4285f4;
+        box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.1);
+      }
+      
+      .type-input {
+        width: 100%;
+      }
+      
+      .quantity-input {
+        width: 50px;
+        text-align: center;
+      }
+      
+      .budget-input-container {
+        position: relative;
+        width: 110px;
+      }
+      
+      .budget-input {
+        width: 100%;
+        padding: 10px 10px 10px 24px;
+        box-sizing: border-box;
+        text-align: right;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        -moz-appearance: textfield;
+      }
+      
+      .budget-input::-webkit-outer-spin-button,
+      .budget-input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+      
+      .currency-symbol {
+        position: absolute;
+        left: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #7B763B;
+        font-size: 14px;
+        pointer-events: none;
+        z-index: 1;
+      }
+      
+      .delete-button {
+        background: none;
+        color: #7B763B;
+        border: none;
+        cursor: pointer;
+        font-size: 18px;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.2s ease;
+      }
+      
+      .delete-button-container {
+        width: 100px;
+        display: flex;
+        justify-content: center;
+      }
+      
+      .delete-button:hover {
+        color: #26717D;
+        background-color: rgba(38, 113, 125, 0.1);
+      }
+      
+      .room-container {
+        margin-bottom: 32px;
+        border: 1px solid rgba(38, 113, 125, 0.2);
+        border-radius: 8px;
+        padding: 20px;
+        background-color: #F5F3F1;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+      }
+      
+      .room-title {
+        font-family: 'Tenor Sans', sans-serif;
+        font-size: 18px;
+        font-weight: 400;
+        color: #26717D;
+      }
+      
+      .add-more-row {
+        margin-top: 16px;
+        display: flex;
+        justify-content: start;
+      }
+      
+      .add-item-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px dashed #B2C8CB;
+        border-radius: 4px;
+        padding: 8px 16px;
+        background-color: rgba(38, 113, 125, 0.05);
+        color: #26717D;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.2s ease;
+      }
+      
+      .add-item-btn:hover {
+        background-color: rgba(38, 113, 125, 0.1);
+      }
+      
+      .add-item-btn .material-icons {
+        margin-right: 8px;
+        font-size: 18px;
+      }
+      
+      /* Autocomplete styles */
+      .autocomplete {
+        position: relative;
+      }
+      
+      .autocomplete-items {
+        position: absolute;
+        border: 1px solid rgba(38, 113, 125, 0.3);
+        border-top: none;
+        z-index: 99;
+        top: 100%;
+        left: 0;
+        right: 0;
+        max-height: 200px;
+        overflow-y: auto;
+        background-color: #FFFFFF;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        border-radius: 0 0 4px 4px;
+      }
+      
+      .autocomplete-items div {
+        padding: 8px 10px;
+        cursor: pointer;
+      }
+      
+      .autocomplete-items div:hover {
+        background-color: rgba(38, 113, 125, 0.1);
+      }
+      
+      .autocomplete-active {
+        background-color: rgba(38, 113, 125, 0.1) !important;
+      }
+      
+      /* Dashboard Loading Overlay */
+      .dashboard-loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        flex-direction: column;
+      }
+      
+      .dashboard-loading-spinner {
+        border: 4px solid rgba(38, 113, 125, 0.1);
+        border-top: 4px solid #26717D;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        margin-bottom: 16px;
+        animation: spin 1s linear infinite;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      
+      .dashboard-instructions, .instructions {
+        margin-bottom: 20px;
+        color: #000000;
+        font-size: 14px;
+      }
+      
+      /* Dashboard Status Message */
+      .status-message {
+        padding: 10px 16px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+        font-family: 'Tenor Sans', sans-serif;
+        font-size: 14px;
+        display: none;
+      }
+      
+      .status-message.success {
+        background-color: rgba(38, 113, 125, 0.1);
+        color: #26717D;
+        border: 1px solid rgba(38, 113, 125, 0.2);
+        display: block;
+      }
+      
+      .status-message.error {
+        background-color: rgba(123, 118, 59, 0.1);
+        color: #7B763B;
+        border: 1px solid rgba(123, 118, 59, 0.2);
+        display: block;
+      }
+      
+      /* Room filter styling */
+      #filter-container {
+        margin-bottom: 20px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      
+      #room-filter {
+        padding: 4px 10px;
+        box-sizing: border-box;
+        border: 1px solid #B2C8CB;
+        border-radius: 4px;
+        background-color: #FFFFFF;
+        color: #000000;
+        font-family: 'Lato', sans-serif;
+        font-size: 14px;
+        width: 200px;
+      }
+      
+      #room-filter:focus {
+        border-color: #26717D;
+        outline: none;
+      }
+      
+      .filter-label {
+        color: #000000;
+        font-size: 14px;
+      }
+      
+      /* Adjust sidebar body to take full height without the header */
+      .sidebar-body {
+        padding-top: 0px;
+      }
+      
+      /* Action buttons for folders and tasks */
+      .sidebar-action-buttons {
+        display: flex;
+        justify-content: flex-end;
+        padding: 8px 12px;
+        border-bottom: 1px solid rgba(38, 113, 125, 0.1);
+      }
+      
+      .sidebar-action-buttons button {
+        margin-left: 8px;
+      }
+      
+      /* Move action buttons to bottom */
+      .sidebar-action-buttons {
+        border-bottom: none;
+        border-top: 1px solid rgba(38, 113, 125, 0.1);
+        margin-top: auto; /* Push to bottom of flex container */
+      }
+      
+      /* Placeholder content for new tabs */
+      .placeholder-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 30px 20px;
+        color: #26717D;
+        opacity: 0.7;
+        text-align: center;
+      }
+      
+      .placeholder-content i {
+        font-size: 48px;
+        margin-bottom: 16px;
+      }
+      
+      .placeholder-content p {
+        margin: 0;
+        font-size: 14px;
+      }
+      
+      /* Project Summary Styles */
+      .summary-section {
+        margin-bottom: 20px;
+        padding: 15px;
+        background-color: #f9f9f9;
+        border-radius: 6px;
+        border-left: 3px solid #26717D;
+      }
+      
+      .summary-section h3 {
+        font-family: 'Tenor Sans', sans-serif;
+        font-size: 14px;
+        font-weight: 400;
+        color: #26717D;
+        margin: 0 0 10px 0;
+      }
+      
+      .summary-stat {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 5px;
+      }
+      
+      .stat-label {
+        color: #666;
+        font-size: 13px;
+      }
+      
+      .stat-value {
+        font-weight: 500;
+        font-size: 13px;
+      }
+      
+      /* Loading indicator */
+      .loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        color: #26717D;
+        font-size: 14px;
+      }
+      
+      .loading i {
+        margin-right: 8px;
+        animation: spin 1.5s linear infinite;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      
+      /* Help Icon Tooltip */
+      .help-icon {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        width: 24px;
+        height: 24px;
+        background-color: #26717D;
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 16px;
+        z-index: 100;
+        transition: background-color 0.2s;
+      }
+      
+      .help-icon:hover {
+        background-color: #1d5b65;
+      }
+      
+      .tooltip {
+        position: relative;
+        display: inline-block;
+      }
+      
+      .tooltip .tooltip-text {
+        visibility: hidden;
+        width: 300px;
+        background-color: white;
+        color: #000;
+        text-align: left;
+        border-radius: 6px;
+        padding: 12px;
+        position: absolute;
+        z-index: 101;
+        top: 30px;
+        right: 0;
+        opacity: 0;
+        transition: opacity 0.3s;
+        box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+        border: 1px solid rgba(38, 113, 125, 0.2);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      
+      .tooltip:hover .tooltip-text {
+        visibility: visible;
+        opacity: 1;
+      }
+      
+      /* Add these styles to the existing CSS section */
+      .meeting-card {
+        background-color: white;
+        border-radius: 8px;
+        margin-bottom: 12px;
+        padding: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+      
+      .meeting-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+      }
+      
+      .meeting-link {
+        display: flex;
+        padding: 16px;
+        text-decoration: none;
+        color: inherit;
+      }
+      
+      .meeting-date {
+        font-weight: 500;
+        color: #26717D;
+        margin-bottom: 4px;
+      }
+      
+      .meeting-hours {
+        font-size: 0.9em;
+        color: #666;
+      }
+      
+      .meeting-details {
+        flex: 3;
+      }
+      
+      .meeting-title {
+        font-weight: 500;
+        margin-bottom: 8px;
+        color: #333;
+      }
+      
+      .meeting-location {
+        display: flex;
+        align-items: center;
+        font-size: 0.9em;
+        color: #666;
+        margin-bottom: 8px;
+      }
+      
+      .meeting-location i {
+        font-size: 16px;
+        margin-right: 4px;
+      }
+      
+      .meeting-description {
+        font-size: 0.9em;
+        color: #666;
+        margin-top: 8px;
+        white-space: pre-wrap;
+      }
+      
+      .meeting-time {
+        flex: 2;
+        font-size: 12px;
+        color: #666;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding-left: 8px;
+        flex-direction: column;
+        align-items: start;
+      }
+      
+      .meeting-time i {
+        font-size: 16px;
+      }
+      
+      .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 0;
+        color: #6c757d;
+        text-align: center;
+      }
+      
+      .empty-state i {
+        font-size: 48px;
+        margin-bottom: 16px;
+        color: #26717D;
+      }
+      
+      .meeting-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      
+      .meeting-action-btn {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 12px;
+        border-radius: 4px;
+        text-decoration: none;
+        font-size: 12px;
+        transition: background-color 0.2s;
+      }
+      
+      .view-btn {
+        background-color: #26717D;
+        color: white;
+      }
+      
+      .view-btn:hover {
+        background-color: #1e5a64;
+      }
+      
+      .edit-btn {
+        background-color: #f0f0f0;
+        color: #333;
+      }
+      
+      .edit-btn:hover {
+        background-color: #e0e0e0;
+      }
+      
+      .meeting-action-btn i {
+        font-size: 16px;
+      }
+      
+      .date-range-info {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 16px;
+        background-color: #f8f9fa;
+        border-top: 1px solid #e9ecef;
+        font-size: 12px;
+        color: #6c757d;
+        margin-top: auto;
+      }
+      
+      .date-range-info i {
+        font-size: 16px;
+        color: #26717D;
+      }
+      
+      .loading-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 0;
+        color: #6c757d;
+      }
+      
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #26717D;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 16px;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      
+      .sidebar-body {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+    </style>
+    
+    <!-- Hidden element to store project ID passed from server -->
+    <div id="projectIdHolder" data-project-id="<?= projectId ?>" style="display: none;"></div>
+    
+    <!-- Project Details Content -->
+    <div class="content-container">
+      <!-- Loading Indicator -->
+      <div id="loadingIndicator" class="loading-indicator">
+        <div class="spinner"></div>
+        <div>Loading project details...</div>
+      </div>
+      
+      <!-- Error Message -->
+      <div id="errorMessage" class="error-message" style="display: none; padding: 20px;"></div>
+      
+      <!-- Project Content - Will be shown after loading -->
+      <div id="projectContent" style="display: none;">
+        <!-- ... remaining content ... -->
+      </div>
+    </div>
+  </head>
+  <body>
+    <div class="app-container">
+      <!-- Sidebar -->
+      <div class="sidebar">
+        <!-- Sidebar Tabs -->
+        <div class="sidebar-tabs">
+          <div class="sidebar-tab active" data-tab="home" data-tooltip="Project Summary">
+            <i class="material-icons">home</i>
+            <span>Home</span>
+          </div>
+          
+          <div class="sidebar-tab" data-tab="meetings" data-tooltip="Meetings">
+            <i class="material-icons">event</i>
+            <span>Meetings</span>
+          </div>
+          
+          <div class="sidebar-tab" data-tab="budget" data-tooltip="Budget">
+            <i class="material-icons">attach_money</i>
+            <span>Budget</span>
+          </div>
+          <div class="sidebar-tab" data-tab="folders" data-tooltip="Folders">
+            <i class="material-icons">folder</i>
+            <span>Folders</span>
+          </div>
+          <div class="sidebar-tab" data-tab="tasks" data-tooltip="Tasks">
+            <i class="material-icons">task</i>
+            <span>Tasks</span>
+          </div>
+          <div class="sidebar-tab" data-tab="items" data-tooltip="Items">
+            <i class="material-icons">inventory_2</i>
+            <span>Items</span>
+          </div>
+          <div class="sidebar-tab" data-tab="rooms" data-tooltip="Rooms">
+            <i class="material-icons">meeting_room</i>
+            <span>Rooms</span>
+          </div>
+          <div class="sidebar-tab" data-tab="settings" data-tooltip="Settings">
+            <i class="material-icons">settings</i>
+            <span>Settings</span>
+          </div>
+        </div>
+        
+        <!-- Sidebar Content Sections -->
+        <div class="sidebar-sections">
+          <!-- Home/Project Summary Content -->
+          <div id="home-content" class="sidebar-content active">
+            <div class="sidebar-header">
+              <span id="sidebarProjectName">Project Summary</span>
+            </div>
+            <div class="sidebar-body">
+              <div id="projectSummaryContent">
+                <div class="form-group">
+                  <label for="clientEmail">Client Email:</label>
+                  <div id="clientEmailContainer">
+                    <div id="clientEmailView" style="display: none;">
+                      <a id="clientEmailLink" href="mailto:" class="client-email-link">
+                        <span id="clientEmailText"></span>
+                        <i class="material-icons" style="font-size: 16px; margin-left: 8px;">mail</i>
+                      </a>
+                      <button id="editClientEmailBtn" class="btn-small" style="margin-left: 10px; padding: 2px 8px; font-size: 12px;">
+                        <i class="material-icons" style="font-size: 14px;">edit</i>
+                      </button>
+                    </div>
+                    <div id="clientEmailEdit" style="display: none;">
+                      <input type="email" id="clientEmail" class="form-control" placeholder="client@example.com">
+                      <small class="form-text">Used for calendar integration and meetings</small>
+                    </div>
+                  </div>
+                </div>
+                <div class="client-info-section">
+                  <h4>Project Info</h4>
+                  <div id="projectSummaryInfo" class="placeholder-content">
+                    <i class="material-icons">dashboard</i>
+                    <p>Welcome to Norton Interiors</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="sidebar-action-buttons">
+              <button onclick="saveProjectSummary()" class="btn" title="Save Project Info">
+                <i class="material-icons">save</i> Save
+              </button>
+            </div>
+          </div>
+          
+          <div id="meetings-content" class="sidebar-content">
+            <div class="sidebar-header">
+              <div class="tooltip" style="position: relative; width: 100%;">
+                <div class="help-icon-container" style="display: inline-flex; width: 100%; align-items: center;">
+                  <span style="font-weight: 500; color: #26717D;">Upcoming Meetings</span>
+                  <div class="help-icon">
+                    <i class="material-icons">help</i>
+                  </div>
+                </div>
+                <div class="tooltip-text" style="width: 230px; left: 0; top: 30px;">
+                  <p>View upcoming meetings in the next 30 days with this client.</p>
+                </div>
+              </div>
+            </div>
+            <div id="meetingsDisplay" class="sidebar-body">
+              <div id="clientEmailWarning" style="display: none;" class="warning-box">
+                <i class="material-icons" style="margin-top: 1em;">warning</i>
+                <p>Client email not configured. Please <a href="#" id="switchToHomeTab" style="color: #26717D; text-decoration: underline;">add client email in Project Summary</a> to view meetings.</p>
+              </div>
+              <div id="meetingsList">
+                <div class="loading-state">
+                  <div class="spinner"></div>
+                  <p>Loading meetings...</p>
+                </div>
+              </div>
+            </div>
+            <div class="sidebar-action-buttons">
+              <button onclick="refreshMeetings()" class="btn btn-outline" title="Refresh Meetings">
+                <i class="material-icons">sync</i> Refresh
+              </button>
+            </div>
+          </div>
+          
+          <!-- Budget Content (Placeholder) -->
+          <div id="budget-content" class="sidebar-content">
+            <div class="sidebar-body">
+              <div class="placeholder-content">
+                <i class="material-icons">attach_money</i>
+                <p>Budget overview will appear here</p>
+              </div>
+            </div>
+            <div class="sidebar-action-buttons">
+              <button class="btn btn-outline" title="Manage Budget">
+                <i class="material-icons">edit</i>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Items Content (Placeholder) -->
+          <div id="items-content" class="sidebar-content">
+            <div class="sidebar-body">
+              <div class="placeholder-content">
+                <i class="material-icons">inventory_2</i>
+                <p>Items overview will appear here</p>
+              </div>
+            </div>
+            <div class="sidebar-action-buttons">
+              <button class="btn btn-outline" title="Add Item">
+                <i class="material-icons">add</i>
+              </button>
+              <button class="btn btn-outline" title="Manage Items">
+                <i class="material-icons">edit</i>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Rooms Content (Room Manager) -->
+          <div id="rooms-content" class="sidebar-content">
+            <div class="sidebar-header">
+              <!-- Help icon with tooltip -->
+              <div class="tooltip" style="position: relative; width: 100%;">
+                <div class="help-icon-container" style="display: inline-flex; width: 100%; align-items: center;">
+                  <span style="font-weight: 500; color: #26717D;">Manage Rooms</span>
+                  <div class="help-icon" style="position: relative; display: inline-flex; margin-left: 10px; top: 0; right: 0; width: 20px; height: 20px; background-color: #26717D; color: white; border-radius: 50%; align-items: center; justify-content: center; cursor: help;">
+                    <i class="material-icons" style="font-size: 14px;">help</i>
+                  </div>
+                </div>
+                <div class="tooltip-text" style="width: 230px; left: 0; top: 30px;">
+                  <p>Select the rooms you want to add items to. Check the boxes next to room names, or add new rooms using the form below.</p>
+                </div>
+              </div>
+            </div>
+            <div class="sidebar-body">
+              <div id="sidebarRoomManagerContent">
+                <!-- Room content will be loaded dynamically -->
+              </div>
+            </div>
+            <div class="sidebar-action-buttons">
+              <button onclick="saveRoomsFromDashboard('sidebar')" class="btn" title="Continue to Items">
+                <i class="material-icons">arrow_forward</i>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Settings Content (Placeholder) -->
+          <div id="settings-content" class="sidebar-content">
+            <div class="sidebar-body">
+              <div class="placeholder-content">
+                <i class="material-icons">settings</i>
+                <p>Settings will appear here</p>
+              </div>
+            </div>
+            <div class="sidebar-action-buttons">
+              <button class="btn btn-outline" title="Save Settings">
+                <i class="material-icons">save</i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Sidebar Toggle Button -->
+      <button id="sidebarToggle" class="sidebar-toggle" title="Toggle Sidebar">
+        <i class="material-icons">chevron_left</i>
+      </button>
+      
+      <!-- Main Content -->
+      <div class="main-content">
+        <div class="content-header">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2><span id="projectName">Select a file</span></h2>
+            <div>
+              <button onclick="openBudget()" class="btn">
+                <i class="material-icons">attach_money</i> Budget
+              </button>
+              <button onclick="activateSidebarTab('rooms')" class="btn">
+                <i class="material-icons">meeting_room</i> Rooms
+              </button>
+              <button onclick="showManageItems()" class="btn">
+                <i class="material-icons">inventory_2</i> Manage Items
+              </button>
+            </div>
+          </div>
+        </div>
+        <div id="fileContent" class="content-body">
+          <div class="welcome-message">
+            <i class="material-icons">dashboard</i>
+            <h3>Welcome to the Dashboard</h3>
+          </div>
+          
+          <!-- Dashboard Loading Overlay -->
+          <div id="dashboardLoadingOverlay" class="dashboard-loading-overlay" style="display: none;">
+            <div class="dashboard-loading-spinner"></div>
+            <div id="dashboardLoadingMessage">Loading...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Global variable to track which input has an open dropdown
+      let activeAutocompleteInput = null;
+
+      // Function to toggle folder list visibility
+      function toggleList(id) {
+        const list = document.getElementById(id);
+        if (list) {
+          const isVisible = list.style.display === 'block';
+          list.style.display = isVisible ? 'none' : 'block';
+          
+          // Also update the folder icon
+          const header = list.previousElementSibling;
+          if (header) {
+            const folderIcon = header.querySelector('.material-icons:first-child');
+            const chevronIcon = header.querySelector('.material-icons.chevron');
+            
+            if (folderIcon) {
+              folderIcon.textContent = isVisible ? 'folder' : 'folder_open';
+            }
+            
+            if (chevronIcon) {
+              chevronIcon.textContent = isVisible ? 'chevron_right' : 'expand_more';
+            }
+          }
+        }
+      }
+
+      function loadDashboard() {
+        // Clear the current content first
+        const folderDisplay = document.getElementById('folderDisplay');
+        folderDisplay.innerHTML = '';
+        
+        // Create a loading indicator using DOM methods
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'loading';
+        
+        const loadingIcon = document.createElement('i');
+        loadingIcon.className = 'material-icons';
+        loadingIcon.textContent = 'sync';
+        
+        loadingDiv.appendChild(loadingIcon);
+        loadingDiv.appendChild(document.createTextNode(' Loading...'));
+        
+        folderDisplay.appendChild(loadingDiv);
+        
+        // Also load Asana tasks
+        loadAsanaTasks();
+        
+        google.script.run
+          .withSuccessHandler(data => {
+            document.getElementById('projectName').innerText = data.projectName || 'Select a file';
+            
+            // Check for error message
+            if (data.error) {
+              // Clear the container
+              folderDisplay.innerHTML = '';
+              
+              // Create error message using DOM methods
+              const errorBox = document.createElement('div');
+              errorBox.className = 'error-box';
+              
+              const errorStrong = document.createElement('strong');
+              errorStrong.textContent = 'Error:';
+              
+              errorBox.appendChild(errorStrong);
+              errorBox.appendChild(document.createTextNode(' ' + data.error));
+              
+              folderDisplay.appendChild(errorBox);
+              return;
+            }
+            
+            if (!data.files) {
+              // Clear the container
+              folderDisplay.innerHTML = '';
+              
+              // Create empty state using DOM methods
+              const emptyState = document.createElement('div');
+              emptyState.className = 'empty-state';
+              
+              const emptyIcon = document.createElement('i');
+              emptyIcon.className = 'material-icons';
+              emptyIcon.textContent = 'folder_off';
+              
+              const emptyText = document.createElement('p');
+              emptyText.textContent = 'No files found. Please configure a folder in Settings.';
+              
+              emptyState.appendChild(emptyIcon);
+              emptyState.appendChild(emptyText);
+              
+              folderDisplay.appendChild(emptyState);
+              return;
+            }
+            
+            // Use DocumentFragment to build the entire structure once
+            const fragment = document.createDocumentFragment();
+            const folderEntries = Object.entries(data.files);
+            
+            folderEntries.forEach(([folder, files], index) => {
+              const secId = 'sec' + index;
+              
+              // Create folder header
+              const toggleHeader = document.createElement('div');
+              toggleHeader.className = 'toggle-header';
+              
+              const folderIcon = document.createElement('i');
+              folderIcon.className = 'material-icons';
+              folderIcon.textContent = 'folder';
+              
+              const chevronIcon = document.createElement('i');
+              chevronIcon.className = 'material-icons chevron';
+              chevronIcon.style.marginLeft = 'auto';
+              chevronIcon.textContent = 'chevron_right';
+              
+              toggleHeader.appendChild(folderIcon);
+              toggleHeader.appendChild(document.createTextNode(' ' + folder));
+              toggleHeader.appendChild(chevronIcon);
+              
+              toggleHeader.addEventListener('click', function() {
+                const fileList = document.getElementById(secId);
+                fileList.style.display = fileList.style.display === 'block' ? 'none' : 'block';
+                
+                // Toggle the folder icon
+                folderIcon.textContent = fileList.style.display === 'block' ? 'folder_open' : 'folder';
+                
+                // Toggle the chevron icon
+                chevronIcon.textContent = fileList.style.display === 'block' ? 'expand_more' : 'chevron_right';
+              });
+              
+              fragment.appendChild(toggleHeader);
+              
+              // Create file list container
+              const fileList = document.createElement('div');
+              fileList.className = 'file-list';
+              fileList.id = secId;
+              
+              // Group files by type if they have categories
+              const filesByType = {};
+              
+              files.forEach(file => {
+                const type = file.type || 'Other';
+                if (!filesByType[type]) {
+                  filesByType[type] = [];
+                }
+                filesByType[type].push(file);
+              });
+              
+              // Add files by category
+              Object.entries(filesByType).forEach(([type, typeFiles]) => {
+                // Add type label if there are multiple types
+                if (Object.keys(filesByType).length > 1) {
+                  const typeLabel = document.createElement('div');
+                  typeLabel.className = 'section-label';
+                  typeLabel.textContent = type;
+                  fileList.appendChild(typeLabel);
+                }
+                
+                // Add each file
+                typeFiles.forEach(file => {
+                  const fileItem = document.createElement('div');
+                  fileItem.className = 'file';
+                  
+                  // Choose appropriate icon based on file type
+                  let iconName = 'insert_drive_file';
+                  if (file.name.toLowerCase().endsWith('.pdf')) {
+                    iconName = 'picture_as_pdf';
+                  } else if (file.name.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/)) {
+                    iconName = 'image';
+                  } else if (file.name.toLowerCase().match(/\.(doc|docx)$/)) {
+                    iconName = 'description';
+                  } else if (file.name.toLowerCase().match(/\.(xls|xlsx)$/)) {
+                    iconName = 'table_chart';
+                  } else if (type === 'Boards') {
+                    iconName = 'dashboard';
+                  } else if (type === 'Briefs') {
+                    iconName = 'description';
+                  }
+                  
+                  const fileIcon = document.createElement('i');
+                  fileIcon.className = 'material-icons';
+                  fileIcon.textContent = iconName;
+                  
+                  const fileLink = document.createElement('a');
+                  fileLink.href = file.url;
+                  fileLink.target = '_blank';
+                  fileLink.textContent = file.name;
+                  
+                  fileItem.appendChild(fileIcon);
+                  fileItem.appendChild(fileLink);
+                  
+                  // Add click handler to show file content in main area
+                  fileItem.addEventListener('click', (e) => {
+                    if (e.target.tagName !== 'A') {
+                      e.preventDefault();
+                      showFilePreview(file);
+                    }
+                  });
+                  
+                  fileList.appendChild(fileItem);
+                });
+              });
+              
+              fragment.appendChild(fileList);
+            });
+            
+            // Clear the container and add the entire fragment at once
+            folderDisplay.innerHTML = '';
+            folderDisplay.appendChild(fragment);
+          })
+          .withFailureHandler(error => {
+            // Clear the container
+            folderDisplay.innerHTML = '';
+            
+            // Create error message using DOM methods
+            const errorBox = document.createElement('div');
+            errorBox.className = 'error-box';
+            
+            const errorStrong = document.createElement('strong');
+            errorStrong.textContent = 'Error loading data:';
+            
+            errorBox.appendChild(errorStrong);
+            errorBox.appendChild(document.createTextNode(' ' + error));
+            
+            folderDisplay.appendChild(errorBox);
+          })
+          .getDashboardData();
+      }
+      
+      // Function to preview file content in the main area
+      function showFilePreview(file) {
+        // Update the page title
+        document.getElementById('projectName').innerText = file.name;
+        
+        // Show loading indicator in main content area
+        const fileContent = document.getElementById('fileContent');
+        fileContent.innerHTML = '';
+        
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'loading';
+        loadingDiv.style.height = '100%';
+        
+        const loadingIcon = document.createElement('i');
+        loadingIcon.className = 'material-icons';
+        loadingIcon.textContent = 'sync';
+        
+        loadingDiv.appendChild(loadingIcon);
+        loadingDiv.appendChild(document.createTextNode(' Loading preview...'));
+        
+        fileContent.appendChild(loadingDiv);
+        
+        // Determine the content type
+        if (file.embedUrl) {
+          // Display the file using an iframe if it has an embed URL
+          const iframe = document.createElement('iframe');
+          iframe.src = file.embedUrl;
+          iframe.style.width = '100%';
+          iframe.style.height = '100%';
+          iframe.style.border = 'none';
+          iframe.onload = function() {
+            fileContent.innerHTML = '';
+            fileContent.appendChild(iframe);
+          };
+          iframe.onerror = function() {
+            fileContent.innerHTML = '';
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-box';
+            errorDiv.innerHTML = '<strong>Error:</strong> Unable to load file preview. <a href="' + file.url + '" target="_blank">Open in Google Drive</a> instead.';
+            fileContent.appendChild(errorDiv);
+          };
+          
+          // Set iframe src after adding error handler
+          setTimeout(() => {
+            iframe.src = file.embedUrl;
+          }, 100);
+        } else if (file.thumbnailUrl) {
+          // Show thumbnail for images
+          const imageContainer = document.createElement('div');
+          imageContainer.style.padding = '20px';
+          imageContainer.style.textAlign = 'center';
+          
+          const image = document.createElement('img');
+          image.src = file.thumbnailUrl;
+          image.style.maxWidth = '100%';
+          image.style.maxHeight = '80vh';
+          image.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+          
+          const caption = document.createElement('p');
+          caption.textContent = file.name;
+          caption.style.marginTop = '10px';
+          
+          const openLink = document.createElement('a');
+          openLink.href = file.url;
+          openLink.target = '_blank';
+          openLink.textContent = 'Open in Google Drive';
+          openLink.className = 'btn';
+          openLink.style.marginTop = '15px';
+          openLink.style.display = 'inline-block';
+          
+          imageContainer.appendChild(image);
+          imageContainer.appendChild(caption);
+          imageContainer.appendChild(openLink);
+          
+          fileContent.innerHTML = '';
+          fileContent.appendChild(imageContainer);
+        } else {
+          // Show a message that preview is not available
+          fileContent.innerHTML = '';
+          
+          const noPreviewDiv = document.createElement('div');
+          noPreviewDiv.className = 'empty-state';
+          noPreviewDiv.style.padding = '20px';
+          
+          const noPreviewIcon = document.createElement('i');
+          noPreviewIcon.className = 'material-icons';
+          noPreviewIcon.textContent = 'visibility_off';
+          noPreviewIcon.style.fontSize = '48px';
+          noPreviewIcon.style.marginBottom = '15px';
+          
+          const noPreviewText = document.createElement('p');
+          noPreviewText.textContent = 'Preview not available for this file type.';
+          
+          const openBtn = document.createElement('a');
+          openBtn.href = file.url;
+          openBtn.target = '_blank';
+          openBtn.className = 'btn';
+          openBtn.textContent = 'Open in Google Drive';
+          openBtn.style.marginTop = '15px';
+          openBtn.style.display = 'inline-block';
+          
+          noPreviewDiv.appendChild(noPreviewIcon);
+          noPreviewDiv.appendChild(noPreviewText);
+          noPreviewDiv.appendChild(openBtn);
+          
+          fileContent.appendChild(noPreviewDiv);
+        }
+      }
+      
+      function refreshDashboard() {
+        loadDashboard();
+      }
+      
+      function openSettings() {
+        google.script.run.showBasicSettings();
+      }
+      
+      function openBudget() {
+        google.script.run.showBudgetDialog();
+      }
+      
+      function openItemManager() {
+        google.script.run.showItemManager();
+      }
+      
+      function loadAsanaTasks() {
+        const taskDisplay = document.getElementById('taskDisplay');
+        
+        // Clear the current content
+        taskDisplay.innerHTML = '';
+        
+        // Create loading indicator using DOM
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'loading';
+        
+        const loadingIcon = document.createElement('i');
+        loadingIcon.className = 'material-icons';
+        loadingIcon.textContent = 'sync';
+        
+        loadingDiv.appendChild(loadingIcon);
+        loadingDiv.appendChild(document.createTextNode(' Loading tasks...'));
+        
+        taskDisplay.appendChild(loadingDiv);
+        
+        google.script.run
+          .withSuccessHandler(displayTasks)
+          .withFailureHandler(handleTaskError)
+          .getAsanaTasks();
+      }
+      
+      function refreshTasks() {
+        loadAsanaTasks();
+      }
+      
+      function createNewTask() {
+        google.script.run.showAsanaTaskForm();
+      }
+      
+      function displayTasks(result) {
+        const taskContainer = document.getElementById('taskDisplay');
+        
+        // Clear the current content
+        taskContainer.innerHTML = '';
+        
+        // Create a document fragment to minimize reflows
+        const fragment = document.createDocumentFragment();
+        
+        if (!result.success) {
+          // Check if error is about credentials not being configured
+          if (result.error && result.error.includes("credentials not configured")) {
+            const infoBox = document.createElement('div');
+            infoBox.className = 'info-box';
+            
+            const infoText = document.createElement('p');
+            infoText.textContent = 'Asana integration not configured.';
+            
+            const configButton = document.createElement('button');
+            configButton.className = 'btn btn-outline';
+            configButton.style.marginTop = '8px';
+            configButton.addEventListener('click', openSettings);
+            
+            const configIcon = document.createElement('i');
+            configIcon.className = 'material-icons';
+            configIcon.textContent = 'settings';
+            
+            configButton.appendChild(configIcon);
+            configButton.appendChild(document.createTextNode(' Configure Asana'));
+            
+            infoBox.appendChild(infoText);
+            infoBox.appendChild(configButton);
+            fragment.appendChild(infoBox);
+          } else {
+            const errorBox = document.createElement('div');
+            errorBox.className = 'error-box';
+            
+            const errorStrong = document.createElement('strong');
+            errorStrong.textContent = 'Error:';
+            
+            errorBox.appendChild(errorStrong);
+            errorBox.appendChild(document.createTextNode(' ' + (result.error || 'Failed to load tasks')));
+            fragment.appendChild(errorBox);
+          }
+          
+          taskContainer.appendChild(fragment);
+          return;
+        }
+        
+        if (!result.tasks || Object.keys(result.tasks).length === 0) {
+          const emptyState = document.createElement('div');
+          emptyState.className = 'empty-state';
+          
+          const emptyIcon = document.createElement('i');
+          emptyIcon.className = 'material-icons';
+          emptyIcon.textContent = 'task_alt';
+          
+          const emptyText = document.createElement('p');
+          emptyText.textContent = 'No tasks found';
+          
+          emptyState.appendChild(emptyIcon);
+          emptyState.appendChild(emptyText);
+          
+          fragment.appendChild(emptyState);
+          taskContainer.appendChild(fragment);
+          return;
+        }
+        
+        // Use the section order from the API response if available
+        const sectionNames = result.sectionOrder || Object.keys(result.tasks);
+        
+        // Process each section in order
+        sectionNames.forEach(sectionName => {
+          // Skip sections that don't exist in the tasks object
+          if (!result.tasks[sectionName]) return;
+          
+          const tasks = result.tasks[sectionName];
+          
+          // Skip empty sections
+          if (tasks.length === 0) return;
+          
+          // Add section header
+          const sectionHeader = document.createElement('div');
+          sectionHeader.className = 'toggle-header';
+          
+          const sectionIcon = document.createElement('i');
+          sectionIcon.className = 'material-icons';
+          sectionIcon.textContent = 'view_list';
+          
+          sectionHeader.appendChild(sectionIcon);
+          sectionHeader.appendChild(document.createTextNode(' ' + sectionName));
+          
+          fragment.appendChild(sectionHeader);
+          
+          // Create task list container
+          const taskList = document.createElement('div');
+          taskList.className = 'task-list';
+          
+          // Add task items
+          tasks.forEach(task => {
+            // Get today's date and the due date for comparison
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // Create task item
+            const taskItem = document.createElement('div');
+            taskItem.className = task.completed ? 'task-item completed-task' : 'task-item';
+            
+            // Create task icon
+            const taskIcon = document.createElement('i');
+            taskIcon.className = 'material-icons task-icon';
+            taskIcon.textContent = task.completed ? 'check_circle' : 'check_circle_outline';
+            
+            // Create task content container
+            const taskContent = document.createElement('div');
+            taskContent.className = 'task-content';
+            
+            // Create task link
+            const taskLink = document.createElement('a');
+            taskLink.href = task.url;
+            taskLink.target = '_blank';
+            taskLink.style.color = 'inherit';
+            taskLink.style.textDecoration = 'none';
+            taskLink.style.display = 'block';
+            
+            // Create task name
+            const taskName = document.createElement('div');
+            taskName.className = 'task-name';
+            taskName.textContent = task.name;
+            
+            // Create task meta container
+            const taskMeta = document.createElement('div');
+            taskMeta.className = 'task-meta';
+            
+            // Add due date if available
+            if (task.dueDate) {
+              const dueDate = new Date(task.dueDate);
+              dueDate.setHours(0, 0, 0, 0);
+              
+              // Format the date as MM/DD/YYYY
+              const formattedDate = `${dueDate.getMonth() + 1}/${dueDate.getDate()}/${dueDate.getFullYear()}`;
+              
+              const dateSpan = document.createElement('span');
+              dateSpan.className = 'task-date';
+              dateSpan.textContent = formattedDate;
+              
+              // Add appropriate class if task is not completed
+              if (!task.completed) {
+                // Determine if the task is late or due soon
+                const timeDiff = dueDate.getTime() - today.getTime();
+                const daysDiff = timeDiff / (1000 * 3600 * 24);
+                
+                if (daysDiff < 0) {
+                  dateSpan.classList.add('late-task');
+                } else if (daysDiff <= 3) {
+                  dateSpan.classList.add('soon-task');
+                }
+              }
+              
+              taskMeta.appendChild(dateSpan);
+            }
+            
+            // Add assignee if available
+            if (task.assignee) {
+              const assigneeSpan = document.createElement('span');
+              assigneeSpan.className = 'task-assignee';
+              assigneeSpan.textContent = task.assignee;
+              taskMeta.appendChild(assigneeSpan);
+            }
+            
+            // Assemble the task item
+            taskLink.appendChild(taskName);
+            taskLink.appendChild(taskMeta);
+            taskContent.appendChild(taskLink);
+            
+            taskItem.appendChild(taskIcon);
+            taskItem.appendChild(taskContent);
+            
+            taskList.appendChild(taskItem);
+          });
+          
+          fragment.appendChild(taskList);
+        });
+        
+        // Add the entire fragment to the DOM at once
+        taskContainer.appendChild(fragment);
+      }
+      
+      function handleTaskError(error) {
+        const taskDisplay = document.getElementById('taskDisplay');
+        
+        // Clear the current content
+        taskDisplay.innerHTML = '';
+        
+        // Create error message using DOM
+        const errorBox = document.createElement('div');
+        errorBox.className = 'error-box';
+        
+        const errorStrong = document.createElement('strong');
+        errorStrong.textContent = 'Error loading tasks:';
+        
+        errorBox.appendChild(errorStrong);
+        errorBox.appendChild(document.createTextNode(' ' + error));
+        
+        taskDisplay.appendChild(errorBox);
+      }
+      
+      // Budget Integration Functions
+      function loadBudgetData() {
+        document.getElementById('budgetSummaryDisplay').innerHTML = `
+          <div class="loading">
+            <i class="material-icons">sync</i> Loading budget data...
+          </div>
+        `;
+        
+        google.script.run
+          .withSuccessHandler(displayBudgetSummary)
+          .withFailureHandler(handleBudgetError)
+          .getBudgetData();
+      }
+      
+      function refreshBudget() {
+        loadBudgetData();
+      }
+      
+      function handleBudgetError(error) {
+        document.getElementById('budgetSummaryDisplay').innerHTML = `
+          <div class="error-box">
+            <strong>Error loading budget:</strong> ${error}
+          </div>`;
+      }
+      
+      function displayBudgetSummary(data) {
+        if (!data || !data.summary || !data.rooms) {
+          handleBudgetError('No budget data found');
+          return;
+        }
+        
+        // Create budget summary for sidebar
+        const budgetSummaryContainer = document.getElementById('budgetSummaryDisplay');
+        
+        // Budget Summary Box
+        const summaryHtml = `
+          <div class="budget-summary-box">
+            <div class="budget-summary-row">
+              <div class="budget-label">Total:</div>
+              <div class="budget-value">$${formatCurrency(data.summary.totalBudget)}</div>
+            </div>
+            <div class="budget-summary-row">
+              <div class="budget-label">Spent:</div>
+              <div class="budget-value">$${formatCurrency(data.summary.totalSpent)}</div>
+            </div>
+            <div class="budget-summary-row">
+              <div class="budget-label">Remaining:</div>
+              <div class="budget-value">$${formatCurrency(data.summary.totalRemaining)}</div>
+            </div>
+          </div>
+        `;
+        
+        // Room Cards for Sidebar
+        let roomCardsHtml = '';
+        
+        data.rooms.forEach(room => {
+          roomCardsHtml += `
+            <div class="budget-card" onclick="showRoomBudgetDetails('${room.name}')">
+              <div class="budget-header">
+                <div class="room-name">
+                  ${room.name}
+                  <i class="material-icons">expand_more</i>
+                </div>
+              </div>
+              <div class="budget-metrics">
+                <div>Budget: $${formatCurrency(room.budget)}</div>
+                <div>Spent: $${formatCurrency(room.spent)}</div>
+              </div>
+            </div>
+          `;
+        });
+        
+        budgetSummaryContainer.innerHTML = summaryHtml + roomCardsHtml;
+      }
+      
+      function formatCurrency(value) {
+        return parseFloat(value).toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
+      }
+      
+      function showRoomBudgetDetails(roomName) {
+        // When a room is clicked in the sidebar, show its details in the main content area
+        google.script.run
+          .withSuccessHandler(displayRoomBudgetDetails)
+          .withFailureHandler(function(error) {
+            document.getElementById('fileContent').innerHTML = `
+              <div class="error-box" style="margin: 20px;">
+                <strong>Error loading budget details:</strong> ${error}
+              </div>`;
+          })
+          .getBudgetData();
+          
+        // Update the page title
+        document.getElementById('projectName').innerText = `${roomName} Budget`;
+      }
+      
+      function displayRoomBudgetDetails(data) {
+        if (!data || !data.rooms) return;
+        
+        const roomName = document.getElementById('projectName').innerText.replace(' Budget', '');
+        const room = data.rooms.find(r => r.name === roomName);
+        
+        if (!room) {
+          document.getElementById('fileContent').innerHTML = `
+            <div class="error-box" style="margin: 20px;">
+              <strong>Error:</strong> Room not found
+            </div>`;
+          return;
+        }
+        
+        const percentSpent = Math.round((room.spent / room.budget) * 100);
+        
+        // Build the room budget detail view
+        let contentHtml = `
+          <div class="budget-content">
+            <div class="budget-summary-box">
+              <div class="budget-summary-row">
+                <div class="budget-label">Room:</div>
+                <div class="budget-value">${room.name}</div>
+              </div>
+              <div class="budget-summary-row">
+                <div class="budget-label">Budget:</div>
+                <div class="budget-value">$${formatCurrency(room.budget)}</div>
+              </div>
+              <div class="budget-summary-row">
+                <div class="budget-label">Spent:</div>
+                <div class="budget-value">$${formatCurrency(room.spent)}</div>
+              </div>
+              <div class="budget-summary-row">
+                <div class="budget-label">Remaining:</div>
+                <div class="budget-value">$${formatCurrency(room.budget - room.spent)}</div>
+              </div>
+              <div class="budget-summary-row">
+                <div class="budget-label">Percent Used:</div>
+                <div class="budget-value">${percentSpent}%</div>
+              </div>
+            </div>
+            
+            <div class="budget-room-card">
+              <h3 style="margin: 0; padding: 16px; border-bottom: 1px solid rgba(38, 113, 125, 0.2); font-family: 'Tenor Sans', sans-serif; font-weight: 400; color: #000000;">
+                Items
+              </h3>
+              
+              <div class="item-grid item-header">
+                <div>ITEM</div>
+                <div>TYPE</div>
+                <div class="text-right">QTY</div>
+                <div class="text-right">PRICE</div>
+                <div class="text-right">TOTAL</div>
+              </div>
+        `;
+        
+        if (room.items && room.items.length > 0) {
+          room.items.forEach(item => {
+            contentHtml += `
+              <div class="item-grid">
+                <div>${item.item}</div>
+                <div>${item.type}</div>
+                <div class="text-right">${item.quantity}</div>
+                <div class="text-right">$${formatCurrency(item.low)}</div>
+                <div class="text-right">$${formatCurrency(item.totalUsed)}</div>
+              </div>
+            `;
+          });
+        } else {
+          contentHtml += `
+            <div style="padding: 16px; text-align: center;">
+              No items found for this room
+            </div>
+          `;
+        }
+        
+        contentHtml += `
+            </div>
+            
+            <div style="margin-top: 20px; text-align: right;">
+              <button class="btn" onclick="exportBudgetReport()">
+                <i class="material-icons">file_download</i>
+                Export Budget Report
+              </button>
+            </div>
+          </div>
+        `;
+        
+        document.getElementById('fileContent').innerHTML = contentHtml;
+      }
+      
+      
+      function exportBudgetReport() {
+        google.script.run
+          .withSuccessHandler(function() {
+            alert('Budget report exported successfully');
+          })
+          .withFailureHandler(function(error) {
+            alert('Error exporting budget report: ' + error);
+          })
+          .exportBudgetReport();
+      }
+
+      function showBudgetDashboard() {
+        // Update the page title
+        document.getElementById('projectName').innerText = 'Project Budget';
+        
+        // Show loading indicator in main content area
+        document.getElementById('fileContent').innerHTML = `
+          <div class="loading" style="height: 100%;">
+            <i class="material-icons">sync</i> Loading budget data...
+          </div>
+        `;
+        
+        // Call the server function to get budget data
+        google.script.run
+          .withSuccessHandler(function(data) {
+            if (!data || !data.summary || !data.rooms) {
+              document.getElementById('fileContent').innerHTML = `
+                <div class="error-box" style="margin: 20px;">
+                  <strong>Error:</strong> No budget data found. Please check if you have a 'Budget' sheet with the required columns.
+                </div>`;
+              return;
+            }
+            
+            // Build the budget dashboard view
+            let budgetHtml = `
+              <div class="budget-content">
+                
+                <div class="budget-summary-box">
+                  <h3 style="margin-top: 0; margin-bottom: 16px; color: #000000; font-family: 'Tenor Sans', sans-serif; font-weight: 400;">Budget Summary</h3>
+                  
+                  <div class="budget-summary-row">
+                    <div class="budget-label">Total Budget:</div>
+                    <div class="budget-value">$${formatCurrency(data.summary.totalBudget)}</div>
+                  </div>
+                  <div class="budget-summary-row">
+                    <div class="budget-label">Spent:</div>
+                    <div class="budget-value">$${formatCurrency(data.summary.totalSpent)}</div>
+                  </div>
+                  <div class="budget-summary-row">
+                    <div class="budget-label">Remaining:</div>
+                    <div class="budget-value">$${formatCurrency(data.summary.totalRemaining)}</div>
+                  </div>
+                </div>
+                
+                <h3 style="margin-top: 24px; margin-bottom: 16px; color: #000000; font-family: 'Tenor Sans', sans-serif; font-weight: 400;">Room Breakdown</h3>
+            `;
+            
+            // Add room cards
+            data.rooms.forEach(room => {
+              budgetHtml += `
+                <div class="budget-room-card">
+                  <div class="room-header" onclick="toggleBudgetRoomDetails('${room.name}')">
+                    <div class="room-name">
+                      ${room.name}
+                      <span class="room-budget">$${formatCurrency(room.budget)}</span>
+                      <i class="material-icons">expand_more</i>
+                    </div>
+                  </div>
+                  <div class="budget-details">
+                    <div class="budget-details-label">Total Budget: $${formatCurrency(room.budget)}</div>
+                    <div class="budget-details-value">Spent: $${formatCurrency(room.spent)}</div>
+                  </div>
+                  
+                  <div class="room-details" id="budget-details-${room.name}" style="display: none;">
+                    <div class="item-grid item-header">
+                      <div>ITEM</div>
+                      <div>TYPE</div>
+                      <div class="text-right">QTY</div>
+                      <div class="text-right">PRICE</div>
+                      <div class="text-right">TOTAL</div>
+                    </div>
+              `;
+              
+              // Add items for this room
+              if (room.items && room.items.length > 0) {
+                room.items.forEach(item => {
+                  budgetHtml += `
+                    <div class="item-grid">
+                      <div>${item.item}</div>
+                      <div>${item.type}</div>
+                      <div class="text-right">${item.quantity}</div>
+                      <div class="text-right">$${formatCurrency(item.low)}</div>
+                      <div class="text-right">$${formatCurrency(item.totalUsed)}</div>
+                    </div>
+                  `;
+                });
+              } else {
+                budgetHtml += `
+                  <div style="padding: 16px; text-align: center;">
+                    No items found for this room
+                  </div>
+                `;
+              }
+              
+              budgetHtml += `
+                  </div>
+                </div>
+              `;
+            });
+            
+            // Add export button
+            budgetHtml += `
+              <div style="margin-top: 30px; text-align: center; padding-bottom: 30px;">
+                <button class="btn" onclick="exportBudgetReport()">
+                  <i class="material-icons">file_download</i>
+                  Export Budget Report
+                </button>
+              </div>
+            </div>`;
+            
+            // Update the main content area with the budget dashboard
+            document.getElementById('fileContent').innerHTML = budgetHtml;
+          })
+          .withFailureHandler(function(error) {
+            document.getElementById('fileContent').innerHTML = `
+              <div class="error-box" style="margin: 20px;">
+                <strong>Error loading budget data:</strong> ${error}
+              </div>`;
+          })
+          .getBudgetData();
+      }
+      
+      // Toggle visibility of budget room details
+      function toggleBudgetRoomDetails(roomName) {
+        const detailsElement = document.getElementById(`budget-details-${roomName}`);
+        if (detailsElement) {
+          const isVisible = detailsElement.style.display === 'block';
+          detailsElement.style.display = isVisible ? 'none' : 'block';
+        }
+      }
+
+      function showEmailVendors() {
+        // Update the page title
+        document.getElementById('projectName').innerText = 'Email Vendors';
+        
+        // Show loading indicator in main content area
+        document.getElementById('fileContent').innerHTML = `
+          <div class="loading" style="height: 100%;">
+            <i class="material-icons">sync</i> Loading email vendors...
+          </div>
+        `;
+        
+        // Call the server function to get email vendors data
+        google.script.run
+          .withSuccessHandler(function(data) {
+            if (!data || !data.vendors) {
+              document.getElementById('fileContent').innerHTML = `
+                <div class="error-box" style="margin: 20px;">
+                  <strong>Error:</strong> No email vendors found. Please check if you have a 'Email Vendors' sheet with the required columns.
+                </div>`;
+              return;
+            }
+            
+            // Build the email vendors view
+            let vendorsHtml = `
+              <div class="budget-content">
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 16px;">
+                  <button class="btn btn-outline" onclick="showEmailVendors()">
+                    <i class="material-icons">refresh</i> Refresh Vendors
+                  </button>
+                </div>
+                
+                <div class="budget-summary-box">
+                  <h3 style="margin-top: 0; margin-bottom: 16px; color: #000000; font-family: 'Tenor Sans', sans-serif; font-weight: 400;">Vendor Summary</h3>
+                  
+                  <div class="budget-summary-row">
+                    <div class="budget-label">Total Vendors:</div>
+                    <div class="budget-value">${data.vendors.length}</div>
+                  </div>
+                </div>
+                
+                <h3 style="margin-top: 24px; margin-bottom: 16px; color: #000000; font-family: 'Tenor Sans', sans-serif; font-weight: 400;">Vendor List</h3>
+            `;
+            
+            // Add vendor cards
+            data.vendors.forEach(vendor => {
+              vendorsHtml += `
+                <div class="budget-room-card">
+                  <div class="room-header" onclick="toggleVendorDetails('${vendor.name}')">
+                    <div class="room-name">
+                      ${vendor.name}
+                      <i class="material-icons">expand_more</i>
+                    </div>
+                  </div>
+                  
+                  <div class="room-details" id="vendor-details-${vendor.name}" style="display: none;">
+                    <div style="padding: 16px; border-bottom: 1px solid rgba(38, 113, 125, 0.2);">
+                      <div style="display: flex; flex-direction: column; gap: 12px;">
+                        <div>
+                          <label style="display: block; margin-bottom: 4px; color: #7B763B; font-size: 13px;">Custom Message (optional)</label>
+                          <textarea id="message-${vendor.name}" placeholder="Enter custom message for the vendor..." style="
+                            width: 100%;
+                            padding: 8px;
+                            border: 1px solid #B2C8CB;
+                            border-radius: 4px;
+                            background-color: #FFFFFF;
+                            color: #000000;
+                            font-size: 14px;
+                            min-height: 80px;
+                            resize: vertical;
+                          "></textarea>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                          <input type="email" id="email-${vendor.name}" placeholder="Enter vendor email" style="
+                            flex: 1;
+                            padding: 8px;
+                            border: 1px solid #B2C8CB;
+                            border-radius: 4px;
+                            background-color: #FFFFFF;
+                            color: #000000;
+                            font-size: 14px;
+                          ">
+                          <button onclick="createVendorEmailDraft('${vendor.name}')" class="btn" style="padding: 8px 16px;">
+                            <i class="material-icons">drafts</i>
+                            Create Draft
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="item-grid item-header">
+                      <div>PROPERTY</div>
+                      <div>ROOM</div>
+                      <div>ITEM</div>
+                      <div>TYPE</div>
+                      <div>QUANTITY</div>
+                    </div>
+              `;
+              
+              // Add items for this vendor
+              if (vendor.items && vendor.items.length > 0) {
+                vendor.items.forEach(item => {
+                  vendorsHtml += `
+                    <div class="item-grid">
+                      <div>${item.property || '-'}</div>
+                      <div>${item.room || '-'}</div>
+                      <div>${item.item || '-'}</div>
+                      <div>${item.type || '-'}</div>
+                      <div class="text-right">${item.quantity || '-'}</div>
+                    </div>
+                  `;
+                });
+              } else {
+                vendorsHtml += `
+                  <div style="padding: 16px; text-align: center;">
+                    No items found for this vendor
+                  </div>
+                `;
+              }
+              
+              vendorsHtml += `
+                  </div>
+                </div>
+              `;
+            });
+            
+            // Add email button
+            vendorsHtml += `
+              <div style="margin-top: 30px; text-align: center; padding-bottom: 30px;">
+                <button class="btn" onclick="sendVendorEmails()">
+                  <i class="material-icons">send</i>
+                  Send Emails to All Vendors
+                </button>
+              </div>
+            </div>`;
+            
+            // Update the main content area with the vendors view
+            document.getElementById('fileContent').innerHTML = vendorsHtml;
+          })
+          .withFailureHandler(function(error) {
+            document.getElementById('fileContent').innerHTML = `
+              <div class="error-box" style="margin: 20px;">
+                <strong>Error loading vendors:</strong> ${error}
+              </div>`;
+          })
+          .getEmailVendors();
+      }
+      
+      // Toggle visibility of vendor details
+      function toggleVendorDetails(vendorName) {
+        const detailsElement = document.getElementById(`vendor-details-${vendorName}`);
+        if (detailsElement) {
+          const isVisible = detailsElement.style.display === 'block';
+          detailsElement.style.display = isVisible ? 'none' : 'block';
+        }
+      }
+      
+      function sendVendorEmails() {
+        google.script.run
+          .withSuccessHandler(function() {
+            alert('Emails sent successfully to all vendors');
+          })
+          .withFailureHandler(function(error) {
+            alert('Error sending emails: ' + error);
+          })
+          .sendVendorEmails();
+      }
+
+      function createVendorEmailDraft(vendorName) {
+        const emailInput = document.getElementById(`email-${vendorName}`);
+        const messageInput = document.getElementById(`message-${vendorName}`);
+        const email = emailInput.value.trim();
+        const customMessage = messageInput.value.trim();
+        
+        if (!email) {
+          alert('Please enter an email address');
+          return;
+        }
+        
+        if (!isValidEmail(email)) {
+          alert('Please enter a valid email address');
+          return;
+        }
+        
+        google.script.run
+          .withSuccessHandler(function() {
+            alert('Draft email created successfully for ' + vendorName + '\nCheck your Gmail drafts folder.');
+          })
+          .withFailureHandler(function(error) {
+            alert('Error creating draft email: ' + error);
+          })
+          .createVendorEmailDraft(vendorName, email, customMessage);
+      }
+      
+      function isValidEmail(email) {
+        const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return re.test(email);
+      }
+
+      // Modified function to show room manager in either main content or sidebar
+      function showRoomManager(location = 'main') {
+        // Update the page title if showing in main content
+        if (location === 'main') {
+          document.getElementById('projectName').innerText = 'Room Manager';
+          // Show loading overlay for main content
+          showDashboardLoading('Loading rooms...');
+        } else if (location === 'sidebar') {
+          // Show loading indicator in the sidebar room content
+          document.getElementById('sidebarRoomManagerContent').innerHTML = `
+            <div class="loading">
+              <i class="material-icons">sync</i> Loading rooms...
+            </div>
+          `;
+        }
+        
+        // Call server to get rooms data
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (location === 'main') {
+              hideDashboardLoading();
+              renderRoomManager(result, location);
+            } else if (location === 'sidebar') {
+              renderRoomManager(result, location);
+            }
+          })
+          .withFailureHandler(function(error) {
+            if (location === 'main') {
+              hideDashboardLoading();
+              document.getElementById('fileContent').innerHTML = `
+                <div class="error-box" style="margin: 20px;">
+                  <strong>Error:</strong> ${error.error || error}
+                </div>`;
+            } else if (location === 'sidebar') {
+              document.getElementById('sidebarRoomManagerContent').innerHTML = `
+                <div class="error-box" style="margin: 10px;">
+                  <strong>Error:</strong> ${error.error || error}
+                </div>`;
+            }
+          })
+          .getRoomsForDashboard();
+      }
+      
+      // Render the room manager UI
+      function renderRoomManager(result, location = 'main') {
+        if (!result || !result.success) {
+          const errorMsg = result && result.error ? result.error : 'Failed to load rooms';
+          if (location === 'main') {
+            document.getElementById('fileContent').innerHTML = `
+              <div class="error-box" style="margin: 20px;">
+                <strong>Error:</strong> ${errorMsg}
+              </div>`;
+          } else if (location === 'sidebar') {
+            document.getElementById('sidebarRoomManagerContent').innerHTML = `
+              <div class="error-box" style="margin: 10px;">
+                <strong>Error:</strong> ${errorMsg}
+              </div>`;
+          }
+          return;
+        }
+        
+        const rooms = result.rooms || [];
+        const selectedRooms = result.selectedRooms || [];
+        
+        // Container ID based on location
+        const roomListId = location === 'main' ? 'dashboardRoomList' : 'sidebarRoomList';
+        const newRoomInputId = location === 'main' ? 'newRoomNameDashboard' : 'newRoomNameSidebar';
+        const statusMsgId = location === 'main' ? 'dashboardStatusMessage' : 'sidebarStatusMessage';
+        
+        // Add button click function based on location
+        const addBtnFunc = location === 'main' ? 'addNewRoomFromDashboard()' : 'addNewRoomFromDashboard(\'sidebar\')';
+        const saveBtnFunc = location === 'main' ? 'saveRoomsFromDashboard()' : 'saveRoomsFromDashboard(\'sidebar\')';
+        
+        // Build the help/instructions section based on location
+        let instructionsHtml = '';
+        if (location === 'main') {
+          instructionsHtml = `
+            <div class="instructions">
+              Select the rooms you want to add items to. Check the boxes next to room names, or add new rooms using the form below.
+            </div>
+          `;
+        } else {
+          instructionsHtml = ``;
+        }
+        
+        // Build the room manager UI
+        let roomManagerHtml = `
+          <div class="${location === 'main' ? 'room-manager-content' : ''}">
+            ${instructionsHtml}
+            
+            <div id="${roomListId}" class="room-checklist">
+        `;
+        
+        if (rooms.length === 0) {
+          roomManagerHtml += `
+            <div class="empty-state">
+              <i class="material-icons">meeting_room</i>
+              <p>No rooms found. Add a room below.</p>
+            </div>
+          `;
+        } else {
+          rooms.forEach((room, index) => {
+            // Check if this room was previously selected
+            const isChecked = selectedRooms.includes(room) ? 'checked' : '';
+            
+            roomManagerHtml += `
+              <div class="room-checklist-item">
+                <input type="checkbox" id="dashboard-room-${index}" data-room="${room}" ${isChecked}>
+                <label for="dashboard-room-${index}" class="room-checklist-item-label">${room}</label>
+              </div>
+            `;
+          });
+        }
+        
+        roomManagerHtml += `
+            </div>
+            
+            <div class="add-room-container">
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <input type="text" id="${newRoomInputId}" placeholder="Enter room name" style="width: 100%;">
+                <button onclick="${addBtnFunc}" class="btn" style="align-self: flex-start;">
+                  <i class="material-icons" style="margin-right: 8px;">add</i> Add Room
+                </button>
+              </div>
+            </div>
+            
+            <!-- Status message container -->
+            <div id="${statusMsgId}" class="status-message" style="display: none;"></div>`;
+            
+        // Add Next button only for main content area (removed)
+        roomManagerHtml += `
+          </div>
+        `;
+        
+        // Update the main content with the room manager UI
+        if (location === 'main') {
+          document.getElementById('fileContent').innerHTML = roomManagerHtml;
+        } else if (location === 'sidebar') {
+          document.getElementById('sidebarRoomManagerContent').innerHTML = roomManagerHtml;
+        }
+      }
+      
+      // Function to add a new room from the dashboard or sidebar
+      function addNewRoomFromDashboard(location = 'main') {
+        const inputId = location === 'main' ? 'newRoomNameDashboard' : 'newRoomNameSidebar';
+        const newRoomName = document.getElementById(inputId).value.trim();
+        
+        if (!newRoomName) {
+          showDashboardStatusMessage('Please enter a room name', true, location);
+          return;
+        }
+        
+        // Show loading state
+        if (location === 'main') {
+          showDashboardLoading('Adding room...');
+        } else {
+          // Add loading state to the button in sidebar
+          const addButton = document.querySelector('.add-room-container button');
+          if (addButton) {
+            addButton.innerHTML = '<i class="material-icons" style="margin-right: 8px;">sync</i> Adding...';
+            addButton.disabled = true;
+          }
+        }
+        
+        // Call server to add room
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (location === 'main') {
+              hideDashboardLoading();
+            } else {
+              // Restore button state in sidebar
+              const addButton = document.querySelector('.add-room-container button');
+              if (addButton) {
+                addButton.innerHTML = '<i class="material-icons" style="margin-right: 8px;">add</i> Add Room';
+                addButton.disabled = false;
+              }
+            }
+            
+            if (result.success) {
+              showDashboardStatusMessage(`Room "${result.roomName}" added successfully`, false, location);
+              document.getElementById(inputId).value = '';
+              // Refresh room manager to show the new room
+              showRoomManager(location);
+            } else {
+              showDashboardStatusMessage(result.error || 'Error adding room', true, location);
+            }
+          })
+          .withFailureHandler(function(error) {
+            if (location === 'main') {
+              hideDashboardLoading();
+            } else {
+              // Restore button state in sidebar
+              const addButton = document.querySelector('.add-room-container button');
+              if (addButton) {
+                addButton.innerHTML = '<i class="material-icons" style="margin-right: 8px;">add</i> Add Room';
+                addButton.disabled = false;
+              }
+            }
+            showDashboardStatusMessage(`Error: ${error}`, true, location);
+          })
+          .addRoom(newRoomName);
+      }
+      
+      // Function to save selected rooms from dashboard or sidebar
+      function saveRoomsFromDashboard(location = 'main') {
+        // Determine which container to use based on location
+        const listId = location === 'main' ? 'dashboardRoomList' : 'sidebarRoomList';
+        
+        // Collect all selected rooms
+        const checkboxes = document.querySelectorAll(`#${listId} input[type="checkbox"]:checked`);
+        const selectedRooms = Array.from(checkboxes).map(checkbox => checkbox.getAttribute('data-room'));
+        
+        if (selectedRooms.length === 0) {
+          showDashboardStatusMessage('Please select at least one room to continue', true, location);
+          return;
+        }
+        
+        // Show loading state
+        if (location === 'main') {
+          showDashboardLoading('Saving selected rooms...');
+        } else {
+          // Show loading state for the button in sidebar
+          const saveButton = document.querySelector('.sidebar-action-buttons button');
+          if (saveButton) {
+            saveButton.innerHTML = '<i class="material-icons">sync</i>';
+            saveButton.disabled = true;
+          }
+        }
+        
+        // Call server to save selected rooms and then show item update interface
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (location === 'main') {
+              hideDashboardLoading();
+            } else {
+              // Restore button state in sidebar
+              const saveButton = document.querySelector('.sidebar-action-buttons button');
+              if (saveButton) {
+                saveButton.innerHTML = '<i class="material-icons">arrow_forward</i>';
+                saveButton.disabled = false;
+              }
+            }
+            
+            if (result.success) {
+              // Directly load the item update interface in the dashboard
+              showItemUpdateInDashboard();
+              
+              // If we're in the sidebar, collapse it to show the main content
+              if (location === 'sidebar') {
+                document.querySelector('.sidebar').classList.add('collapsed');
+              }
+            } else {
+              showDashboardStatusMessage('Error: ' + (result.error || 'Failed to save selected rooms'), true, location);
+            }
+          })
+          .withFailureHandler(function(error) {
+            if (location === 'main') {
+              hideDashboardLoading();
+            } else {
+              // Restore button state in sidebar
+              const saveButton = document.querySelector('.sidebar-action-buttons button');
+              if (saveButton) {
+                saveButton.innerHTML = '<i class="material-icons">arrow_forward</i>';
+                saveButton.disabled = false;
+              }
+            }
+            showDashboardStatusMessage('Error: ' + error, true, location);
+          })
+          .saveSelectedRoomsOnly(selectedRooms);
+      }
+      
+      // Show status message (works for both dashboard and sidebar)
+      function showDashboardStatusMessage(message, isError = false, location = 'main') {
+        const elementId = location === 'main' ? 'dashboardStatusMessage' : 'sidebarStatusMessage';
+        const statusElement = document.getElementById(elementId);
+        
+        if (statusElement) {
+          statusElement.textContent = message;
+          statusElement.className = 'status-message ' + (isError ? 'error' : 'success');
+          statusElement.style.display = 'block';
+          
+          // Hide the message after 3 seconds
+          setTimeout(() => {
+            statusElement.style.display = 'none';
+          }, 3000);
+        }
+      }
+      
+      // New function to show the item update interface in the dashboard
+      function showItemUpdateInDashboard() {
+        // Update the page title
+        document.getElementById('projectName').innerText = 'Manage Items';
+        
+        // Show loading indicator in main content area
+        showDashboardLoading('Loading items data...');
+        
+        // Call server to get item data
+        google.script.run
+          .withSuccessHandler(function(data) {
+            hideDashboardLoading();
+            renderItemUpdateInterface(data);
+          })
+          .withFailureHandler(function(error) {
+            hideDashboardLoading();
+            document.getElementById('fileContent').innerHTML = `
+              <div class="error-box" style="margin: 20px;">
+                <strong>Error:</strong> ${error.error || error}
+              </div>`;
+          })
+          .getItemUpdateContentForDashboard();
+      }
+      
+      // Item data for dashboard
+      let dashboardItemData = {
+        selectedRooms: [],
+        items: [],
+        itemsByRoom: {},
+        availableItems: [],
+        combinedItems: []
+      };
+      
+      // Render the item update interface in the dashboard
+      function renderItemUpdateInterface(data) {
+        if (!data.success) {
+          document.getElementById('fileContent').innerHTML = `
+            <div class="error-box" style="margin: 20px;">
+              <strong>Error:</strong> ${data.error || 'Failed to load item data'}
+            </div>`;
+          return;
+        }
+        
+        console.log('Data received in renderItemUpdateInterface:', data);
+        
+        // Store the data for later use
+        dashboardItemData = data;
+        
+        // Check if we have combinedItems property
+        if (!dashboardItemData.combinedItems || !Array.isArray(dashboardItemData.combinedItems)) {
+          console.warn('combinedItems is missing or not an array, initializing from availableItems');
+          
+          // Initialize combinedItems from availableItems if needed
+          if (dashboardItemData.availableItems && Array.isArray(dashboardItemData.availableItems)) {
+            dashboardItemData.combinedItems = dashboardItemData.availableItems.map(item => {
+              if (typeof item === 'string') return item;
+              return item.type && item.item ? `${item.type} | ${item.item}` : (item.item || '');
+            });
+            console.log('Created combinedItems with', dashboardItemData.combinedItems.length, 'items');
+          } else {
+            console.warn('availableItems is also missing or not an array, initializing empty array');
+            dashboardItemData.combinedItems = [];
+          }
+        }
+        
+        // Create container for all room sections
+        const container = document.createElement('div');
+        container.className = 'item-update-content';
+        container.style.padding = '20px';
+        
+        // Add help icon with tooltip instead of static instructions
+        const helpContainer = document.createElement('div');
+        helpContainer.className = 'tooltip';
+        helpContainer.style.position = 'absolute';
+        helpContainer.style.top = '16px';
+        helpContainer.style.right = '16px';
+        
+        const helpIcon = document.createElement('div');
+        helpIcon.className = 'help-icon';
+        helpIcon.innerHTML = '?';
+        
+        const tooltipText = document.createElement('div');
+        tooltipText.className = 'tooltip-text';
+        tooltipText.innerHTML = '<p>Review and update your items below. Make any necessary changes to the item details, then click Save All Items to update the spreadsheet.</p>';
+        
+        helpContainer.appendChild(helpIcon);
+        helpContainer.appendChild(tooltipText);
+        container.appendChild(helpContainer);
+        
+        // Group items by room first
+        const itemsByRoom = {};
+        data.selectedRooms.forEach(room => {
+          itemsByRoom[room] = data.itemsByRoom[room] || [];
+        });
+        
+        // Add room filter
+        const filterContainer = document.createElement('div');
+        filterContainer.id = 'filter-container';
+        
+        const filterLabel = document.createElement('label');
+        filterLabel.className = 'filter-label';
+        filterLabel.htmlFor = 'room-filter';
+        filterLabel.textContent = 'Filter by Room:';
+        
+        const roomFilter = document.createElement('select');
+        roomFilter.id = 'room-filter';
+        roomFilter.addEventListener('change', filterRoomsInDashboard);
+        
+        const allRoomsOption = document.createElement('option');
+        allRoomsOption.value = 'all';
+        allRoomsOption.textContent = 'All Rooms';
+        roomFilter.appendChild(allRoomsOption);
+        
+        filterContainer.appendChild(filterLabel);
+        filterContainer.appendChild(roomFilter);
+        
+        container.appendChild(filterContainer);
+        
+        // Populate filter dropdown with rooms
+        Object.keys(itemsByRoom).sort().forEach(room => {
+          const option = document.createElement('option');
+          option.value = room;
+          option.textContent = room;
+          roomFilter.appendChild(option);
+        });
+        
+        // Create room sections
+        Object.keys(itemsByRoom).sort().forEach(room => {
+          const roomItems = itemsByRoom[room];
+          
+          // Create room container
+          const roomContainer = document.createElement('div');
+          roomContainer.className = 'room-container';
+          roomContainer.id = `room-container-${room.replace(/\s+/g, '-')}`;
+          roomContainer.dataset.room = room;
+          
+          // Add room title
+          const roomTitle = document.createElement('div');
+          roomTitle.className = 'room-title';
+          roomTitle.textContent = room;
+          roomContainer.appendChild(roomTitle);
+          
+          // Add column headers
+          const headers = document.createElement('div');
+          headers.className = 'column-headers';
+          
+          const itemHeader = document.createElement('div');
+          itemHeader.className = 'column-header item-header';
+          itemHeader.textContent = 'Item';
+          
+          const typeHeader = document.createElement('div');
+          typeHeader.className = 'column-header type-header';
+          typeHeader.textContent = 'Type';
+          
+          const quantityHeader = document.createElement('div');
+          quantityHeader.className = 'column-header quantity-header';
+          quantityHeader.textContent = 'QTY';
+          
+          const lowBudgetHeader = document.createElement('div');
+          lowBudgetHeader.className = 'column-header budget-header';
+          lowBudgetHeader.textContent = 'Low Budget';
+          
+          const highBudgetHeader = document.createElement('div');
+          highBudgetHeader.className = 'column-header budget-header';
+          highBudgetHeader.textContent = 'High Budget';
+          
+          const actionsHeader = document.createElement('div');
+          actionsHeader.className = 'column-header actions-header';
+          actionsHeader.textContent = 'Remove Item';
+          
+          headers.appendChild(itemHeader);
+          headers.appendChild(typeHeader);
+          headers.appendChild(quantityHeader);
+          headers.appendChild(lowBudgetHeader);
+          headers.appendChild(highBudgetHeader);
+          headers.appendChild(actionsHeader);
+          
+          roomContainer.appendChild(headers);
+          
+          // Add items container
+          const itemsContainer = document.createElement('div');
+          itemsContainer.className = 'items-container';
+          itemsContainer.id = `items-${room.replace(/\s+/g, '-')}`;
+          
+          // Add each item
+          roomItems.forEach((item, index) => {
+            const itemRow = createItemRow(item, index, room);
+            itemsContainer.appendChild(itemRow);
+          });
+          
+          roomContainer.appendChild(itemsContainer);
+          
+          // Add the "add item" button at the bottom of each room
+          const addMoreRow = document.createElement('div');
+          addMoreRow.className = 'add-more-row';
+          
+          const addItemButton = document.createElement('button');
+          addItemButton.className = 'add-item-btn';
+          addItemButton.addEventListener('click', function() {
+            addItemToRoom(room);
+          });
+          
+          const buttonIcon = document.createElement('i');
+          buttonIcon.className = 'material-icons';
+          buttonIcon.textContent = 'add';
+          
+          addItemButton.appendChild(buttonIcon);
+          addItemButton.appendChild(document.createTextNode(' Add Item'));
+          addMoreRow.appendChild(addItemButton);
+          
+          roomContainer.appendChild(addMoreRow);
+          
+          container.appendChild(roomContainer);
+        });
+        
+        // Add action buttons
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'item-update-actions';
+        actionsDiv.style.display = 'flex';
+        actionsDiv.style.justifyContent = 'flex-end';
+        actionsDiv.style.gap = '10px';
+        actionsDiv.style.marginTop = '20px';
+        
+        // Create back button
+        const backButton = document.createElement('button');
+        backButton.className = 'btn btn-outline';
+        backButton.addEventListener('click', showRoomManager);
+        
+        const backIcon = document.createElement('i');
+        backIcon.className = 'material-icons';
+        backIcon.textContent = 'arrow_back';
+        
+        backButton.appendChild(backIcon);
+        backButton.appendChild(document.createTextNode(' Back to Rooms'));
+        
+        // Create save button
+        const saveButton = document.createElement('button');
+        saveButton.className = 'btn';
+        saveButton.addEventListener('click', saveAllItemsFromDashboard);
+        
+        const saveIcon = document.createElement('i');
+        saveIcon.className = 'material-icons';
+        saveIcon.textContent = 'save';
+        
+        saveButton.appendChild(saveIcon);
+        saveButton.appendChild(document.createTextNode(' Save All Items'));
+        
+        // Add buttons to actions div
+        actionsDiv.appendChild(backButton);
+        actionsDiv.appendChild(saveButton);
+        
+        container.appendChild(actionsDiv);
+        
+        // Update the content area
+        document.getElementById('fileContent').innerHTML = '';
+        document.getElementById('fileContent').appendChild(container);
+      }
+      
+      // Function to filter rooms in the dashboard
+      function filterRoomsInDashboard() {
+        const selectedRoom = document.getElementById('room-filter').value;
+        const roomContainers = document.querySelectorAll('.room-container');
+        
+        roomContainers.forEach(container => {
+          if (selectedRoom === 'all' || container.dataset.room === selectedRoom) {
+            container.style.display = 'block';
+          } else {
+            container.style.display = 'none';
+          }
+        });
+      }
+      
+      // Create an item row
+      function createItemRow(item, index, roomName) {
+        // Create the main row container
+        const row = document.createElement('div');
+        row.className = 'item-row';
+        row.dataset.index = index;
+        row.dataset.room = roomName;
+        
+        // Item input container with autocomplete
+        const itemInputContainer = document.createElement('div');
+        itemInputContainer.className = 'item-input-container';
+        
+        const itemInput = document.createElement('input');
+        itemInput.type = 'text';
+        itemInput.className = 'item-input';
+        itemInput.value = item.item || '';
+        itemInput.dataset.field = 'item';
+        itemInput.dataset.room = roomName;
+        itemInput.dataset.index = index;
+        
+        // Add focus event to show autocomplete
+        itemInput.addEventListener('focus', function() {
+          showAutocomplete(this);
+        });
+        
+        // Add keydown event for filtering as user types
+        itemInput.addEventListener('input', function() {
+          filterAutocompleteItems(this);
+        });
+        
+        // Add keydown event for keyboard navigation
+        itemInput.addEventListener('keydown', function(e) {
+          handleAutocompleteKeydown(e, this);
+        });
+        
+        const autocompleteList = document.createElement('div');
+        autocompleteList.className = 'autocomplete-list';
+        
+        itemInputContainer.appendChild(itemInput);
+        itemInputContainer.appendChild(autocompleteList);
+        
+        // Type input container
+        const typeInputContainer = document.createElement('div');
+        typeInputContainer.className = 'item-input-container';
+        
+        // Type input
+        const typeInput = document.createElement('input');
+        typeInput.type = 'text';
+        typeInput.className = 'type-input';
+        typeInput.value = item.type || '';
+        typeInput.dataset.field = 'type';
+        typeInput.dataset.room = roomName;
+        typeInput.dataset.index = index;
+        
+        typeInputContainer.appendChild(typeInput);
+        
+        // Quantity input
+        const quantityInput = document.createElement('input');
+        quantityInput.type = 'number';
+        quantityInput.className = 'quantity-input';
+        quantityInput.value = item.quantity || 1;
+        quantityInput.min = '1';
+        quantityInput.dataset.field = 'quantity';
+        quantityInput.dataset.room = roomName;
+        quantityInput.dataset.index = index;
+        
+        // Low budget input container
+        const lowBudgetContainer = document.createElement('div');
+        lowBudgetContainer.className = 'budget-input-container';
+        
+        const lowCurrencySymbol = document.createElement('span');
+        lowCurrencySymbol.className = 'currency-symbol';
+        lowCurrencySymbol.textContent = '$';
+        
+        const lowBudgetInput = document.createElement('input');
+        lowBudgetInput.type = 'number';
+        lowBudgetInput.className = 'budget-input';
+        lowBudgetInput.value = item.lowBudget !== null ? item.lowBudget : '';
+        lowBudgetInput.min = '0';
+        lowBudgetInput.step = '0.01';
+        lowBudgetInput.dataset.field = 'lowBudget';
+        lowBudgetInput.dataset.room = roomName;
+        lowBudgetInput.dataset.index = index;
+        lowBudgetInput.placeholder = '0';
+        
+        lowBudgetContainer.appendChild(lowCurrencySymbol);
+        lowBudgetContainer.appendChild(lowBudgetInput);
+        
+        // High budget input container
+        const highBudgetContainer = document.createElement('div');
+        highBudgetContainer.className = 'budget-input-container';
+        
+        const highCurrencySymbol = document.createElement('span');
+        highCurrencySymbol.className = 'currency-symbol';
+        highCurrencySymbol.textContent = '$';
+        
+        const highBudgetInput = document.createElement('input');
+        highBudgetInput.type = 'number';
+        highBudgetInput.className = 'budget-input';
+        highBudgetInput.value = item.highBudget !== null ? item.highBudget : '';
+        highBudgetInput.min = '0';
+        highBudgetInput.step = '0.01';
+        highBudgetInput.dataset.field = 'highBudget';
+        highBudgetInput.dataset.room = roomName;
+        highBudgetInput.dataset.index = index;
+        highBudgetInput.placeholder = '0';
+        
+        highBudgetContainer.appendChild(highCurrencySymbol);
+        highBudgetContainer.appendChild(highBudgetInput);
+        
+        // Delete button container
+        const deleteButtonContainer = document.createElement('div');
+        deleteButtonContainer.className = 'delete-button-container';
+        
+        const deleteButton = document.createElement('button');
+        deleteButton.className = 'delete-button';
+        deleteButton.textContent = '✕';
+        deleteButton.addEventListener('click', function() {
+          deleteItemRow(roomName, index);
+        });
+        
+        deleteButtonContainer.appendChild(deleteButton);
+        
+        // Add all elements to the row
+        row.appendChild(itemInputContainer);
+        row.appendChild(typeInputContainer);
+        row.appendChild(quantityInput);
+        row.appendChild(lowBudgetContainer);
+        row.appendChild(highBudgetContainer);
+        row.appendChild(deleteButtonContainer);
+        
+        // Add event listeners to update data when inputs change
+        const inputs = [itemInput, typeInput, quantityInput, lowBudgetInput, highBudgetInput];
+        inputs.forEach(input => {
+          input.addEventListener('change', function() {
+            console.log('change event triggered');
+            updateItemData(this.dataset.room, this.dataset.index, this.dataset.field, this.value);
+            console.log(this.dataset.room, this.dataset.index, this.dataset.field, this.value);
+          });
+          
+          // Also add input event to capture changes as they type
+          input.addEventListener('input', function() {
+            console.log('input event triggered');
+            updateItemData(this.dataset.room, this.dataset.index, this.dataset.field, this.value);
+          });
+        });
+        
+        return row;
+      }
+      
+      // Add a new item to a room
+      function addItemToRoom(roomName) {
+        console.log('Adding new item to room:', roomName);
+        const roomItems = dashboardItemData.itemsByRoom[roomName] || [];
+        
+        // Create new item object with temporary ID
+        const newItem = {
+          id: 'new_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9), // Temporary unique ID
+          room: roomName,
+          type: '',
+          item: '',
+          quantity: 1,
+          lowBudget: null,
+          highBudget: null,
+          lowBudgetTotal: null,
+          highBudgetTotal: null,
+          isNew: true // Flag to indicate this is a newly added item
+        };
+        
+        console.log('Creating new item:', newItem);
+        
+        // Make sure the room container exists in the data structure
+        if (!dashboardItemData.itemsByRoom[roomName]) {
+          console.log('Creating new room array for:', roomName);
+          dashboardItemData.itemsByRoom[roomName] = [];
+        }
+        
+        // Add the new item to the room's items array
+        dashboardItemData.itemsByRoom[roomName].push(newItem);
+        
+        // Make sure it's also added to the main items array
+        dashboardItemData.items.push(newItem);
+        
+        console.log('Items array after adding new item:', dashboardItemData.items.length);
+        console.log('Room items after adding:', dashboardItemData.itemsByRoom[roomName].length);
+        
+        // Get the container and add the new row
+        const container = document.getElementById(`items-${roomName.replace(/\s+/g, '-')}`);
+        const newIndex = dashboardItemData.itemsByRoom[roomName].length - 1;
+        const newRow = createItemRow(newItem, newIndex, roomName);
+        
+        // Add new row to the DOM
+        container.appendChild(newRow);
+        
+        // Focus on the new input
+        setTimeout(() => {
+          const itemInput = newRow.querySelector('.item-input');
+          if (itemInput) {
+            itemInput.focus();
+          }
+        }, 100);
+        
+        // After adding, make sure the room is visible if it was filtered out
+        const currentFilter = document.getElementById('room-filter').value;
+        if (currentFilter !== 'all' && currentFilter !== roomName) {
+          // Switch the filter to the room where we just added an item
+          document.getElementById('room-filter').value = roomName;
+          filterRoomsInDashboard();
+        }
+      }
+      
+      // Delete an item row
+      function deleteItemRow(roomName, index) {
+        if (confirm('Are you sure you want to delete this item?')) {
+          // Remove from data structure
+          const roomItems = dashboardItemData.itemsByRoom[roomName] || [];
+          if (roomItems[index]) {
+            // Find the item in the overall items array
+            const itemToRemove = roomItems[index];
+            const overallIndex = dashboardItemData.items.findIndex(item => 
+              item === itemToRemove || 
+              (item.room === roomName && item.item === itemToRemove.item)
+            );
+            
+            if (overallIndex !== -1) {
+              dashboardItemData.items.splice(overallIndex, 1);
+            }
+            
+            // Remove from room items
+            roomItems.splice(index, 1);
+            
+            // Refresh the entire room section to update indices
+            refreshRoomItemsDisplay(roomName);
+            
+            // If this was the last item in the room and we're filtering by this room,
+            // switch back to "All Rooms" view
+            if (roomItems.length === 0) {
+              const currentFilter = document.getElementById('room-filter').value;
+              if (currentFilter === roomName) {
+                document.getElementById('room-filter').value = 'all';
+                filterRoomsInDashboard();
+              }
+            }
+            
+            // Show status message
+            showDashboardStatusMessage('Item deleted successfully');
+          }
+        }
+      }
+      
+      // Refresh the display of all items for a room
+      function refreshRoomItemsDisplay(roomName) {
+        const roomItems = dashboardItemData.itemsByRoom[roomName] || [];
+        const container = document.getElementById(`items-${roomName.replace(/\s+/g, '-')}`);
+        
+        // Clear the container
+        container.innerHTML = '';
+        
+        // Regenerate all item rows
+        roomItems.forEach((item, index) => {
+          const newRow = createItemRow(item, index, roomName);
+          container.appendChild(newRow);
+        });
+      }
+      
+      // Update item data when inputs change
+      function updateItemData(roomName, index, field, value) {
+        const idx = parseInt(index);
+        const roomItems = dashboardItemData.itemsByRoom[roomName] || [];
+        
+        if (idx < 0 || idx >= roomItems.length) {
+          console.error(`Invalid index: ${idx}. Room ${roomName} items length: ${roomItems.length}`);
+          return;
+        }
+        
+        const item = roomItems[idx];
+        console.log(`Updating ${field} for item in ${roomName} at index ${idx} to value: ${value}`);
+        console.log('Item before update:', JSON.stringify(item));
+        
+        if (field === 'quantity') {
+          item[field] = parseInt(value) || 1;
+          
+          // Recalculate totals
+          if (item.lowBudget !== null && !isNaN(item.lowBudget)) {
+            item.lowBudgetTotal = item.lowBudget * item.quantity;
+          } else {
+            item.lowBudgetTotal = null;
+          }
+          
+          if (item.highBudget !== null && !isNaN(item.highBudget)) {
+            item.highBudgetTotal = item.highBudget * item.quantity;
+          } else {
+            item.highBudgetTotal = null;
+          }
+        } else if (field === 'lowBudget' || field === 'highBudget') {
+          // Handle empty string input (make it null), otherwise parse as float
+          item[field] = value === '' ? null : (parseFloat(value) || (parseFloat(value) === 0 ? 0 : null));
+          
+          // Recalculate totals
+          const qty = item.quantity || 1;
+          if (field === 'lowBudget') {
+            if (item.lowBudget !== null && !isNaN(item.lowBudget)) {
+              item.lowBudgetTotal = item.lowBudget * qty;
+            } else {
+              item.lowBudgetTotal = null;
+            }
+          } else {
+            if (item.highBudget !== null && !isNaN(item.highBudget)) {
+              item.highBudgetTotal = item.highBudget * qty;
+            } else {
+              item.highBudgetTotal = null;
+            }
+          }
+        } else {
+          item[field] = value;
+        }
+        
+        console.log('Item after update:', JSON.stringify(item));
+        
+        // Find the same item in the main items array and update it too
+        const mainIndex = dashboardItemData.items.findIndex(i => 
+          i === item || 
+          (i.id && item.id && i.id === item.id) ||
+          (i.room === roomName && i.item === item.item && i.type === item.type)
+        );
+        
+        if (mainIndex >= 0) {
+          console.log(`Updating main items array at index ${mainIndex}`);
+          // Update the corresponding fields, not just the one field
+          dashboardItemData.items[mainIndex] = { ...item };
+        } else {
+          console.warn(`Couldn't find item in main items array. Room: ${roomName}, Index: ${idx}, Field: ${field}`);
+        }
+      }
+      
+      // Save all items data to the server
+      function saveAllItemsFromDashboard() {
+        console.log('Starting save process for all items');
+        console.log('Total items in dashboardItemData:', dashboardItemData.items.length);
+        console.log('Room counts:', Object.keys(dashboardItemData.itemsByRoom).map(room => 
+          `${room}: ${dashboardItemData.itemsByRoom[room].length}`
+        ));
+        
+        showDashboardLoading('Saving items...');
+        
+        // Verify data integrity first
+        let allItems = [];
+        let hasItemsWithoutRoom = false;
+        
+        // Check if we need to rebuild the main items array
+        if (dashboardItemData.items.length === 0 && Object.keys(dashboardItemData.itemsByRoom).length > 0) {
+          console.log('Main items array is empty but room items exist - rebuilding');
+          Object.keys(dashboardItemData.itemsByRoom).forEach(room => {
+            const roomItems = dashboardItemData.itemsByRoom[room];
+            if (Array.isArray(roomItems)) {
+              roomItems.forEach(item => {
+                // Ensure room property is set
+                if (!item.room) {
+                  item.room = room;
+                  hasItemsWithoutRoom = true;
+                }
+                allItems.push(item);
+              });
+            }
+          });
+          
+          if (hasItemsWithoutRoom) {
+            console.log('Fixed items missing room property');
+          }
+          
+          // Update the main items array
+          dashboardItemData.items = allItems;
+          console.log('Rebuilt main items array with', allItems.length, 'items');
+        } else {
+          allItems = dashboardItemData.items;
+        }
+        
+        // Pre-process: ensure all items have a valid room property
+        allItems.forEach(item => {
+          if (!item.room && item._roomName) {
+            console.log('Fixed item with missing room property:', item);
+            item.room = item._roomName; // Use backup field if available
+          }
+        });
+        
+        // Filter out items that don't have valid data
+        const itemsToSave = allItems.filter(item => {
+          // Only save items that have at least a room and item name
+          const isValid = item && item.room && item.item && item.item.trim() !== '';
+          if (!isValid) {
+            console.log('Filtering out invalid item:', item);
+          }
+          return isValid;
+        });
+        
+        console.log('Valid items to save:', itemsToSave.length);
+        
+        if (itemsToSave.length === 0) {
+          hideDashboardLoading();
+          showDashboardStatusMessage('No valid items to save. Please add items with names before saving.', true);
+          return;
+        }
+        
+        // Make sure all budget values are properly formatted
+        const sanitizedItems = itemsToSave.map(item => {
+          // Create a deep copy to avoid modifying the original
+          const sanitizedItem = JSON.parse(JSON.stringify(item));
+          
+          // Ensure quantity is at least 1
+          sanitizedItem.quantity = Math.max(1, parseInt(sanitizedItem.quantity) || 1);
+          
+          // Convert budget values to numbers or null
+          sanitizedItem.lowBudget = sanitizedItem.lowBudget !== null && sanitizedItem.lowBudget !== '' && !isNaN(sanitizedItem.lowBudget) 
+            ? parseFloat(sanitizedItem.lowBudget) 
+            : null;
+            
+          sanitizedItem.highBudget = sanitizedItem.highBudget !== null && sanitizedItem.highBudget !== '' && !isNaN(sanitizedItem.highBudget) 
+            ? parseFloat(sanitizedItem.highBudget) 
+            : null;
+          
+          // Recalculate totals
+          sanitizedItem.lowBudgetTotal = sanitizedItem.lowBudget !== null 
+            ? sanitizedItem.lowBudget * sanitizedItem.quantity 
+            : null;
+            
+          sanitizedItem.highBudgetTotal = sanitizedItem.highBudget !== null 
+            ? sanitizedItem.highBudget * sanitizedItem.quantity 
+            : null;
+            
+          // Remove temporary properties that shouldn't be saved
+          if ('isNew' in sanitizedItem) delete sanitizedItem.isNew;
+          if ('id' in sanitizedItem && sanitizedItem.id.toString().startsWith('new_')) delete sanitizedItem.id;
+          
+          return sanitizedItem;
+        });
+        
+        console.log('Sanitized items ready for saving:', sanitizedItems.length);
+        console.log('Sample sanitized item:', sanitizedItems.length > 0 ? sanitizedItems[0] : 'No items');
+        
+        // Call the server-side function with the sanitized items
+        google.script.run
+          .withSuccessHandler(function(result) {
+            console.log('Server response for save operation:', result);
+            hideDashboardLoading();
+            
+            if (result.success) {
+              showDashboardStatusMessage(`Successfully saved ${result.itemCount} items`, false);
+              
+              // Update any temporary IDs with permanent ones if provided by server
+              if (result.items) {
+                updateItemIdsAfterSave(result.items);
+              }
+              
+              // Mark all items as no longer new
+              dashboardItemData.items.forEach(item => {
+                if (item.isNew) item.isNew = false;
+              });
+            } else {
+              console.error('Server reported error:', result.error || 'Unknown error');
+              showDashboardStatusMessage('Error: ' + (result.error || 'Failed to save items'), true);
+            }
+          })
+          .withFailureHandler(function(error) {
+            console.error('Error during save operation:', error);
+            hideDashboardLoading();
+            showDashboardStatusMessage('Error: ' + (error.message || error), true);
+          })
+          .saveItemsFromDashboard(sanitizedItems);
+      }
+      
+      // Helper function to update item IDs after saving
+      function updateItemIdsAfterSave(savedItems) {
+        console.log('Updating item IDs after save');
+        
+        // Flatten the saved items from all rooms
+        const allSavedItems = [];
+        Object.keys(savedItems).forEach(room => {
+          savedItems[room].forEach(item => {
+            // Add the room to each item for matching
+            allSavedItems.push({...item, room: room});
+          });
+        });
+        
+        // Update dashboard items with IDs from saved items
+        dashboardItemData.items.forEach((item, index) => {
+          if (item.isNew || (item.id && item.id.toString().startsWith('new_'))) {
+            // Find the matching saved item
+            const savedItem = allSavedItems.find(saved => 
+              saved.room === item.room && 
+              saved.item === item.item && 
+              saved.type === item.type
+            );
+            
+            if (savedItem && savedItem.id) {
+              console.log(`Updating item ID: ${item.id || 'none'} → ${savedItem.id}`);
+              dashboardItemData.items[index].id = savedItem.id;
+              delete dashboardItemData.items[index].isNew;
+              
+              // Also update in itemsByRoom
+              const roomItems = dashboardItemData.itemsByRoom[item.room];
+              if (roomItems) {
+                const roomIndex = roomItems.findIndex(ri => 
+                  (ri.id === item.id) || 
+                  (ri.item === item.item && ri.type === item.type)
+                );
+                if (roomIndex >= 0) {
+                  dashboardItemData.itemsByRoom[item.room][roomIndex].id = savedItem.id;
+                  delete dashboardItemData.itemsByRoom[item.room][roomIndex].isNew;
+                }
+              }
+            }
+          }
+        });
+      }
+      
+      // Autocomplete functionality
+      let currentFocus = -1;
+      let lastActiveInput = null;
+      
+      // Show autocomplete list
+      function showAutocomplete(input) {
+        // Close previous autocomplete lists - but not all of them
+        if (activeAutocompleteInput && activeAutocompleteInput !== input) {
+          // Close only the previous dropdown, not all dropdowns
+          const prevList = activeAutocompleteInput.parentElement.querySelector('.autocomplete-list');
+          if (prevList) {
+            prevList.style.display = 'none';
+          }
+        }
+        
+        const autocompleteList = input.parentElement.querySelector('.autocomplete-list');
+        lastActiveInput = input;
+        
+        // Track this as the active autocomplete input
+        activeAutocompleteInput = input;
+        
+        // Reset focus
+        currentFocus = -1;
+        
+        // Show all available items initially
+        let listHtml = '';
+        console.log('Combined items:', dashboardItemData.combinedItems);
+        dashboardItemData.combinedItems.forEach((item, index) => {
+          listHtml += `<div class="autocomplete-item" data-index="${index}" data-value="${escapeHtml(item)}">${item}</div>`;
+        });
+        
+        autocompleteList.innerHTML = listHtml;
+        autocompleteList.style.display = 'block';
+        
+        // Add click listeners
+        addClickListenersToItems(autocompleteList);
+      }
+      
+      // Filter autocomplete items based on input
+      function filterAutocompleteItems(input) {
+        const value = input.value.toLowerCase();
+        const autocompleteList = input.parentElement.querySelector('.autocomplete-list');
+        
+        // Reset focus
+        currentFocus = -1;
+        
+        // Show all items if input is empty
+        if (value === '') {
+          let listHtml = '';
+          dashboardItemData.combinedItems.forEach((item, index) => {
+            listHtml += `<div class="autocomplete-item" data-index="${index}" data-value="${escapeHtml(item)}">${item}</div>`;
+          });
+          
+          autocompleteList.innerHTML = listHtml;
+          autocompleteList.style.display = 'block';
+        } else {
+          // Filter available items that match the input
+          const filteredItems = dashboardItemData.combinedItems.filter(item => 
+            item.toLowerCase().includes(value)
+          );
+          
+          // Generate HTML for autocomplete list
+          let listHtml = '';
+          filteredItems.forEach((item, index) => {
+            listHtml += `<div class="autocomplete-item" data-index="${index}" data-value="${escapeHtml(item)}">${item}</div>`;
+          });
+          
+          autocompleteList.innerHTML = listHtml;
+          autocompleteList.style.display = filteredItems.length > 0 ? 'block' : 'none';
+        }
+        
+        // Add click listeners to all items
+        addClickListenersToItems(autocompleteList);
+      }
+      
+      // Handle keyboard navigation in autocomplete
+      function handleAutocompleteKeydown(e, input) {
+        const autocompleteList = input.parentElement.querySelector('.autocomplete-list');
+        const items = autocompleteList.getElementsByClassName('autocomplete-item');
+        
+        if (items.length === 0) return;
+        
+        // Down arrow
+        if (e.key === 'ArrowDown') {
+          currentFocus++;
+          // Wrap around if at the end
+          if (currentFocus >= items.length) currentFocus = 0;
+          setActiveItem(items);
+          e.preventDefault();
+        }
+        // Up arrow
+        else if (e.key === 'ArrowUp') {
+          currentFocus--;
+          // Wrap around if at the beginning
+          if (currentFocus < 0) currentFocus = items.length - 1;
+          setActiveItem(items);
+          e.preventDefault();
+        }
+        // Enter key
+        else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (currentFocus > -1) {
+            // Click the active item
+            items[currentFocus].click();
+          }
+        }
+        // Escape key
+        else if (e.key === 'Escape') {
+          closeAllAutocompletes();
+        }
+      }
+      
+      // Set the active item in the list
+      function setActiveItem(items) {
+        // Remove active class from all items
+        Array.from(items).forEach(item => {
+          item.classList.remove('autocomplete-active');
+        });
+        
+        // Add active class to the current focus item
+        if (currentFocus >= 0 && currentFocus < items.length) {
+          items[currentFocus].classList.add('autocomplete-active');
+          
+          // Ensure the active item is visible (scroll to it if needed)
+          items[currentFocus].scrollIntoView({ block: 'nearest' });
+        }
+      }
+      
+      // Add click listeners to autocomplete items
+      function addClickListenersToItems(autocompleteList) {
+        const items = autocompleteList.getElementsByClassName('autocomplete-item');
+        Array.from(items).forEach(item => {
+          // Use mousedown to prevent blur from firing first
+          item.addEventListener('mousedown', function(e) {
+            // Prevent default to avoid input blur
+            e.preventDefault();
+          });
+          
+          item.addEventListener('click', function(e) {
+            // Select the item
+            selectAutocompleteItem(this);
+            
+            // Focus back on the input after selection
+            if (lastActiveInput) {
+              lastActiveInput.focus();
+            }
+          });
+        });
+      }
+      
+      // Handle item selection from autocomplete
+      function selectAutocompleteItem(selectedItem) {
+        if (!lastActiveInput) return;
+        
+        const value = selectedItem.getAttribute('data-value');
+        
+        // Extract room and index from input attributes
+        const roomName = lastActiveInput.getAttribute('data-room');
+        const index = lastActiveInput.getAttribute('data-index');
+        
+        // Extract item parts (type and name) from combined format
+        const parts = value.split(' - ');
+        
+        // Update the input field with just the item name
+        lastActiveInput.value = parts.length > 1 ? parts[1] : value;
+        
+        // If we have a type, set it in the type field
+        if (parts.length > 1) {
+          const typeInput = document.querySelector(`.type-input[data-room="${roomName}"][data-index="${index}"]`);
+          if (typeInput) {
+            typeInput.value = parts[0];
+          }
+          
+          // Update data
+          updateItemData(roomName, index, 'item', parts[1]);
+          updateItemData(roomName, index, 'type', parts[0]);
+        } else {
+          // Update just the item
+          updateItemData(roomName, index, 'item', value);
+        }
+        
+        // Close all autocomplete lists
+        closeAllAutocompletes();
+      }
+      
+      // Close all autocomplete lists
+      function closeAllAutocompletes() {
+        // Hide all autocomplete lists
+        const lists = document.getElementsByClassName('autocomplete-list');
+        Array.from(lists).forEach(list => {
+          list.style.display = 'none';
+        });
+      }
+      
+      // Helper function to escape HTML content
+      function escapeHtml(str) {
+        if (!str) return '';
+        return str
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      // Load dashboard when page opens
+      document.addEventListener('DOMContentLoaded', function() {
+        loadDashboard();
+        loadAsanaTasks();
+        loadBudgetData();
+      });
+
+      // Function to show dashboard loading overlay
+      function showDashboardLoading(message) {
+        const loadingOverlay = document.getElementById('dashboardLoadingOverlay');
+        const loadingMessage = document.getElementById('dashboardLoadingMessage');
+        
+        if (loadingMessage) {
+          loadingMessage.textContent = message || 'Loading...';
+        }
+        
+        if (loadingOverlay) {
+          loadingOverlay.style.display = 'flex';
+        }
+      }
+      
+      // Function to hide dashboard loading overlay
+      function hideDashboardLoading() {
+        const loadingOverlay = document.getElementById('dashboardLoadingOverlay');
+        
+        if (loadingOverlay) {
+          loadingOverlay.style.display = 'none';
+        }
+      }
+
+      // New function to directly show the manage items interface
+      function showManageItems() {
+        // Update the page title
+        document.getElementById('projectName').innerText = 'Manage Items';
+        
+        // Show loading overlay
+        showDashboardLoading('Loading items...');
+        
+        // First get the currently selected rooms
+        google.script.run
+          .withSuccessHandler(function(selectedResult) {
+            if (!selectedResult.success) {
+              hideDashboardLoading();
+              document.getElementById('fileContent').innerHTML = `
+                <div class="error-box" style="margin: 20px;">
+                  <strong>Error:</strong> ${selectedResult.error || 'Failed to get selected rooms'}
+                </div>`;
+              return;
+            }
+            
+            // Keep track of the already selected rooms
+            const currentlySelectedRooms = selectedResult.selectedRooms || [];
+            
+            // If there are no selected rooms yet, simply show the room manager
+            if (currentlySelectedRooms.length === 0) {
+              hideDashboardLoading();
+              showRoomManager();
+              return;
+            }
+            
+            // Now get item data using the currently selected rooms
+            google.script.run
+              .withSuccessHandler(function(result) {
+                hideDashboardLoading();
+                
+                if (result.success) {
+                  // Display the item update interface with the selected rooms
+                  showItemUpdateInDashboard();
+                } else {
+                  document.getElementById('fileContent').innerHTML = `
+                    <div class="error-box" style="margin: 20px;">
+                      <strong>Error:</strong> ${result.error || 'Failed to load items data'}
+                    </div>`;
+                }
+              })
+              .withFailureHandler(function(error) {
+                hideDashboardLoading();
+                document.getElementById('fileContent').innerHTML = `
+                  <div class="error-box" style="margin: 20px;">
+                    <strong>Error:</strong> ${error.error || error}
+                  </div>`;
+              })
+              .getItemUpdateContentForDashboard();
+          })
+          .withFailureHandler(function(error) {
+            hideDashboardLoading();
+            document.getElementById('fileContent').innerHTML = `
+              <div class="error-box" style="margin: 20px;">
+                <strong>Error:</strong> ${error.error || error}
+              </div>`;
+          })
+          .getSelectedRooms();
+      }
+
+      // Helper function to handle blur event on autocomplete input
+      function handleBlur(input) {
+        // Check if the input was just focused (to prevent immediate closing)
+        if (input.dataset.justFocused === 'true') {
+          return; // Skip blur handling if we just focused
+        }
+        
+        // Check if an item was just clicked
+        if (input.dataset.itemClicked === 'true') {
+          return; // Skip blur handling if we're clicking an item
+        }
+        
+        // Use a longer timeout to allow clicking on autocomplete items
+        // before closing the list
+        setTimeout(() => {
+          // Check if we need to keep the autocomplete open (e.g., if the user clicked on an item)
+          const isClickingItem = document.activeElement && 
+                                 document.activeElement.classList && 
+                                 document.activeElement.classList.contains('autocomplete-item');
+          
+          // Also check if the input has focus again (user clicked back on it)
+          const inputHasFocus = document.activeElement === input;
+          
+          // Check if the item clicked flag is still true
+          const itemWasClicked = input.dataset.itemClicked === 'true';
+          
+          if (!isClickingItem && !inputHasFocus && !itemWasClicked) {
+            closeAllAutocompletes();
+            
+            // Remove the active flag
+            if (input) {
+              input.dataset.autocompleteActive = 'false';
+            }
+          }
+        }, 300); // Increased to 300ms to allow more time for click to register
+      }
+
+      // Add CSS to ensure autocomplete display is properly positioned and styled
+      document.addEventListener('DOMContentLoaded', function() {
+        const styleEl = document.createElement('style');
+        styleEl.textContent = `
+          .item-input-container {
+            position: relative;
+          }
+          
+          .autocomplete-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            z-index: 1000;
+            width: 100%;
+            max-height: 300px;
+            overflow-y: auto;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            display: none;
+            margin-top: 2px;
+          }
+          
+          .autocomplete-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+            line-height: 1.4;
+            transition: background-color 0.15s ease;
+          }
+          
+          .autocomplete-item:last-child {
+            border-bottom: none;
+          }
+          
+          .autocomplete-item:hover {
+            background-color: #f5f8ff;
+          }
+          
+          .autocomplete-active {
+            background-color: #e8f0fe;
+            border-left: 3px solid #4285f4;
+            padding-left: 9px;
+          }
+          
+          .item-input {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+          }
+          
+          .item-input:focus {
+            outline: none;
+            border-color: #4285f4;
+            box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.1);
+          }
+        `;
+        document.head.appendChild(styleEl);
+      });
+
+      // Add event handler to close dropdowns when clicking outside
+      document.addEventListener('click', function(event) {
+        // Don't process if clicking on an input field (so dropdown can open)
+        if (event.target.classList.contains('item-input') || event.target.classList.contains('type-input')) {
+          return;
+        }
+        
+        // Check if the click is inside an autocomplete list item
+        const isAutocompleteItem = event.target.classList.contains('autocomplete-item');
+        const isInsideAutocomplete = event.target.closest('.autocomplete-list') !== null;
+        
+        // If clicked outside autocomplete system, close all autocomplete lists
+        if (!isAutocompleteItem && !isInsideAutocomplete) {
+          closeAllAutocompletes();
+          activeAutocompleteInput = null; // Reset tracking
+        }
+      });
+      
+      // Sidebar toggle functionality
+      document.addEventListener('DOMContentLoaded', function() {
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebar = document.querySelector('.sidebar');
+        
+        // Set up toggle button click event
+        if (sidebarToggle && sidebar) {
+          sidebarToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('collapsed');
+            
+            // Update the toggle button icon and class
+            const toggleIcon = sidebarToggle.querySelector('.material-icons');
+            if (sidebar.classList.contains('collapsed')) {
+              toggleIcon.textContent = 'chevron_right';
+              sidebarToggle.classList.add('collapsed');
+            } else {
+              toggleIcon.textContent = 'chevron_left';
+              sidebarToggle.classList.remove('collapsed');
+            }
+          });
+        }
+        
+        // Set up tab functionality
+        const sidebarTabs = document.querySelectorAll('.sidebar-tab');
+        
+        sidebarTabs.forEach(tab => {
+          tab.addEventListener('click', function() {
+            // Remove active class from all tabs and contents
+            document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.sidebar-content').forEach(c => c.classList.remove('active'));
+            
+            // Add active class to clicked tab
+            this.classList.add('active');
+            
+            // Show the corresponding content
+            const tabName = this.getAttribute('data-tab');
+            const contentElement = document.getElementById(tabName + '-content');
+            if (contentElement) {
+              contentElement.classList.add('active');
+              
+              // Load room manager content when rooms tab is clicked
+              if (tabName === 'rooms') {
+                showRoomManager('sidebar');
+              }
+            }
+            
+            // If sidebar is collapsed, expand it
+            if (sidebar.classList.contains('collapsed')) {
+              sidebar.classList.remove('collapsed');
+              sidebarToggle.querySelector('.material-icons').textContent = 'chevron_left';
+              sidebarToggle.classList.remove('collapsed');
+            }
+          });
+        });
+      });
+
+      // Function to load room data into the sidebar
+      function loadSidebarRoomManager() {
+        // Show a loading indicator in the sidebar room content
+        document.getElementById('sidebarRoomManagerContent').innerHTML = `
+          <div class="loading">
+            <i class="material-icons">sync</i> Loading rooms...
+          </div>
+        `;
+        
+        // Call server to get rooms data
+        google.script.run
+          .withSuccessHandler(function(result) {
+            renderSidebarRoomManager(result);
+          })
+          .withFailureHandler(function(error) {
+            document.getElementById('sidebarRoomManagerContent').innerHTML = `
+              <div class="error-box" style="margin: 10px;">
+                <strong>Error:</strong> ${error.error || error}
+              </div>`;
+          })
+          .getRoomsForDashboard();
+      }
+      
+      // Render the room manager UI in the sidebar
+      function renderSidebarRoomManager(result) {
+        if (!result || !result.success) {
+          const errorMsg = result && result.error ? result.error : 'Failed to load rooms';
+          document.getElementById('sidebarRoomManagerContent').innerHTML = `
+            <div class="error-box" style="margin: 10px;">
+              <strong>Error:</strong> ${errorMsg}
+            </div>`;
+          return;
+        }
+        
+        const rooms = result.rooms || [];
+        const selectedRooms = result.selectedRooms || [];
+        
+        // Reset the content first
+        document.getElementById('sidebarRoomManagerContent').innerHTML = `
+          <div id="sidebarRoomList" class="room-checklist">
+          </div>
+          
+          <div class="add-room-container">
+            <div class="add-room-heading" style="font-weight: 500; margin-bottom: 12px; color: #26717D;">Add New Room</div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <input type="text" id="newRoomNameSidebar" placeholder="Enter room name" style="width: 100%;">
+              <button onclick="addNewRoomFromSidebar()" class="btn" style="align-self: flex-start;">
+                <i class="material-icons" style="margin-right: 8px;">add</i> Add Room
+              </button>
+            </div>
+          </div>
+          
+          <div id="sidebarStatusMessage" class="status-message" style="display: none;"></div>
+        `;
+        
+        // Get the room list container
+        const roomListContainer = document.getElementById('sidebarRoomList');
+        
+        // Check if rooms array is empty
+        if (rooms.length === 0) {
+          roomListContainer.innerHTML = `
+            <div class="empty-state">
+              <i class="material-icons">meeting_room</i>
+              <p>No rooms found. Add a room below.</p>
+            </div>
+          `;
+        } else {
+          // Create room checkboxes
+          let roomListHtml = '';
+          rooms.forEach((room, index) => {
+            // Check if this room was previously selected
+            const isChecked = selectedRooms.includes(room) ? 'checked' : '';
+            
+            roomListHtml += `
+              <div class="room-checklist-item">
+                <input type="checkbox" id="sidebar-room-${index}" data-room="${room}" ${isChecked}>
+                <label for="sidebar-room-${index}" class="room-checklist-item-label">${room}</label>
+              </div>
+            `;
+          });
+          
+          roomListContainer.innerHTML = roomListHtml;
+        }
+      }
+      
+      // Function to add a new room from the sidebar
+      function addNewRoomFromSidebar() {
+        const newRoomName = document.getElementById('newRoomNameSidebar').value.trim();
+        
+        if (!newRoomName) {
+          showSidebarStatusMessage('Please enter a room name', true);
+          return;
+        }
+        
+        // Add loading state to the button
+        const addButton = document.querySelector('.add-room-container button');
+        const originalButtonHtml = addButton.innerHTML;
+        addButton.innerHTML = '<i class="material-icons" style="margin-right: 8px;">sync</i> Adding...';
+        addButton.disabled = true;
+        
+        // Call server to add room
+        google.script.run
+          .withSuccessHandler(function(result) {
+            // Restore button state
+            addButton.innerHTML = originalButtonHtml;
+            addButton.disabled = false;
+            
+            if (result.success) {
+              showSidebarStatusMessage(`Room "${result.roomName}" added successfully`);
+              document.getElementById('newRoomNameSidebar').value = '';
+              // Refresh room manager to show the new room
+              loadSidebarRoomManager();
+            } else {
+              showSidebarStatusMessage(result.error || 'Error adding room', true);
+            }
+          })
+          .withFailureHandler(function(error) {
+            // Restore button state
+            addButton.innerHTML = originalButtonHtml;
+            addButton.disabled = false;
+            showSidebarStatusMessage(`Error: ${error}`, true);
+          })
+          .addRoom(newRoomName);
+      }
+      
+      // Function to save selected rooms from sidebar
+      function saveRoomsFromSidebar() {
+        // Collect all selected rooms
+        const checkboxes = document.querySelectorAll('#sidebarRoomList input[type="checkbox"]:checked');
+        const selectedRooms = Array.from(checkboxes).map(checkbox => checkbox.getAttribute('data-room'));
+        
+        if (selectedRooms.length === 0) {
+          showSidebarStatusMessage('Please select at least one room to continue', true);
+          return;
+        }
+        
+        // Show loading state for the button
+        const saveButton = document.querySelector('.sidebar-action-buttons button');
+        const originalButtonHtml = saveButton.innerHTML;
+        saveButton.innerHTML = '<i class="material-icons">sync</i>';
+        saveButton.disabled = true;
+        
+        // Call server to save selected rooms and then show item update interface
+        google.script.run
+          .withSuccessHandler(function(result) {
+            // Restore button state
+            saveButton.innerHTML = originalButtonHtml;
+            saveButton.disabled = false;
+            
+            if (result.success) {
+              // Directly load the item update interface in the dashboard
+              showItemUpdateInDashboard();
+              // Show the main content area (in case the sidebar is collapsed on mobile)
+              document.querySelector('.sidebar').classList.add('collapsed');
+            } else {
+              showSidebarStatusMessage('Error: ' + (result.error || 'Failed to save selected rooms'), true);
+            }
+          })
+          .withFailureHandler(function(error) {
+            // Restore button state
+            saveButton.innerHTML = originalButtonHtml;
+            saveButton.disabled = false;
+            showSidebarStatusMessage('Error: ' + error, true);
+          })
+          .saveSelectedRoomsOnly(selectedRooms);
+      }
+      
+      // Show status message in the sidebar
+      function showSidebarStatusMessage(message, isError = false) {
+        const statusElement = document.getElementById('sidebarStatusMessage');
+        if (statusElement) {
+          statusElement.textContent = message;
+          statusElement.className = 'status-message ' + (isError ? 'error' : 'success');
+          statusElement.style.display = 'block';
+          
+          // Hide the message after 3 seconds
+          setTimeout(() => {
+            statusElement.style.display = 'none';
+          }, 3000);
+        }
+      }
+
+      // New function to activate sidebar tab
+      function activateSidebarTab(tabId) {
+        // Find the tab with the matching data-tab attribute
+        const tab = document.querySelector(`.sidebar-tab[data-tab="${tabId}"]`);
+        if (!tab) return;
+        
+        // Remove active class from all tabs and contents
+        document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.sidebar-content').forEach(c => c.classList.remove('active'));
+        
+        // Add active class to the clicked tab
+        tab.classList.add('active');
+        
+        // Show the corresponding content
+        const contentElement = document.getElementById(tabId + '-content');
+        if (contentElement) {
+          contentElement.classList.add('active');
+          
+          // Load room manager content when rooms tab is clicked
+          if (tabId === 'rooms') {
+            showRoomManager('sidebar');
+          }
+        }
+        
+        // If sidebar is collapsed, expand it
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar.classList.contains('collapsed')) {
+          sidebar.classList.remove('collapsed');
+          const sidebarToggle = document.getElementById('sidebarToggle');
+          if (sidebarToggle) {
+            sidebarToggle.querySelector('.material-icons').textContent = 'chevron_left';
+            sidebarToggle.classList.remove('collapsed');
+          }
+        }
+      }
+
+      // Client Email Management
+      function initClientEmail() {
+        google.script.run
+          .withSuccessHandler(function(email) {
+            if (email) {
+              $('#clientEmailText').text(email);
+              $('#clientEmailLink').attr('href', 'mailto:' + email);
+              $('#clientEmailView').show();
+              $('#clientEmailEdit').hide();
+              $('#clientEmail').val(email);
+            } else {
+              $('#clientEmailEdit').show();
+              $('#clientEmailView').hide();
+            }
+          })
+          .getClientEmail();
+          
+        // Set up edit button click
+        $('#editClientEmailBtn').off('click').on('click', function() {
+          $('#clientEmailView').hide();
+          $('#clientEmailEdit').show();
+          $('#clientEmail').focus();
+        });
+        
+        // Setup save on enter key
+        $('#clientEmail').off('keypress').on('keypress', function(e) {
+          if (e.which === 13) {
+            saveClientEmail();
+          }
+        });
+      }
+      
+      function saveClientEmail() {
+        const email = $('#clientEmail').val().trim();
+        if (email) {
+          google.script.run
+            .withSuccessHandler(function() {
+              $('#clientEmailText').text(email);
+              $('#clientEmailLink').attr('href', 'mailto:' + email);
+              $('#clientEmailView').show();
+              $('#clientEmailEdit').hide();
+              showToast('Client email saved');
+              refreshMeetings();
+            })
+            .saveClientEmail(email);
+        } else {
+          showToast('Please enter a valid email', 'error');
+        }
+      }
+      
+      function saveProjectSummary() {
+        const email = $('#clientEmail').val().trim();
+        if (email) {
+          saveClientEmail();
+        } else if ($('#clientEmailView').is(':visible')) {
+          showToast('Project info saved');
+        } else {
+          showToast('Please enter a client email', 'warning');
+        }
+      }
+      
+      // Meetings Management
+      function initMeetingsTab() {
+        $('#switchToHomeTab').off('click').on('click', function(e) {
+          e.preventDefault();
+          selectSidebarTab('home-tab');
+          $('#clientEmail').focus();
+        });
+        refreshMeetings();
+      }
+      
+      function refreshMeetings() {
+        loadMeetings();
+      }
+      
+      function loadMeetings() {
+        const meetingsList = document.getElementById('meetingsList');
+        const clientEmailWarning = document.getElementById('clientEmailWarning');
+        
+        // Show loading indicator
+        meetingsList.innerHTML = `
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Loading meetings...</p>
+          </div>
+        `;
+        
+        // Hide the email warning initially
+        clientEmailWarning.style.display = 'none';
+        
+        google.script.run
+          .withSuccessHandler(result => {
+            // Clear loading state first
+            meetingsList.innerHTML = '';
+            
+            // Check if client email is configured
+            if (result.noClientEmail) {
+              clientEmailWarning.style.display = 'flex';
+              return;
+            }
+            
+            // Handle any errors
+            if (!result.success) {
+              meetingsList.innerHTML = `
+                <div class="empty-state">
+                  <i class="material-icons">error_outline</i>
+                  <p>${result.error || 'Unable to load meetings'}</p>
+                </div>
+              `;
+              return;
+            }
+            
+            // If no meetings found
+            if (!result.meetings || result.meetings.length === 0) {
+              meetingsList.innerHTML = `
+                <div class="empty-state">
+                  <i class="material-icons">event_busy</i>
+                  <p>No upcoming meetings</p>
+                </div>
+              `;
+              return;
+            }
+            
+            // Create a container for all meetings
+            const container = document.createElement('div');
+            container.className = 'meetings-container';
+            
+            // Sort meetings by start time
+            result.meetings.sort((a, b) => new Date(a.start) - new Date(b.start));
+            
+            // Create a meeting card for each event
+            result.meetings.forEach(meeting => {
+              const startTime = new Date(meeting.start);
+              const endTime = new Date(meeting.end);
+              
+              const meetingCard = document.createElement('div');
+              meetingCard.className = 'meeting-card';
+              
+              // Format the date and time
+              const dateOptions = { weekday: 'short', month: 'short', day: 'numeric' };
+              const timeOptions = { hour: 'numeric', minute: '2-digit', hour12: true };
+              
+              const dateStr = startTime.toLocaleDateString('en-US', dateOptions);
+              const timeStr = `${startTime.toLocaleTimeString('en-US', timeOptions)} - ${endTime.toLocaleTimeString('en-US', timeOptions)}`;
+              
+              // Create the meeting content
+              meetingCard.innerHTML = `
+                <div class="meeting-details">
+                  <div class="meeting-title">${meeting.title}</div>
+                  ${meeting.location ? `<div class="meeting-location"><i class="material-icons">location_on</i> ${meeting.location}</div>` : ''}
+                  ${meeting.description ? `<div class="meeting-description">${meeting.description}</div>` : ''}
+                </div>
+                <div class="meeting-time">
+                  <div class="meeting-date">${dateStr}</div>
+                  <div class="meeting-hours">${timeStr}</div>
+                </div>
+                <div class="meeting-actions">
+                  <a href="${meeting.viewLink}" target="_blank" class="meeting-action-btn view-btn" title="View in Calendar">
+                    <i class="material-icons">visibility</i>
+                    <span>View</span>
+                  </a>
+                  <a href="${meeting.editLink}" target="_blank" class="meeting-action-btn edit-btn" title="Edit in Calendar">
+                    <i class="material-icons">edit</i>
+                    <span>Edit</span>
+                  </a>
+                </div>
+              `;
+              
+              container.appendChild(meetingCard);
+            });
+            
+            meetingsList.appendChild(container);
+          })
+          .withFailureHandler(error => {
+            meetingsList.innerHTML = `
+              <div class="empty-state">
+                <i class="material-icons">error_outline</i>
+                <p>${error || 'Unable to load meetings'}</p>
+              </div>
+            `;
+          })
+          .getUpcomingMeetings();
+      }
+
+      // Initialize sidebar tabs
+      $(document).ready(function() {
+        // ... existing code ...
+        initClientEmail();
+        initMeetingsTab();
+      });
+
+      // Fetch project details when the page loads
+      document.addEventListener('DOMContentLoaded', function() {
+        loadProjectDetails();
+      });
+      
+      function loadProjectDetails() {
+        // Get projectId from server-side template variable via data attribute
+        const projectIdElement = document.getElementById('projectIdHolder');
+        const projectId = projectIdElement ? projectIdElement.getAttribute('data-project-id') : null;
+        
+        if (!projectId) {
+          showError('No project ID specified.');
+          return;
+        }
+        
+        // Show loading state
+        showLoading(true);
+        
+        // Fetch project data
+        google.script.run
+          .withSuccessHandler(function(response) {
+            showLoading(false);
+            
+            if (!response.success) {
+              showError(response.error);
+              return;
+            }
+            
+            displayProjectDetails(response.project);
+          })
+          .withFailureHandler(function(error) {
+            showLoading(false);
+            showError('Error loading project: ' + error);
+          })
+          .getProjectById(projectId);
+      }
+      
+      function displayProjectDetails(project) {
+        // Update page title
+        document.title = `${project.name} - Project Details`;
+        
+        // Set project name in the header
+        const projectHeader = document.getElementById('projectName');
+        if (projectHeader) {
+          projectHeader.textContent = project.name;
+        }
+        
+        // Set client name
+        const clientElement = document.getElementById('projectClient');
+        if (clientElement) {
+          clientElement.textContent = project.client || 'N/A';
+        }
+        
+        // Set status with appropriate styling
+        const statusElement = document.getElementById('projectStatus');
+        if (statusElement) {
+          statusElement.textContent = project.status || 'Not Started';
+          
+          // Update status indicator color
+          const statusIndicator = document.getElementById('statusIndicator');
+          if (statusIndicator) {
+            statusIndicator.className = 'status-indicator';
+            
+            switch (project.status) {
+              case 'In Progress':
+                statusIndicator.classList.add('status-on-track');
+                break;
+              case 'On Hold':
+                statusIndicator.classList.add('status-delayed');
+                break;
+              case 'Completed':
+                statusIndicator.classList.add('status-completed');
+                break;
+              default:
+                statusIndicator.classList.add('status-not-started');
+            }
+          }
+        }
+        
+        // Set dates
+        const startDateElement = document.getElementById('startDate');
+        if (startDateElement && project.startDate) {
+          startDateElement.textContent = new Date(project.startDate).toLocaleDateString();
+        }
+        
+        const endDateElement = document.getElementById('endDate');
+        if (endDateElement && project.endDate) {
+          endDateElement.textContent = new Date(project.endDate).toLocaleDateString();
+        }
+        
+        // Set progress
+        const progressElement = document.getElementById('progressValue');
+        if (progressElement) {
+          progressElement.textContent = `${project.progress || 0}%`;
+        }
+        
+        const progressBar = document.getElementById('progressBar');
+        if (progressBar) {
+          progressBar.style.width = `${project.progress || 0}%`;
+        }
+        
+        // Set days remaining
+        const daysRemainingElement = document.getElementById('daysRemaining');
+        if (daysRemainingElement) {
+          if (project.daysRemaining > 0) {
+            daysRemainingElement.textContent = project.daysRemaining;
+          } else if (project.daysRemaining === 0) {
+            daysRemainingElement.textContent = 'Due today';
+          } else if (project.daysRemaining < 0) {
+            daysRemainingElement.textContent = `${Math.abs(project.daysRemaining)} days overdue`;
+            daysRemainingElement.classList.add('overdue');
+          } else {
+            daysRemainingElement.textContent = 'No due date';
+          }
+        }
+        
+        // Set Asana Project ID and link
+        const asanaIdElement = document.getElementById('asanaProjectId');
+        const asanaLinkElement = document.getElementById('asanaLink');
+        
+        // Clean asana project ID (remove quotes if present)
+        const cleanAsanaId = project.asanaProjectId ? project.asanaProjectId.replace(/["']/g, '') : '';
+        
+        asanaIdElement.textContent = cleanAsanaId || 'Not linked';
+        
+        // Update Asana link
+        if (asanaLinkElement && cleanAsanaId) {
+          asanaLinkElement.href = `https://app.asana.com/0/${cleanAsanaId}/list`;
+          asanaLinkElement.style.display = 'inline-block';
+        } else if (asanaLinkElement) {
+          asanaLinkElement.style.display = 'none';
+        }
+        
+        // Load Asana tasks if project has Asana integration
+        if (cleanAsanaId) {
+          loadAsanaTasks(cleanAsanaId);
+        } else {
+          document.getElementById('asanaTasks').innerHTML = '<div class="empty-state">No Asana integration set up for this project.</div>';
+        }
+        
+        function loadAsanaTasks(asanaProjectId) {
+          // Implementation for fetching Asana tasks would go here
+          // This would use the existing getAsanaTasksForGantt function with filtering for this project
+        }
+        
+        // Display the main content
+        const mainContent = document.getElementById('projectContent');
+        if (mainContent) {
+          mainContent.style.display = 'block';
+        }
+        
+        // Fetch Asana tasks if available
+        if (project.asanaProjectId) {
+          loadAsanaTasks(project.asanaProjectId);
+        }
+      }
+      
+      function showLoading(isLoading) {
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const mainContent = document.getElementById('projectContent');
+        const errorMessage = document.getElementById('errorMessage');
+        
+        if (loadingIndicator) {
+          loadingIndicator.style.display = isLoading ? 'flex' : 'none';
+        }
+        
+        if (mainContent) {
+          mainContent.style.display = isLoading ? 'none' : 'block';
+        }
+        
+        if (errorMessage) {
+          errorMessage.style.display = 'none';
+        }
+      }
+      
+      function showError(message) {
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const mainContent = document.getElementById('projectContent');
+        const errorMessage = document.getElementById('errorMessage');
+        
+        if (loadingIndicator) {
+          loadingIndicator.style.display = 'none';
+        }
+        
+        if (mainContent) {
+          mainContent.style.display = 'none';
+        }
+        
+        if (errorMessage) {
+          errorMessage.textContent = message;
+          errorMessage.style.display = 'block';
+        }
+      }
+    </script>
+  </body>
+</html>
