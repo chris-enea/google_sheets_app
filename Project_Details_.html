@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_blank">
+    <meta charset="utf-8">
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;500;700&family=Tenor+Sans&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+    
+    <!-- Project Details Content -->
+    <div class="content-container">
+      <!-- Loading Indicator -->
+      <div id="loadingIndicator" class="loading-indicator">
+        <div class="spinner"></div>
+        <div>Loading project details...</div>
+      </div>
+      
+      <!-- Error Message -->
+      <div id="errorMessage" class="error-message" style="display: none; padding: 20px;"></div>
+      
+      <!-- Project Content - Will be shown after loading -->
+      <div id="projectContent" style="display: none;">
+        <!-- ... remaining content ... -->
+      </div>
+    </div>
+  </head>
+  <body>
+    <div class="app-container">
+      <!-- Sidebar -->
+      <div class="sidebar">
+        <!-- Sidebar Tabs -->
+        <div class="sidebar-tabs">
+          <div class="sidebar-tab active" data-tab="home" data-tooltip="Project Summary">
+            <i class="material-icons">home</i>
+            <span>Home</span>
+          </div>
+          
+          <div class="sidebar-tab" data-tab="meetings" data-tooltip="Meetings">
+            <i class="material-icons">event</i>
+            <span>Meetings</span>
+          </div>
+          
+          <div class="sidebar-tab" data-tab="budget" data-tooltip="Budget">
+            <i class="material-icons">attach_money</i>
+            <span>Budget</span>
+          </div>
+          <div class="sidebar-tab" data-tab="folders" data-tooltip="Folders">
+            <i class="material-icons">folder</i>
+            <span>Folders</span>
+          </div>
+          <div class="sidebar-tab" data-tab="tasks" data-tooltip="Tasks">
+            <i class="material-icons">task</i>
+            <span>Tasks</span>
+          </div>
+          <div class="sidebar-tab" data-tab="rooms" data-tooltip="Rooms">
+            <i class="material-icons">meeting_room</i>
+            <span>Rooms</span>
+          </div>
+          <div class="sidebar-tab" data-tab="settings" data-tooltip="Settings">
+            <i class="material-icons">settings</i>
+            <span>Settings</span>
+          </div>
+        </div>
+        
+        <!-- Sidebar Content Sections -->
+        <div class="sidebar-sections">
+          <!-- Home/Project Summary Content -->
+          <div id="home-content" class="sidebar-content active">
+            <div class="sidebar-header">
+              <span id="sidebarProjectName">Project Summary</span>
+            </div>
+            <div class="sidebar-body">
+              <div id="projectSummaryContent">
+                <div class="client-info-section">
+                  <h4>Project Info</h4>
+                <!-- Add loading state for entire project summary -->
+                <div id="projectSummaryLoading" class="loading-state">
+                  <div class="spinner"></div>
+                  <p>Loading project information...</p>
+                </div>
+                  <!-- Project Summary Content -->
+                  <div id="projectSummaryActualContent" style="display: none;">
+                    <div class="form-group">
+                      <label for="clientEmail">Client Email:</label>
+                      <div id="clientEmailContainer">
+                        <div id="clientEmailView" style="display: none;">
+                          <a id="clientEmailLink" href="mailto:" class="client-email-link">
+                            <i class="material-icons">mail</i>
+                            <span id="clientEmailText"></span>
+                          </a>
+                          <button id="editClientEmailBtn" class="btn-small">
+                            <i class="material-icons">edit</i>
+                          </button>
+                        </div>
+                        <div id="clientEmailEdit" style="display: none;">
+                          <div class="edit-field-container">
+                            <input type="email" id="clientEmail" class="form-control" placeholder="client@example.com">
+                            <button id="clientEmailSaveBtn" onclick="saveProjectField('clientEmail', $('#clientEmail').val())" class="btn-small save-btn">
+                              Save
+                            </button>
+                          </div>
+                          <small class="form-text">Used for upcoming meetings</small>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="form-group">
+                      <label for="clientName">Client Name:</label>
+                      <div id="clientNameContainer">
+                        <div id="clientNameView" style="display: none;">
+                          <div class="client-info-display">
+                            <i class="material-icons">person</i>
+                            <span id="clientNameText"></span>
+                          </div>
+                          <button id="editClientNameBtn" class="btn-small">
+                            <i class="material-icons">edit</i>
+                          </button>
+                        </div>
+                        <div id="clientNameEdit" style="display: none;">
+                          <div class="edit-field-container">
+                            <input type="text" id="clientName" class="form-control" placeholder="Client name">
+                            <button id="clientNameSaveBtn" onclick="saveProjectField('clientName', $('#clientName').val())" class="btn-small save-btn">
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="form-group">
+                      <label for="projectAddress">Project Address:</label>
+                      <div id="projectAddressContainer">
+                        <div id="projectAddressView" style="display: none;">
+                          <div class="client-info-display">
+                            <i class="material-icons">location_on</i>
+                            <span id="projectAddressText"></span>
+                          </div>
+                          <button id="editProjectAddressBtn" class="btn-small">
+                            <i class="material-icons">edit</i>
+                          </button>
+                        </div>
+                        <div id="projectAddressEdit" style="display: none;">
+                          <div class="edit-field-container">
+                            <input type="text" id="projectAddress" class="form-control" placeholder="Project address">
+                            <button id="projectAddressSaveBtn" onclick="saveProjectField('projectAddress', $('#projectAddress').val())" class="btn-small save-btn">
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Meetings Content (Placeholder) -->
+          <div id="meetings-content" class="sidebar-content">
+            <div class="sidebar-header">
+              <div class="tooltip">
+                <div class="help-icon-container">
+                  <span>Upcoming Meetings</span>
+                  <div class="help-icon">
+                    <i class="material-icons">help</i>
+                  </div>
+                </div>
+                <div class="tooltip-text">
+                  <p>View upcoming meetings in the next 30 days with this client.</p>
+                </div>
+              </div>
+            </div>
+            <div id="meetingsDisplay" class="sidebar-body">
+              <div id="clientEmailWarning" style="display: none;" class="warning-box">
+                <i class="material-icons">warning</i>
+                <p>Client email not configured. Please <a href="#" id="switchToHomeTab">add client email in Project Summary</a> to view meetings.</p>
+              </div>
+              <div id="meetingsList">
+                <div class="loading-state">
+                  <div class="spinner"></div>
+                  <p>Loading meetings...</p>
+                </div>
+              </div>
+            </div>
+            <div class="sidebar-action-buttons">
+              <button onclick="refreshMeetings()" class="btn btn-outline" title="Refresh Meetings">
+                <i class="material-icons">sync</i> Refresh
+              </button>
+            </div>
+          </div>
+          
+          <!-- Budget Content (Placeholder) -->
+          <div id="budget-content" class="sidebar-content">
+            <div class="sidebar-body">
+              <div class="placeholder-content">
+                <i class="material-icons">attach_money</i>
+                <p>Budget overview will appear here</p>
+              </div>
+            </div>
+            <div class="sidebar-action-buttons">
+              <button class="btn btn-outline" title="Manage Budget">
+                <i class="material-icons">edit</i>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Folders Content -->
+          <div id="folders-content" class="sidebar-content">
+            <div class="sidebar-header">
+              <span>Project Folders</span>
+            </div>
+            <div class="sidebar-body">
+              <div id="folderContainerSidebar">
+                <!-- Folder content will be loaded here -->
+                <div class="loading-state">
+                  <div class="spinner"></div>
+                  <p>Loading folders...</p>
+                </div>
+              </div>
+            </div>
+            <div class="sidebar-action-buttons">
+              <button onclick="loadDashboard('sidebar')" class="btn btn-outline" title="Refresh Folders">
+                <i class="material-icons">sync</i> Refresh
+              </button>
+            </div>
+          </div>
+          
+          <!-- Tasks Content -->
+          <div id="tasks-content" class="sidebar-content">
+            <div class="sidebar-header">
+              <span>Project Tasks</span>
+            </div>
+            <div class="sidebar-body">
+              <div id="tasksContainerSidebar">
+                <!-- Tasks content will be loaded here -->
+                <div class="placeholder-content">
+                  <i class="material-icons">task</i>
+                  <p>Tasks will appear here</p>
+                </div>
+              </div>
+            </div>
+            <div class="sidebar-action-buttons">
+              <label style="display: flex; align-items: center; gap: 4px; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" id="showOnlyOpenTasksCheckbox" style="margin-right: 4px;" onchange="filterSidebarTasks()">
+                Open tasks only
+              </label>
+              <button onclick="refreshTasks()" class="btn btn-outline" title="Refresh Tasks">
+                <i class="material-icons">sync</i>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Rooms Content (Room Manager) -->
+          <div id="rooms-content" class="sidebar-content">
+            <div class="sidebar-header">
+              <!-- Help icon with tooltip -->
+              <div class="tooltip">
+                <div class="help-icon-container">
+                  <span>Manage Rooms</span>
+                  <div class="help-icon">
+                    <i class="material-icons">help</i>
+                  </div>
+                </div>
+                <div class="tooltip-text">
+                  <p>Select the rooms you want to add items to. Check the boxes next to room names, or add new rooms using the form below.</p>
+                </div>
+              </div>
+            </div>
+            <div class="sidebar-body">
+              <div id="sidebarRoomManagerContent">
+                <!-- Room content will be loaded dynamically -->
+              </div>
+            </div>
+            <div class="sidebar-action-buttons">
+              <button onclick="saveRoomsFromDashboard('sidebar')" class="btn" title="Continue to Items">
+                <i class="material-icons">arrow_forward</i>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Settings Content with Form -->
+          <div id="settings-content" class="sidebar-content">
+            <div class="sidebar-header">
+              <!-- Help icon with tooltip -->
+              <div class="tooltip">
+                <div class="help-icon-container">
+                  <span>Setting</span>
+                  <div class="help-icon">
+                    <i class="material-icons">help</i>
+                  </div>
+                </div>
+                <div class="tooltip-text">
+                  <p>Manage your project settings here.</p>
+                </div>
+              </div>
+            </div>
+            <div class="sidebar-body">
+              <div class="sidebar-section">
+                <h4>Project Info</h4>
+                <div class="form-group">
+                  <label for="settings-projectName">Project Name</label>
+                  <input type="text" id="settings-projectName" class="form-control" placeholder="Enter project name">
+                </div>
+                <div class="form-group">
+                  <label for="settings-clientName">Client Name</label>
+                  <input type="text" id="settings-clientName" class="form-control" placeholder="Enter client name">
+                </div>
+                <div class="form-group">
+                  <label for="settings-projectAddress">Project Address</label>
+                  <input type="text" id="settings-projectAddress" class="form-control" placeholder="Enter project address">
+                </div>
+                <div class="form-group">
+                  <label for="settings-clientEmail">Client Email</label>
+                  <input type="email" id="settings-clientEmail" class="form-control" placeholder="Enter client email">
+                </div>
+              </div>
+              
+              <div class="sidebar-section">
+                <h4>Google Drive</h4>
+                <div class="form-group">
+                  <label for="settings-folderName">Client Folder</label>
+                  <div class="input-with-button">
+                    <input type="text" id="settings-folderName" class="form-control" placeholder="Select a folder" readonly>
+                    <button type="button" class="btn-small" onclick="browseFolders()">Browse</button>
+                  </div>
+                  <input type="hidden" id="settings-folderId">
+                  <small>Folder where all project files are stored</small>
+                </div>
+              </div>
+              
+              <div class="sidebar-section">
+                <h4>Asana Integration</h4>
+                <div class="form-group">
+                  <label for="settings-asanaProjectId">Main Project ID</label>
+                  <input type="text" id="settings-asanaProjectId" class="form-control" placeholder="Enter Asana Project ID">
+                  <small>The ID of your main Asana project</small>
+                </div>
+                <div class="form-group">
+                  <label for="settings-asanaWorkspaceId">Workspace ID</label>
+                  <input type="text" id="settings-asanaWorkspaceId" class="form-control" placeholder="Enter Asana Workspace ID">
+                  <small>The ID of your Asana workspace</small>
+                </div>
+              </div>
+              
+              <div class="sidebar-section">
+                <h4>AI Assistant</h4>
+                <div class="form-group">
+                  <label>OpenAI API Key</label>
+                  <div class="info-box">
+                    <p>Your OpenAI API Key is securely stored in script properties.</p>
+                    <p><small>To update it, use the Script Properties editor in the Script Editor.</small></p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="sidebar-action-buttons">
+              <button class="btn" title="Save Settings" onclick="saveAllSettings()">
+                <i class="material-icons">save</i> Save All Settings
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Sidebar Toggle Button -->
+      <button id="sidebarToggle" class="sidebar-toggle" title="Toggle Sidebar">
+        <i class="material-icons">chevron_left</i>
+      </button>
+      
+      <!-- Main Content -->
+      <div class="main-content">
+        <div class="content-header">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2><span id="projectName">Dashboard</span></h2>
+            <div>
+              <!-- Add toggle button for Gantt chart -->
+              <button id="toggleGanttBtn" class="btn btn-outline" onclick="toggleGanttChart()">
+                <i class="material-icons">timeline</i> Show Gantt Chart
+              </button>
+              <!-- Other buttons -->
+              <button onclick="showManageItems()" class="btn">
+                <i class="material-icons">inventory_2</i> Manage Items
+              </button>
+                    </div>
+                  </div>
+        </div>
+        <div id="fileContent" class="content-body">
+          <div class="welcome-message">
+            <i class="material-icons">dashboard</i>
+            <h3>Welcome to Norton Interiors</h3>
+          </div>
+          <!-- Gantt Chart Container - hidden by default -->
+          <div id="frappeGantt" style="width: 100%; min-height: 400px; display: none; z-index: 1;"></div>
+          <!-- Budget Summary Display (ensure this exists for displayBudgetSummary) -->
+          <div id="budgetSummaryDisplay" style="display: none;"></div>
+          <!-- Asana Tasks Container (Open Tasks) -->
+          <div id="asanaTaskContainer" class="dashboard-section" style="display: none;">
+            <!-- Asana tasks will be loaded here by loadAsanaTasks() -->
+          </div>
+          
+          <!-- Dashboard Loading Overlay -->
+          <div id="dashboardLoadingOverlay" class="dashboard-loading-overlay" style="display: none;">
+            <div class="dashboard-loading-spinner"></div>
+            <div id="dashboardLoadingMessage">Loading...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

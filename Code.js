@@ -774,4 +774,32 @@ function openProjectSheet(sheetId) {
       error: "Error opening Google Sheet: " + error.message
     };
   }
+}
+
+/**
+ * Loads Project_Details_.html content and passes project data to it
+ * @param {string} projectId - The ID of the project to load details for
+ * @return {string} The HTML content for the project details
+ */
+function getProjectDetailsContent(projectId) {
+  try {
+    // Fetch the project data
+    const projectResult = getProjectById(projectId);
+    
+    if (!projectResult.success) {
+      throw new Error("Failed to load project data: " + projectResult.error);
+    }
+    
+    // Create a template from the Project_Details_.html file
+    const template = HtmlService.createTemplateFromFile('Project_Details_');
+    
+    // Pass project data to the template
+    template.project = projectResult.project;
+    
+    // Evaluate and return the HTML content
+    return template.evaluate().getContent();
+  } catch (error) {
+    Logger.log("Error in getProjectDetailsContent: " + error.message);
+    return "<div class='error-message'>Error loading project details: " + error.message + "</div>";
+  }
 } 

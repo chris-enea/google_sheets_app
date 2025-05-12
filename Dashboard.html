@@ -2183,12 +2183,10 @@
       
       .modal-content {
         background-color: white;
-        width: 600px;
         max-width: 90%;
         border-radius: 8px;
         overflow: hidden;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-        transform: translateY(-20px);
         transition: transform 0.3s;
       }
       
@@ -2491,6 +2489,44 @@
         background-color: #1d5b65;
         text-decoration: none;
       }
+      
+      /* Prevent body scrolling when modal is open */
+      body.modal-open {
+        overflow: hidden;
+      }
+      
+      /* Additional modal content styling */
+      .error-message {
+        color: #e74c3c;
+        padding: 20px;
+        text-align: center;
+        font-weight: 500;
+      }
+      
+      /* Cancel button for the modal */
+      .modal-button {
+        padding: 8px 16px;
+        background-color: #26717D;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-family: 'Lato', sans-serif;
+        font-size: 14px;
+        margin-right: 10px;
+      }
+      
+      .modal-button:hover {
+        background-color: #1c5c66;
+      }
+      
+      .modal-button.cancel {
+        background-color: #95a5a6;
+      }
+      
+      .modal-button.cancel:hover {
+        background-color: #7f8c8d;
+      }
     </style>
   </head>
   <body>
@@ -2676,6 +2712,95 @@
         </div>
       </div>
     </div>
+
+    <div id="projectDetailsModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Project Details</h2>
+          <span class="close-modal">&times;</span>
+        </div>
+        <div id="projectDetailsContent" class="modal-body">
+          <!-- Project details content will be loaded here -->
+        </div>
+      </div>
+    </div>
+
+    <style>
+      /* Modal Styles */
+      .modal {
+        display: none;
+        position: fixed;
+        z-index: 2000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgba(0, 0, 0, 0.5);
+      }
+      
+      .modal-content {
+        position: relative;
+        background-color: #fefefe;
+        margin: 2% auto;
+        padding: 0;
+        border: 1px solid #888;
+        width: 95%;
+        height: 95%;
+        max-width: 1400px;
+        box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
+        animation: modalopen 0.4s;
+        border-radius: 6px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      
+      .modal-header {
+        padding: 15px 20px;
+        background-color: #26717D;
+        color: white;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-top-left-radius: 5px;
+        border-top-right-radius: 5px;
+      }
+      
+      .modal-header h2 {
+        margin: 0;
+        font-family: 'Tenor Sans', sans-serif;
+        font-size: 20px;
+        font-weight: 400;
+      }
+      
+      .modal-body {
+        padding: 0;
+        flex: 1;
+        overflow: auto;
+        max-height: calc(90vh - 60px);
+      }
+      
+      .close-modal {
+        color: white;
+        float: right;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+      }
+      
+      .close-modal:hover,
+      .close-modal:focus {
+        color: #f1f1f1;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      
+      @keyframes modalopen {
+        from {opacity: 0; transform: translateY(-20px);}
+        to {opacity: 1; transform: translateY(0);}
+      }
+    </style>
 
     <script>
     function openSettingsDialog() {
@@ -3505,43 +3630,6 @@
         setupAddProjectModal();
       }
       
-      // Setup view buttons
-      document.addEventListener('click', function(event) {
-        if (event.target.classList.contains('view-details-btn')) {
-          const projectId = event.target.getAttribute('data-project-id');
-          const sheetId = event.target.getAttribute('data-sheet-id');
-          
-          if (sheetId) {
-            // Show loading state
-            showDashboardLoading('Opening project sheet...');
-            
-            // Use the server-side function to get the Sheet URL
-            google.script.run
-              .withSuccessHandler(function(result) {
-                hideDashboardLoading();
-                
-                if (result.success) {
-                  // Open the Google Sheet in a new tab
-                  window.open(result.url, '_blank');
-                } else {
-                  // Show error message
-                  alert("Error opening sheet: " + (result.error || "Unknown error"));
-                }
-              })
-              .withFailureHandler(function(error) {
-                hideDashboardLoading();
-                alert("Error: " + error);
-              })
-              .openProjectSheet(sheetId);
-          } else {
-            // Fallback to the original behavior if no sheet ID is available
-            window.open(`<?= ScriptApp.getService().getUrl() ?>?page=project&id=${projectId}`, '_blank');
-          }
-        } else if (event.target.classList.contains('view-tasks-btn')) {
-          // The click event for view-tasks-btn is now handled in the ProjectCard.html component
-          // No need to do anything here as we're using the event listener in ProjectCard.html
-        }
-      });
     });
     
     // Render the Gantt chart with the provided tasks
@@ -3840,6 +3928,97 @@
         .getAsanaTasksForGantt(projectId);
     }
 
+    // Project Details Modal Functionality
+    // Add event delegation for View Details buttons
+    document.addEventListener('click', function(event) {
+      if (event.target.classList.contains('view-details-btn') || 
+          (event.target.parentElement && event.target.parentElement.classList.contains('view-details-btn'))) {
+        
+        // Get the button element
+        const button = event.target.classList.contains('view-details-btn') ? 
+          event.target : event.target.parentElement;
+        
+        // Get project ID
+        const projectId = button.getAttribute('data-project-id');
+        const sheetId = button.getAttribute('data-sheet-id');
+        
+        if (!projectId) {
+          alert('Project ID not found.');
+          return;
+        }
+        
+        if (!sheetId) {
+          alert('This project does not have a Sheet ID configured. Please edit the project to add a Sheet ID.');
+          return;
+        }
+        
+        // Show loading overlay
+        const loadingEl = document.getElementById('dashboardLoadingOverlay');
+        if (loadingEl) {
+          loadingEl.style.display = 'flex';
+          document.getElementById('dashboardLoadingMessage').textContent = 'Loading project details...';
+        }
+        
+        // Load the Project_Details_.html content through a server-side function
+        google.script.run
+          .withSuccessHandler(function(result) {
+            // Hide loading overlay
+            if (loadingEl) loadingEl.style.display = 'none';
+            
+            // Get the modal and content container
+            const modal = document.getElementById('projectDetailsModal');
+            const contentContainer = document.getElementById('projectDetailsContent');
+            
+            // Clear the content container
+            contentContainer.innerHTML = '';
+            
+            // Append the processed content
+            contentContainer.innerHTML = result;
+            
+            // Set the project ID as a data attribute on the modal for reference
+            modal.setAttribute('data-project-id', projectId);
+            if (sheetId) {
+              modal.setAttribute('data-sheet-id', sheetId);
+            }
+            
+            // Add a class to the body to prevent scrolling behind the modal
+            document.body.classList.add('modal-open');
+            
+            // Show the modal
+            modal.style.display = 'block';
+            
+            // Initialize any scripts or components inside the loaded content
+            if (typeof initProjectDetailsPage === 'function') {
+              initProjectDetailsPage(projectId);
+            }
+          })
+          .withFailureHandler(function(error) {
+            // Hide loading overlay
+            if (loadingEl) loadingEl.style.display = 'none';
+            alert('Error loading project details: ' + error);
+          })
+          .getProjectDetailsContent(projectId);
+      }
+    });
+    
+    // Close modal when clicking the X
+    document.addEventListener('click', function(event) {
+      if (event.target.classList.contains('close-modal')) {
+        const modal = document.getElementById('projectDetailsModal');
+        modal.style.display = 'none';
+        document.body.classList.remove('modal-open');
+      }
+    });
+    
+    // Close modal when clicking outside the content
+    window.addEventListener('click', function(event) {
+      const modal = document.getElementById('projectDetailsModal');
+      if (event.target === modal) {
+        modal.style.display = 'none';
+        document.body.classList.remove('modal-open');
+      }
+    });
+
     </script>
 
     <!-- Hidden elements for template variables -->
@@ -3933,4 +4112,10 @@
 
     <!-- Add Project Card Styles using JavaScript -->
   </body>
+</html>
+
+<!-- Include modal scripts -->
+<?!= include('modal_scripts.js'); ?>
+
+</body>
 </html>

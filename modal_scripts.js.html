@@ -1,0 +1,1008 @@
+<!-- Client-side scripts for modals and UI functionality -->
+<script>
+      // Global variable to track which input has an open dropdown
+      let activeAutocompleteInput = null;
+
+       // Sidebar toggle functionality
+       document.addEventListener('DOMContentLoaded', function() {
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebar = document.querySelector('.sidebar');
+        
+        // Set up toggle button click event
+        if (sidebarToggle && sidebar) {
+          sidebarToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('collapsed');
+            
+            // Update the toggle button icon and class
+            const toggleIcon = sidebarToggle.querySelector('.material-icons');
+            if (sidebar.classList.contains('collapsed')) {
+              toggleIcon.textContent = 'chevron_right';
+              sidebarToggle.classList.add('collapsed');
+            } else {
+              toggleIcon.textContent = 'chevron_left';
+              sidebarToggle.classList.remove('collapsed');
+            }
+          });
+        }
+        
+        // Set up tab functionality
+        const sidebarTabs = document.querySelectorAll('.sidebar-tab');
+        
+        sidebarTabs.forEach(tab => {
+          tab.addEventListener('click', function() {
+            // Remove active class from all tabs and contents
+            document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.sidebar-content').forEach(c => c.classList.remove('active'));
+            
+            // Add active class to clicked tab
+            this.classList.add('active');
+            
+            // Show the corresponding content
+            const tabName = this.getAttribute('data-tab');
+            const contentElement = document.getElementById(tabName + '-content');
+            if (contentElement) {
+              contentElement.classList.add('active');
+              
+              // Load specific content based on tab
+              if (tabName === 'rooms') {
+                showRoomManager('sidebar');
+              } else if (tabName === 'folders') {
+                loadFolders('sidebar');
+              } else if (tabName === 'tasks') {
+                loadAsanaTasks();
+              }
+            }
+            
+            // If sidebar is collapsed, expand it
+            if (sidebar.classList.contains('collapsed')) {
+              sidebar.classList.remove('collapsed');
+              sidebarToggle.querySelector('.material-icons').textContent = 'chevron_left';
+              sidebarToggle.classList.remove('collapsed');
+            }
+          });
+        });
+      });
+
+      // Function to toggle folder list visibility
+      function toggleList(id) {
+        const list = document.getElementById(id);
+        if (list) {
+          const isVisible = list.style.display === 'block';
+          list.style.display = isVisible ? 'none' : 'block';
+          
+          // Also update the folder icon
+          const header = list.previousElementSibling;
+          if (header) {
+            const folderIcon = header.querySelector('.material-icons:first-child');
+            const chevronIcon = header.querySelector('.material-icons.chevron');
+            
+            if (folderIcon) {
+              folderIcon.textContent = isVisible ? 'folder' : 'folder_open';
+            }
+            
+            if (chevronIcon) {
+              chevronIcon.textContent = isVisible ? 'chevron_right' : 'expand_more';
+            }
+          }
+        }
+      }
+      
+      function openSettings() {
+        google.script.run.showBasicSettings();
+      }
+      
+      function openBudget() {
+        google.script.run.showBudgetDialog();
+      }
+      
+      function openItemManager() {
+        google.script.run.showItemManager();
+      }
+      
+      function loadAsanaTasks() {
+        const taskDisplay = document.getElementById('taskDisplay');
+        
+        // Clear the current content
+        taskDisplay.innerHTML = '';
+        
+        // Create loading indicator using DOM
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'loading';
+        
+        const loadingIcon = document.createElement('i');
+        loadingIcon.className = 'material-icons';
+        loadingIcon.textContent = 'sync';
+        
+        loadingDiv.appendChild(loadingIcon);
+        loadingDiv.appendChild(document.createTextNode(' Loading tasks...'));
+        
+        taskDisplay.appendChild(loadingDiv);
+        
+        google.script.run
+          .withSuccessHandler(displayTasks)
+          .withFailureHandler(handleTaskError)
+          .getAsanaTasks();
+      }
+      
+      function refreshTasks() {
+        loadAsanaTasks();
+      }
+      
+      function createNewTask() {
+        google.script.run.showAsanaTaskForm();
+      }
+      
+      // Budget Integration Functions
+      function loadBudgetData() {
+        document.getElementById('budgetSummaryDisplay').innerHTML = `
+          <div class="loading">
+            <i class="material-icons">sync</i> Loading budget data...
+          </div>
+        `;
+        
+        google.script.run
+          .withSuccessHandler(displayBudgetSummary)
+          .withFailureHandler(handleBudgetError)
+          .getBudgetData();
+      }
+      
+      function refreshBudget() {
+        loadBudgetData();
+      }
+      
+      function exportBudgetReport() {
+        google.script.run
+          .withSuccessHandler(function() {
+            alert('Budget report exported successfully');
+          })
+          .withFailureHandler(function(error) {
+            alert('Error exporting budget report: ' + error);
+          })
+          .exportBudgetReport();
+      }
+      
+      function sendVendorEmails() {
+        google.script.run
+          .withSuccessHandler(function() {
+            alert('Emails sent successfully to all vendors');
+          })
+          .withFailureHandler(function(error) {
+            alert('Error sending emails: ' + error);
+          })
+          .sendVendorEmails();
+      }
+
+      function createVendorEmailDraft(vendorName) {
+        const emailInput = document.getElementById(`email-${vendorName}`);
+        const messageInput = document.getElementById(`message-${vendorName}`);
+        const email = emailInput.value.trim();
+        const customMessage = messageInput.value.trim();
+        
+        if (!email) {
+          alert('Please enter an email address');
+          return;
+        }
+        
+        if (!isValidEmail(email)) {
+          alert('Please enter a valid email address');
+          return;
+        }
+        
+        google.script.run
+          .withSuccessHandler(function() {
+            alert('Draft email created successfully for ' + vendorName + '\nCheck your Gmail drafts folder.');
+          })
+          .withFailureHandler(function(error) {
+            alert('Error creating draft email: ' + error);
+          })
+          .createVendorEmailDraft(vendorName, email, customMessage);
+      }
+      
+      // Modified function to show room manager in either main content or sidebar
+      function showRoomManager(location = 'main') {
+        // Update the page title if showing in main content
+        if (location === 'main') {
+          document.getElementById('projectName').innerText = 'Room Manager';
+          // Show loading overlay for main content
+          showDashboardLoading('Loading rooms...');
+        } else if (location === 'sidebar') {
+          // Show loading indicator in the sidebar room content
+          document.getElementById('sidebarRoomManagerContent').innerHTML = `
+            <div class="loading">
+              <i class="material-icons">sync</i> Loading rooms...
+            </div>
+          `;
+        }
+        
+        // Call server to get rooms data
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (location === 'main') {
+              hideDashboardLoading();
+              renderRoomManager(result, location);
+            } else if (location === 'sidebar') {
+              renderRoomManager(result, location);
+            }
+          })
+          .withFailureHandler(function(error) {
+            if (location === 'main') {
+              hideDashboardLoading();
+              document.getElementById('fileContent').innerHTML = `
+                <div class="error-box" style="margin: 20px;">
+                  <strong>Error:</strong> ${error.error || error}
+                </div>`;
+            } else if (location === 'sidebar') {
+              document.getElementById('sidebarRoomManagerContent').innerHTML = `
+                <div class="error-box" style="margin: 10px;">
+                  <strong>Error:</strong> ${error.error || error}
+                </div>`;
+            }
+          })
+          .getRoomsForDashboard();
+      }
+      
+      // Function to add a new room from the dashboard or sidebar
+      function addNewRoomFromDashboard(location = 'main') {
+        const inputId = location === 'main' ? 'newRoomNameDashboard' : 'newRoomNameSidebar';
+        const newRoomName = document.getElementById(inputId).value.trim();
+        
+        if (!newRoomName) {
+          showDashboardStatusMessage('Please enter a room name', true, location);
+          return;
+        }
+        
+        // Show loading state
+        if (location === 'main') {
+          showDashboardLoading('Adding room...');
+        } else {
+          // Add loading state to the button in sidebar
+          const addButton = document.querySelector('.add-room-container button');
+          if (addButton) {
+            addButton.innerHTML = '<i class="material-icons" style="margin-right: 8px;">sync</i> Adding...';
+            addButton.disabled = true;
+          }
+        }
+        
+        // Call server to add room
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (location === 'main') {
+              hideDashboardLoading();
+            } else {
+              // Restore button state in sidebar
+              const addButton = document.querySelector('.add-room-container button');
+              if (addButton) {
+                addButton.innerHTML = '<i class="material-icons" style="margin-right: 8px;">add</i> Add Room';
+                addButton.disabled = false;
+              }
+            }
+            
+            if (result.success) {
+              showDashboardStatusMessage(`Room "${result.roomName}" added successfully`, false, location);
+              document.getElementById(inputId).value = '';
+              // Refresh room manager to show the new room
+              showRoomManager(location);
+            } else {
+              showDashboardStatusMessage(result.error || 'Error adding room', true, location);
+            }
+          })
+          .withFailureHandler(function(error) {
+            if (location === 'main') {
+              hideDashboardLoading();
+            } else {
+              // Restore button state in sidebar
+              const addButton = document.querySelector('.add-room-container button');
+              if (addButton) {
+                addButton.innerHTML = '<i class="material-icons" style="margin-right: 8px;">add</i> Add Room';
+                addButton.disabled = false;
+              }
+            }
+            showDashboardStatusMessage(`Error: ${error}`, true, location);
+          })
+          .addRoom(newRoomName);
+      }
+      
+      // Function to save selected rooms from dashboard or sidebar
+      function saveRoomsFromDashboard(location = 'main') {
+        // Determine which container to use based on location
+        const listId = location === 'main' ? 'dashboardRoomList' : 'sidebarRoomList';
+        
+        // Collect all selected rooms
+        const checkboxes = document.querySelectorAll(`#${listId} input[type="checkbox"]:checked`);
+        const selectedRooms = Array.from(checkboxes).map(checkbox => checkbox.getAttribute('data-room'));
+        
+        if (selectedRooms.length === 0) {
+          showDashboardStatusMessage('Please select at least one room to continue', true, location);
+          return;
+        }
+        
+        // Show loading state
+        if (location === 'main') {
+          showDashboardLoading('Saving selected rooms...');
+        } else {
+          // Show loading state for the button in sidebar
+          const saveButton = document.querySelector('.sidebar-action-buttons button');
+          if (saveButton) {
+            saveButton.innerHTML = '<i class="material-icons">sync</i>';
+            saveButton.disabled = true;
+          }
+        }
+        
+        // Call server to save selected rooms and then show item update interface
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (location === 'main') {
+              hideDashboardLoading();
+            } else {
+              // Restore button state in sidebar
+              const saveButton = document.querySelector('.sidebar-action-buttons button');
+              if (saveButton) {
+                saveButton.innerHTML = '<i class="material-icons">arrow_forward</i>';
+                saveButton.disabled = false;
+              }
+            }
+            
+            if (result.success) {
+              // Directly load the item update interface in the dashboard
+              showItemUpdateInDashboard();
+              
+              // If we're in the sidebar, collapse it to show the main content
+              if (location === 'sidebar') {
+                document.querySelector('.sidebar').classList.add('collapsed');
+              }
+            } else {
+              showDashboardStatusMessage('Error: ' + (result.error || 'Failed to save selected rooms'), true, location);
+            }
+          })
+          .withFailureHandler(function(error) {
+            if (location === 'main') {
+              hideDashboardLoading();
+            } else {
+              // Restore button state in sidebar
+              const saveButton = document.querySelector('.sidebar-action-buttons button');
+              if (saveButton) {
+                saveButton.innerHTML = '<i class="material-icons">arrow_forward</i>';
+                saveButton.disabled = false;
+              }
+            }
+            showDashboardStatusMessage('Error: ' + error, true, location);
+          })
+          .saveSelectedRoomsOnly(selectedRooms);
+      }
+      
+      // New function to show the item update interface in the dashboard
+      function showItemUpdateInDashboard() {
+        // Update the page title
+        document.getElementById('projectName').innerText = 'Manage Items';
+        
+        // Show loading indicator in main content area
+        showDashboardLoading('Loading items data...');
+        
+        // Call server to get item data
+        google.script.run
+          .withSuccessHandler(function(data) {
+            hideDashboardLoading();
+            renderItemUpdateInterface(data);
+          })
+          .withFailureHandler(function(error) {
+            hideDashboardLoading();
+            document.getElementById('fileContent').innerHTML = `
+              <div class="error-box" style="margin: 20px;">
+                <strong>Error:</strong> ${error.error || error}
+              </div>`;
+          })
+          .getItemUpdateContentForDashboard();
+      }
+      
+      // Save all items data to the server
+      function saveAllItemsFromDashboard() {
+        console.log('Starting save process for all items');
+        console.log('Total items in dashboardItemData:', dashboardItemData.items.length);
+        console.log('Room counts:', Object.keys(dashboardItemData.itemsByRoom).map(room => 
+          `${room}: ${dashboardItemData.itemsByRoom[room].length}`
+        ));
+        
+        showDashboardLoading('Saving items...');
+        
+        // Verify data integrity first
+        let allItems = [];
+        let hasItemsWithoutRoom = false;
+        
+        // Check if we need to rebuild the main items array
+        if (dashboardItemData.items.length === 0 && Object.keys(dashboardItemData.itemsByRoom).length > 0) {
+          console.log('Main items array is empty but room items exist - rebuilding');
+          Object.keys(dashboardItemData.itemsByRoom).forEach(room => {
+            const roomItems = dashboardItemData.itemsByRoom[room];
+            if (Array.isArray(roomItems)) {
+              roomItems.forEach(item => {
+                // Ensure room property is set
+                if (!item.room) {
+                  item.room = room;
+                  hasItemsWithoutRoom = true;
+                }
+                allItems.push(item);
+              });
+            }
+          });
+          
+          if (hasItemsWithoutRoom) {
+            console.log('Fixed items missing room property');
+          }
+          
+          // Update the main items array
+          dashboardItemData.items = allItems;
+          console.log('Rebuilt main items array with', allItems.length, 'items');
+        } else {
+          allItems = dashboardItemData.items;
+        }
+        
+        // Pre-process: ensure all items have a valid room property
+        allItems.forEach(item => {
+          if (!item.room && item._roomName) {
+            console.log('Fixed item with missing room property:', item);
+            item.room = item._roomName; // Use backup field if available
+          }
+        });
+        
+        // Filter out items that don't have valid data
+        const itemsToSave = allItems.filter(item => {
+          // Only save items that have at least a room and item name
+          const isValid = item && item.room && item.item && item.item.trim() !== '';
+          if (!isValid) {
+            console.log('Filtering out invalid item:', item);
+          }
+          return isValid;
+        });
+        
+        console.log('Valid items to save:', itemsToSave.length);
+        
+        if (itemsToSave.length === 0) {
+          hideDashboardLoading();
+          showDashboardStatusMessage('No valid items to save. Please add items with names before saving.', true);
+          return;
+        }
+        
+        // Make sure all budget values are properly formatted
+        const sanitizedItems = itemsToSave.map(item => {
+          // Create a deep copy to avoid modifying the original
+          const sanitizedItem = JSON.parse(JSON.stringify(item));
+          
+          // Ensure quantity is at least 1
+          sanitizedItem.quantity = Math.max(1, parseInt(sanitizedItem.quantity) || 1);
+          
+          // Convert budget values to numbers or null
+          sanitizedItem.lowBudget = sanitizedItem.lowBudget !== null && sanitizedItem.lowBudget !== '' && !isNaN(sanitizedItem.lowBudget) 
+            ? parseFloat(sanitizedItem.lowBudget) 
+            : null;
+            
+          sanitizedItem.highBudget = sanitizedItem.highBudget !== null && sanitizedItem.highBudget !== '' && !isNaN(sanitizedItem.highBudget) 
+            ? parseFloat(sanitizedItem.highBudget) 
+            : null;
+          
+          // Recalculate totals
+          sanitizedItem.lowBudgetTotal = sanitizedItem.lowBudget !== null 
+            ? sanitizedItem.lowBudget * sanitizedItem.quantity 
+            : null;
+            
+          sanitizedItem.highBudgetTotal = sanitizedItem.highBudget !== null 
+            ? sanitizedItem.highBudget * sanitizedItem.quantity 
+            : null;
+            
+          // Remove temporary properties that shouldn't be saved
+          if ('isNew' in sanitizedItem) delete sanitizedItem.isNew;
+          if ('id' in sanitizedItem && sanitizedItem.id.toString().startsWith('new_')) delete sanitizedItem.id;
+          
+          return sanitizedItem;
+        });
+        
+        console.log('Sanitized items ready for saving:', sanitizedItems.length);
+        console.log('Sample sanitized item:', sanitizedItems.length > 0 ? sanitizedItems[0] : 'No items');
+        
+        // Call the server-side function with the sanitized items
+        google.script.run
+          .withSuccessHandler(function(result) {
+            console.log('Server response for save operation:', result);
+            hideDashboardLoading();
+            
+            if (result.success) {
+              showDashboardStatusMessage(`Successfully saved ${result.itemCount} items`, false);
+              
+              // Update any temporary IDs with permanent ones if provided by server
+              if (result.items) {
+                updateItemIdsAfterSave(result.items);
+              }
+              
+              // Mark all items as no longer new
+              dashboardItemData.items.forEach(item => {
+                if (item.isNew) item.isNew = false;
+              });
+            } else {
+              console.error('Server reported error:', result.error || 'Unknown error');
+              showDashboardStatusMessage('Error: ' + (result.error || 'Failed to save items'), true);
+            }
+          })
+          .withFailureHandler(function(error) {
+            console.error('Error during save operation:', error);
+            hideDashboardLoading();
+            showDashboardStatusMessage('Error: ' + (error.message || error), true);
+          })
+          .saveItemsFromDashboard(sanitizedItems);
+      }
+
+      // New function to directly show the manage items interface
+      function showManageItems() {
+        // Update the page title
+        document.getElementById('projectName').innerText = 'Manage Items';
+        
+        // Show loading overlay
+        showDashboardLoading('Loading items...');
+        
+        // First get the currently selected rooms
+        google.script.run
+          .withSuccessHandler(function(selectedResult) {
+            if (!selectedResult.success) {
+              hideDashboardLoading();
+              document.getElementById('fileContent').innerHTML = `
+                <div class="error-box" style="margin: 20px;">
+                  <strong>Error:</strong> ${selectedResult.error || 'Failed to get selected rooms'}
+                </div>`;
+              return;
+            }
+            
+            // Keep track of the already selected rooms
+            const currentlySelectedRooms = selectedResult.selectedRooms || [];
+            
+            // If there are no selected rooms yet, simply show the room manager
+            if (currentlySelectedRooms.length === 0) {
+              hideDashboardLoading();
+              showRoomManager();
+              return;
+            }
+            
+            // Now get item data using the currently selected rooms
+            google.script.run
+              .withSuccessHandler(function(result) {
+                hideDashboardLoading();
+                
+                if (result.success) {
+                  // Display the item update interface with the selected rooms
+                  showItemUpdateInDashboard();
+                } else {
+                  document.getElementById('fileContent').innerHTML = `
+                    <div class="error-box" style="margin: 20px;">
+                      <strong>Error:</strong> ${result.error || 'Failed to load items data'}
+                    </div>`;
+                }
+              })
+              .withFailureHandler(function(error) {
+                hideDashboardLoading();
+                document.getElementById('fileContent').innerHTML = `
+                  <div class="error-box" style="margin: 20px;">
+                    <strong>Error:</strong> ${error.error || error}
+                  </div>`;
+              })
+              .getItemUpdateContentForDashboard();
+          })
+          .withFailureHandler(function(error) {
+            hideDashboardLoading();
+            document.getElementById('fileContent').innerHTML = `
+              <div class="error-box" style="margin: 20px;">
+                <strong>Error:</strong> ${error.error || error}
+              </div>`;
+          })
+          .getSelectedRooms();
+      }
+
+      // Load dashboard when page opens
+      document.addEventListener('DOMContentLoaded', function() {
+        loadBudgetData();
+      });
+
+      // Functions for Project_Details_.html
+      function loadProjectDetails() {
+        // Show loading state
+        showLoading(true);
+        
+        // Get projectId from the existing projectIdHolder element
+        const projectIdElement = document.getElementById('projectIdHolder');
+        const projectId = projectIdElement ? projectIdElement.getAttribute('data-project-id') : null;
+        
+        if (!projectId) {
+          // If no projectId is available, get all projects and display the first one
+          google.script.run
+            .withSuccessHandler(function(result) {
+              showLoading(false);
+              
+              if (!result.success) {
+                showError(result.error || "Failed to load projects");
+                return;
+              }
+              
+              // If no projects found
+              if (!result.projects || result.projects.length === 0) {
+                showError('No projects found.');
+                return;
+              }
+              
+              // Display the first project
+              displayProjectDetails(result.projects[0]);
+            })
+            .withFailureHandler(function(error) {
+              showLoading(false);
+              showError('Error loading projects: ' + error);
+            })
+            .getProjects();
+        } else {
+          // If we have a projectId, get that specific project
+          google.script.run
+            .withSuccessHandler(function(result) {
+              showLoading(false);
+              
+              if (!result.success) {
+                showError(result.error || "Failed to load project");
+                return;
+              }
+              
+              // Display the project details
+              displayProjectDetails(result.project);
+            })
+            .withFailureHandler(function(error) {
+              showLoading(false);
+              showError('Error loading project: ' + error);
+            })
+            .getProjectById(projectId);
+        }
+      }
+
+      // Function to preview file content in the main area
+      function showFilePreview(file) {
+        // Update the page title
+        document.getElementById('projectName').innerText = file.name;
+        
+        // Show loading indicator in main content area
+        const fileContent = document.getElementById('fileContent');
+        fileContent.innerHTML = '';
+        
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'loading';
+        loadingDiv.style.height = '100%';
+        
+        const loadingIcon = document.createElement('i');
+        loadingIcon.className = 'material-icons';
+        loadingIcon.textContent = 'sync';
+        
+        loadingDiv.appendChild(loadingIcon);
+        loadingDiv.appendChild(document.createTextNode(' Loading preview...'));
+        
+        fileContent.appendChild(loadingDiv);
+        
+        // Determine the content type
+        if (file.embedUrl) {
+          // Display the file using an iframe if it has an embed URL
+          const iframe = document.createElement('iframe');
+          iframe.src = file.embedUrl;
+          iframe.style.width = '100%';
+          iframe.style.height = '100%';
+          iframe.style.border = 'none';
+          iframe.onload = function() {
+            fileContent.innerHTML = '';
+            fileContent.appendChild(iframe);
+          };
+          iframe.onerror = function() {
+            fileContent.innerHTML = '';
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-box';
+            errorDiv.innerHTML = '<strong>Error:</strong> Unable to load file preview. <a href="' + file.url + '" target="_blank">Open in Google Drive</a> instead.';
+            fileContent.appendChild(errorDiv);
+          };
+          
+          // Set iframe src after adding error handler
+          setTimeout(() => {
+            iframe.src = file.embedUrl;
+          }, 100);
+        } else if (file.thumbnailUrl) {
+          // Show thumbnail for images
+          const imageContainer = document.createElement('div');
+          imageContainer.style.padding = '20px';
+          imageContainer.style.textAlign = 'center';
+          
+          const image = document.createElement('img');
+          image.src = file.thumbnailUrl;
+          image.style.maxWidth = '100%';
+          image.style.maxHeight = '80vh';
+          image.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+          
+          const caption = document.createElement('p');
+          caption.textContent = file.name;
+          caption.style.marginTop = '10px';
+          
+          const openLink = document.createElement('a');
+          openLink.href = file.url;
+          openLink.target = '_blank';
+          openLink.textContent = 'Open in Google Drive';
+          openLink.className = 'btn';
+          openLink.style.marginTop = '15px';
+          openLink.style.display = 'inline-block';
+          
+          imageContainer.appendChild(image);
+          imageContainer.appendChild(caption);
+          imageContainer.appendChild(openLink);
+          
+          fileContent.innerHTML = '';
+          fileContent.appendChild(imageContainer);
+        } else {
+          // Show a message that preview is not available
+          fileContent.innerHTML = '';
+          
+          const noPreviewDiv = document.createElement('div');
+          noPreviewDiv.className = 'empty-state';
+          noPreviewDiv.style.padding = '20px';
+          
+          const noPreviewIcon = document.createElement('i');
+          noPreviewIcon.className = 'material-icons';
+          noPreviewIcon.textContent = 'visibility_off';
+          noPreviewIcon.style.fontSize = '48px';
+          noPreviewIcon.style.marginBottom = '15px';
+          
+          const noPreviewText = document.createElement('p');
+          noPreviewText.textContent = 'Preview not available for this file type.';
+          
+          const openBtn = document.createElement('a');
+          openBtn.href = file.url;
+          openBtn.target = '_blank';
+          openBtn.className = 'btn';
+          openBtn.textContent = 'Open in Google Drive';
+          openBtn.style.marginTop = '15px';
+          openBtn.style.display = 'inline-block';
+          
+          noPreviewDiv.appendChild(noPreviewIcon);
+          noPreviewDiv.appendChild(noPreviewText);
+          noPreviewDiv.appendChild(openBtn);
+          
+          fileContent.appendChild(noPreviewDiv);
+        }
+      }
+
+      // Function to show dashboard loading overlay
+      function showDashboardLoading(message) {
+        const loadingOverlay = document.getElementById('dashboardLoadingOverlay');
+        const loadingMessage = document.getElementById('dashboardLoadingMessage');
+        
+        if (loadingMessage) {
+          loadingMessage.textContent = message || 'Loading...';
+        }
+        
+        if (loadingOverlay) {
+          loadingOverlay.style.display = 'flex';
+        }
+      }
+      
+      // Function to hide dashboard loading overlay
+      function hideDashboardLoading() {
+        const loadingOverlay = document.getElementById('dashboardLoadingOverlay');
+        
+        if (loadingOverlay) {
+          loadingOverlay.style.display = 'none';
+        }
+      }
+
+      // Additional functions from scripts.js should be added here
+      // ...
+      
+      // Initialize Project Details Page
+      function initProjectDetailsPage(projectId) {
+        // Get the modal element and check for sheetId
+        const modal = document.getElementById('projectDetailsModal');
+        const sheetId = modal ? modal.getAttribute('data-sheet-id') : null;
+        
+        if (!sheetId) {
+          console.error('Sheet ID not available for project', projectId);
+          showError('Project spreadsheet ID not available. Unable to load project details.');
+          return;
+        }
+        
+        // Show loading state
+        const summaryLoading = document.getElementById('projectSummaryLoading');
+        const summaryContent = document.getElementById('projectSummaryActualContent');
+        
+        if (summaryLoading) summaryLoading.style.display = 'flex';
+        if (summaryContent) summaryContent.style.display = 'none';
+        
+        // Load project summary passing the sheet ID
+        google.script.run
+          .withSuccessHandler(function(result) {
+            // Hide loading state
+            if (summaryLoading) summaryLoading.style.display = 'none';
+            if (summaryContent) summaryContent.style.display = 'block';
+            
+            if (!result.success) {
+              showError('Error loading project summary: ' + (result.error || 'Unknown error'));
+              return;
+            }
+            
+            // Update summary data on the page
+            if (result.projectName) {
+              const projectNameEl = document.getElementById('sidebarProjectName');
+              if (projectNameEl) projectNameEl.textContent = result.projectName;
+            }
+            
+            // Update room count, item count, budget totals
+            if (result.roomCount !== undefined) {
+              const roomCountEl = document.getElementById('roomCount');
+              if (roomCountEl) roomCountEl.textContent = result.roomCount;
+            }
+            
+            if (result.itemCount !== undefined) {
+              const itemCountEl = document.getElementById('itemCount');
+              if (itemCountEl) itemCountEl.textContent = result.itemCount;
+            }
+            
+            if (result.totalLowBudget !== undefined) {
+              const lowBudgetEl = document.getElementById('lowBudgetTotal');
+              if (lowBudgetEl) lowBudgetEl.textContent = formatCurrency(result.totalLowBudget);
+            }
+            
+            if (result.totalHighBudget !== undefined) {
+              const highBudgetEl = document.getElementById('highBudgetTotal');
+              if (highBudgetEl) highBudgetEl.textContent = formatCurrency(result.totalHighBudget);
+            }
+            
+            console.log('Project summary loaded successfully', result);
+          })
+          .withFailureHandler(function(error) {
+            // Hide loading, show error
+            if (summaryLoading) summaryLoading.style.display = 'none';
+            showError('Error loading project summary: ' + error);
+          })
+          .getProjectSummary(sheetId);
+          
+        // Also load rooms list (if we have a rooms tab)
+        const roomsTabContent = document.getElementById('rooms-content');
+        if (roomsTabContent) {
+          const roomsLoading = roomsTabContent.querySelector('.loading-state');
+          const roomsList = roomsTabContent.querySelector('.rooms-list');
+          
+          if (roomsLoading) roomsLoading.style.display = 'flex';
+          if (roomsList) roomsList.innerHTML = '';
+          
+          // Load rooms from the sheet using the sheetId
+          google.script.run
+            .withSuccessHandler(function(result) {
+              if (roomsLoading) roomsLoading.style.display = 'none';
+              
+              if (!result.success) {
+                if (roomsList) {
+                  roomsList.innerHTML = `<div class="empty-state">Error loading rooms: ${result.error || 'Unknown error'}</div>`;
+                }
+                return;
+              }
+              
+              // Display rooms
+              if (roomsList && result.rooms && result.rooms.length > 0) {
+                renderRoomsList(result.rooms, result.selectedRooms || [], roomsList);
+              } else if (roomsList) {
+                roomsList.innerHTML = '<div class="empty-state">No rooms found</div>';
+              }
+            })
+            .withFailureHandler(function(error) {
+              if (roomsLoading) roomsLoading.style.display = 'none';
+              if (roomsList) {
+                roomsList.innerHTML = `<div class="empty-state">Error loading rooms: ${error}</div>`;
+              }
+            })
+            .getRoomsForDashboard(sheetId);
+        }
+      }
+      
+      // Helper function to format currency
+      function formatCurrency(value) {
+        if (value === undefined || value === null) return '$0';
+        return '$' + parseFloat(value).toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
+      }
+      
+      // Function to render rooms list with checkboxes
+      function renderRoomsList(rooms, selectedRooms, container) {
+        if (!container) return;
+        
+        // Clear container
+        container.innerHTML = '';
+        
+        if (!rooms || rooms.length === 0) {
+          container.innerHTML = '<div class="empty-state">No rooms available</div>';
+          return;
+        }
+        
+        // Create room items
+        rooms.forEach(room => {
+          const isSelected = selectedRooms.includes(room);
+          
+          const roomItem = document.createElement('div');
+          roomItem.className = 'room-item';
+          
+          // Create checkbox for room selection
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.id = 'room-' + room.replace(/\s+/g, '-').toLowerCase();
+          checkbox.className = 'room-checkbox';
+          checkbox.checked = isSelected;
+          checkbox.setAttribute('data-room', room);
+          
+          // Create label for the checkbox
+          const label = document.createElement('label');
+          label.htmlFor = checkbox.id;
+          label.textContent = room;
+          
+          // Append to room item
+          roomItem.appendChild(checkbox);
+          roomItem.appendChild(label);
+          
+          // Append to container
+          container.appendChild(roomItem);
+        });
+        
+        // Add save button
+        const saveButton = document.createElement('button');
+        saveButton.className = 'btn room-save-btn';
+        saveButton.innerHTML = '<i class="material-icons">save</i> Save Selection';
+        saveButton.onclick = function() {
+          saveRoomsSelection(container);
+        };
+        
+        container.appendChild(saveButton);
+      }
+      
+      // Function to save selected rooms
+      function saveRoomsSelection(container) {
+        const checkboxes = container.querySelectorAll('input[type="checkbox"]:checked');
+        const selectedRooms = Array.from(checkboxes).map(cb => cb.getAttribute('data-room'));
+        
+        if (selectedRooms.length === 0) {
+          alert('Please select at least one room');
+          return;
+        }
+        
+        // Get sheet ID from modal
+        const modal = document.getElementById('projectDetailsModal');
+        const sheetId = modal ? modal.getAttribute('data-sheet-id') : null;
+        
+        if (!sheetId) {
+          alert('Sheet ID not available');
+          return;
+        }
+        
+        // Show loading state
+        const saveBtn = container.querySelector('.room-save-btn');
+        if (saveBtn) {
+          saveBtn.disabled = true;
+          saveBtn.innerHTML = '<i class="material-icons rotating">sync</i> Saving...';
+        }
+        
+        // Save selected rooms
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (saveBtn) {
+              saveBtn.disabled = false;
+              saveBtn.innerHTML = '<i class="material-icons">save</i> Save Selection';
+            }
+            
+            if (!result.success) {
+              alert('Error saving rooms: ' + (result.error || 'Unknown error'));
+              return;
+            }
+            
+            alert('Rooms saved successfully');
+          })
+          .withFailureHandler(function(error) {
+            if (saveBtn) {
+              saveBtn.disabled = false;
+              saveBtn.innerHTML = '<i class="material-icons">save</i> Save Selection';
+            }
+            
+            alert('Error saving rooms: ' + error);
+          })
+          .saveSelectedRoomsOnly(selectedRooms, sheetId);
+      }
+</script> 
