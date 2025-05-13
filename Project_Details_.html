@@ -6,6 +6,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;500;700&family=Tenor+Sans&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
+    <style>
+      /* Apply project color to all sidebar headers */
+      .modal-header {
+        background-color: <?= project.projectColor || '#26717D' ?> !important;
+        color: #FFFFFF;
+      }
+    </style>
     
     <!-- Project Details Content -->
     <div class="content-container">
@@ -72,7 +79,6 @@
             <div class="sidebar-body">
               <div id="projectSummaryContent">
                 <div class="client-info-section">
-                  <h4>Project Info</h4>
                 <!-- Add loading state for entire project summary -->
                 <div id="projectSummaryLoading" class="loading-state">
                   <div class="spinner"></div>
@@ -189,15 +195,20 @@
           
           <!-- Budget Content (Placeholder) -->
           <div id="budget-content" class="sidebar-content">
+            <div class="sidebar-header">
+              <span>Budget Overview</span>
+            </div>
             <div class="sidebar-body">
-              <div class="placeholder-content">
-                <i class="material-icons">attach_money</i>
-                <p>Budget overview will appear here</p>
+              <div id="budgetSummaryDisplay">
+                <div class="loading-state">
+                  <div class="spinner"></div>
+                  <p>Budget data will appear here</p>
+                </div>
               </div>
             </div>
             <div class="sidebar-action-buttons">
-              <button class="btn btn-outline" title="Manage Budget">
-                <i class="material-icons">edit</i>
+              <button onclick="refreshBudget()" class="btn btn-outline" title="Refresh Budget">
+                <i class="material-icons">sync</i> Refresh
               </button>
             </div>
           </div>
@@ -369,18 +380,13 @@
       <div class="main-content">
         <div class="content-header">
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2><span id="projectName">Dashboard</span></h2>
+            <h2><span id="projectName"><?= project.name ?></span></h2>
             <div>
-              <!-- Add toggle button for Gantt chart -->
-              <button id="toggleGanttBtn" class="btn btn-outline" onclick="toggleGanttChart()">
-                <i class="material-icons">timeline</i> Show Gantt Chart
-              </button>
-              <!-- Other buttons -->
               <button onclick="showManageItems()" class="btn">
-                <i class="material-icons">inventory_2</i> Manage Items
+                <i class="material-icons">inventory_2</i> Manage Budget Items
               </button>
-                    </div>
-                  </div>
+            </div>
+          </div>
         </div>
         <div id="fileContent" class="content-body">
           <div class="welcome-message">
@@ -389,8 +395,6 @@
           </div>
           <!-- Gantt Chart Container - hidden by default -->
           <div id="frappeGantt" style="width: 100%; min-height: 400px; display: none; z-index: 1;"></div>
-          <!-- Budget Summary Display (ensure this exists for displayBudgetSummary) -->
-          <div id="budgetSummaryDisplay" style="display: none;"></div>
           <!-- Asana Tasks Container (Open Tasks) -->
           <div id="asanaTaskContainer" class="dashboard-section" style="display: none;">
             <!-- Asana tasks will be loaded here by loadAsanaTasks() -->

@@ -30,7 +30,6 @@ function doGet(e) {
   // Return the evaluated template as an HtmlOutput object
   const output = template.evaluate()
     .setTitle('Project Management Dashboard')
-    .setFaviconUrl('https://app.asana.com/favicon.ico');
   
   return output;
 }

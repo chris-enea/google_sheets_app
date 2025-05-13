@@ -29,7 +29,7 @@
           case 'loading':
             iconName = 'sync';
             defaultMessage = 'Loading...';
-            stateClass = 'loading-state-standard';
+            stateClass = 'loading-state';
             // Add rotating class for spinner effect if not handled purely by CSS
             container.innerHTML = `
               <div class="${stateClass}">
@@ -207,6 +207,21 @@
         console.error('Asana Task Error:', error);
       }
       
+      function handleBudgetError(error) {
+        const budgetDisplay = document.getElementById('budgetSummaryDisplay');
+        if (!budgetDisplay) return;
+        let errorMessage = 'Error loading budget data.';
+        if (typeof error === 'string') {
+          errorMessage = error;
+        } else if (error && error.message) {
+          errorMessage = error.message;
+        } else if (error && error.details) {
+          errorMessage = error.details;
+        }
+        renderUIState(budgetDisplay, 'error', errorMessage);
+        console.error('Budget Data Error:', error);
+      }
+      
       function createNewTask() {
         google.script.run.showAsanaTaskForm();
       }
@@ -217,10 +232,16 @@
         if (!budgetDisplay) return;
         renderUIState(budgetDisplay, 'loading', 'Loading budget data...');
         
+        // Get the sheet ID from the project details modal
+        const modal = document.getElementById('projectDetailsModal');
+        const sheetId = modal ? modal.getAttribute('data-sheet-id') : null;
+        
+        console.log('loadBudgetData: found sheetId:', sheetId);
+        
         google.script.run
-          .withSuccessHandler(displayBudgetSummary) // Assuming displayBudgetSummary handles its own content or calls renderUIState for empty state
+          .withSuccessHandler(displayBudgetSummary)
           .withFailureHandler(handleBudgetError)
-          .getBudgetData();
+          .getBudgetData(sheetId);
       }
       
       function refreshBudget() {
@@ -490,6 +511,9 @@
         document.getElementById('projectName').innerText = 'Manage Items';
         const mainContentContainer = document.getElementById('fileContent');
         
+        // Collapse the sidebar when Manage Items is clicked
+        document.querySelector('.sidebar').classList.add('collapsed');
+        
         // Get the sheet ID from the project details modal
         const modal = document.getElementById('projectDetailsModal');
         const sheetId = modal ? modal.getAttribute('data-sheet-id') : null;
@@ -507,7 +531,12 @@
         // Show global loading overlay and set loading for main container
         showDashboardLoading('Loading items management...');
         if (mainContentContainer) {
-            renderUIState(mainContentContainer, 'loading', 'Loading items management...');
+            // Use the specific loading state requested by the user
+            mainContentContainer.innerHTML = `
+              <div class="loading-state">
+                <div class="spinner"></div>
+                <p>Loading items...</p>
+              </div>`;
         }
         
         // First get the currently selected rooms
@@ -534,17 +563,15 @@
               return;
             }
             
-            // If mainContentContainer was initially null, we might be in trouble here if we didn't return earlier.
-            // Assuming if we reached here, mainContentContainer exists, or showRoomManager would be called.
-            // The loading state was already set. Now get item data.
+            // Keep the same loading state we set earlier - don't change it
 
             google.script.run
               .withSuccessHandler(function(result) {
                 hideDashboardLoading();
                 if (mainContentContainer) {
                     if (result.success) {
-                        // renderUIState(mainContentContainer, 'success'); // Clear loading before showing item update.
-                        showItemUpdateInDashboard(); // This function will now use the same sheetId
+                        // Don't use renderUIState - just proceed to item update which will replace the content
+                        showItemUpdateInDashboard(true); // Pass true to prevent changing the loading message
                     } else {
                         renderUIState(mainContentContainer, 'error', '<strong>Error:</strong> ' + (result.error || 'Failed to load items data'));
                     }
@@ -574,7 +601,7 @@
       }
 
       // New function to show the item update interface in the dashboard
-      function showItemUpdateInDashboard() {
+      function showItemUpdateInDashboard(keepLoadingState = false) {
         // Update the page title
         document.getElementById('projectName').innerText = 'Manage Items';
         const mainContentContainer = document.getElementById('fileContent');
@@ -593,10 +620,17 @@
           return;
         }
         
-        // Show global loading overlay (if desired) AND set loading state for the specific container
+        // Show global loading overlay (if desired) 
         showDashboardLoading('Loading items data...'); 
-        if (mainContentContainer) {
-            renderUIState(mainContentContainer, 'loading', 'Loading items data...'); 
+        
+        // Set loading state for the specific container only if not already set
+        if (mainContentContainer && !keepLoadingState) {
+            // Use the same consistent loading message
+            mainContentContainer.innerHTML = `
+              <div class="loading-state">
+                <div class="spinner"></div>
+                <p>Loading items...</p>
+              </div>`;
         }
         
         // Call server to get item data
@@ -604,9 +638,8 @@
           .withSuccessHandler(function(data) {
             hideDashboardLoading(); // Hide global overlay
             if (mainContentContainer) {
-                // Clear the container (loading state) and renderItemUpdateInterface will populate it.
-                renderUIState(mainContentContainer, 'success'); 
-                renderItemUpdateInterface(data); // This function should populate the cleared container
+                // Don't call renderUIState, just directly replace the content
+                renderItemUpdateInterface(data); 
             } else {
                 console.error('showItemUpdateInDashboard: fileContent container not found for success handler.');
             }
@@ -743,6 +776,11 @@
           `${room}: ${dashboardItemData.itemsByRoom[room].length}`
         ));
         
+        // Get sheetId from the modal if available
+        const modal = document.getElementById('projectDetailsModal');
+        const sheetId = modal ? modal.getAttribute('data-sheet-id') : null;
+        console.log('saveAllItemsFromDashboard: found sheetId:', sheetId);
+        
         showDashboardLoading('Saving items...');
         
         // Verify data integrity first and prepare items
@@ -793,7 +831,7 @@
             hideDashboardLoading();
             showDashboardStatusMessage('Error: ' + (error.message || error), true);
           })
-          .saveItemsFromDashboard(sanitizedItems);
+          .saveItemsFromDashboard(sanitizedItems, sheetId);
       }
 
       // Load dashboard when page opens
@@ -1020,12 +1058,6 @@
             }
             
             renderUIState(summaryContainer, 'success'); // Clear loading/error, ready for content
-
-            // Update summary data on the page
-            if (result.projectName) {
-              const projectNameEl = document.getElementById('sidebarProjectName');
-              if (projectNameEl) projectNameEl.textContent = result.projectName;
-            }
             
             // Update room count, item count, budget totals
             if (result.roomCount !== undefined) {
@@ -1102,8 +1134,8 @@
       function formatCurrency(value) {
         if (value === undefined || value === null) return '$0';
         return '$' + parseFloat(value).toLocaleString('en-US', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0
         });
       }
       
@@ -1250,15 +1282,32 @@
 
         // Main Sidebar Toggle Logic (scoped to this modal's sidebar)
         if (sidebarToggle && sidebar) {
-          sidebarToggle.addEventListener('click', function() {
-            sidebar.classList.toggle('collapsed');
-            const toggleIcon = sidebarToggle.querySelector('.material-icons');
+          // Set initial state of the toggle button based on sidebar collapsed state
+          const toggleIcon = sidebarToggle.querySelector('.material-icons');
+          if (toggleIcon) {
+            // Set correct initial icon based on sidebar state
             if (sidebar.classList.contains('collapsed')) {
               toggleIcon.textContent = 'chevron_right';
               sidebarToggle.classList.add('collapsed');
             } else {
               toggleIcon.textContent = 'chevron_left';
               sidebarToggle.classList.remove('collapsed');
+            }
+          }
+          
+          // Set up toggle button click event
+          sidebarToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('collapsed');
+            const toggleIcon = sidebarToggle.querySelector('.material-icons');
+            
+            if (toggleIcon) {
+              if (sidebar.classList.contains('collapsed')) {
+                toggleIcon.textContent = 'chevron_right';
+                sidebarToggle.classList.add('collapsed');
+              } else {
+                toggleIcon.textContent = 'chevron_left';
+                sidebarToggle.classList.remove('collapsed');
+              }
             }
           });
         } else {
@@ -1293,6 +1342,8 @@
                   if (typeof loadFolders === 'function') loadFolders('sidebar'); else console.error('loadFolders function not found');
                 } else if (tabName === 'tasks') {
                   if (typeof loadAsanaTasks === 'function') loadAsanaTasks(); else console.error('loadAsanaTasks function not found');
+                } else if (tabName === 'budget') {
+                  if (typeof loadBudgetData === 'function') loadBudgetData();
                 } // Add other tab-specific loading functions here if needed
               }
               
@@ -1300,7 +1351,8 @@
               if (sidebar.classList.contains('collapsed')) {
                 sidebar.classList.remove('collapsed');
                 if (sidebarToggle) {
-                  sidebarToggle.querySelector('.material-icons').textContent = 'chevron_left';
+                  const toggleIcon = sidebarToggle.querySelector('.material-icons');
+                  if (toggleIcon) toggleIcon.textContent = 'chevron_left';
                   sidebarToggle.classList.remove('collapsed');
                 }
               }
@@ -1600,17 +1652,35 @@
           itemsByRoom[room] = data.itemsByRoom[room] || [];
         });
         
+        // Create the sticky filter and save button container
+        const stickyContainer = document.createElement('div');
+        stickyContainer.id = 'sticky-filter-save-container';
+        stickyContainer.style.position = 'sticky';
+        stickyContainer.style.top = '0';
+        stickyContainer.style.backgroundColor = 'white';
+        stickyContainer.style.zIndex = '100';
+        stickyContainer.style.padding = '10px 0';
+        stickyContainer.style.display = 'flex';
+        stickyContainer.style.justifyContent = 'space-between';
+        stickyContainer.style.alignItems = 'center';
+        stickyContainer.style.borderBottom = '1px solid rgba(0,0,0,0.1)';
+        stickyContainer.style.marginBottom = '15px';
+        
         // Add room filter
         const filterContainer = document.createElement('div');
         filterContainer.id = 'filter-container';
+        filterContainer.style.display = 'flex';
+        filterContainer.style.alignItems = 'center';
         
         const filterLabel = document.createElement('label');
         filterLabel.className = 'filter-label';
         filterLabel.htmlFor = 'room-filter';
         filterLabel.textContent = 'Filter by Room:';
+        filterLabel.style.marginRight = '10px';
         
         const roomFilter = document.createElement('select');
         roomFilter.id = 'room-filter';
+        roomFilter.style.marginRight = '20px';
         roomFilter.addEventListener('change', filterRoomsInDashboard);
         
         const allRoomsOption = document.createElement('option');
@@ -1621,7 +1691,78 @@
         filterContainer.appendChild(filterLabel);
         filterContainer.appendChild(roomFilter);
         
-        container.appendChild(filterContainer);
+        // Create save button for the sticky container
+        const saveButton = document.createElement('button');
+        saveButton.className = 'btn';
+        saveButton.addEventListener('click', saveAllItemsFromDashboard);
+        
+        const saveIcon = document.createElement('i');
+        saveIcon.className = 'material-icons';
+        saveIcon.textContent = 'save';
+        saveIcon.style.marginRight = '5px';
+        
+        saveButton.appendChild(saveIcon);
+        saveButton.appendChild(document.createTextNode('Save All Items'));
+        
+        // Create back button for the sticky container
+        const backButton = document.createElement('button');
+        backButton.className = 'btn btn-outline';
+        backButton.style.marginRight = '10px';
+        backButton.addEventListener('click', function() {
+          // First, activate the rooms tab in the sidebar
+          const roomsTab = document.querySelector('.sidebar-tab[data-tab="rooms"]');
+          if (roomsTab) {
+            // Remove active class from all tabs and contents
+            document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.sidebar-content').forEach(c => c.classList.remove('active'));
+            
+            // Add active class to rooms tab
+            roomsTab.classList.add('active');
+            
+            // Show the corresponding content
+            const contentElement = document.getElementById('rooms-content');
+            if (contentElement) {
+              contentElement.classList.add('active');
+            }
+            
+            // Expand the sidebar if it's collapsed
+            const sidebar = document.querySelector('.sidebar');
+            if (sidebar && sidebar.classList.contains('collapsed')) {
+              sidebar.classList.remove('collapsed');
+              const sidebarToggle = document.getElementById('sidebarToggle');
+              if (sidebarToggle) {
+                const toggleIcon = sidebarToggle.querySelector('.material-icons');
+                if (toggleIcon) toggleIcon.textContent = 'chevron_left';
+                sidebarToggle.classList.remove('collapsed');
+              }
+            }
+          }
+          
+          // Then show the room manager in the main content
+          showRoomManager();
+        });
+        
+        const backIcon = document.createElement('i');
+        backIcon.className = 'material-icons';
+        backIcon.textContent = 'arrow_back';
+        backIcon.style.marginRight = '5px';
+        
+        backButton.appendChild(backIcon);
+        backButton.appendChild(document.createTextNode('Back to Rooms'));
+        
+        // Create actions container in the sticky header
+        const actionsContainer = document.createElement('div');
+        actionsContainer.style.display = 'flex';
+        actionsContainer.style.gap = '10px';
+        actionsContainer.appendChild(backButton);
+        actionsContainer.appendChild(saveButton);
+        
+        // Add filter and actions to sticky container
+        stickyContainer.appendChild(filterContainer);
+        stickyContainer.appendChild(actionsContainer);
+        
+        // Add sticky container to main container
+        container.appendChild(stickyContainer);
         
         // Populate filter dropdown with rooms
         Object.keys(itemsByRoom).sort().forEach(room => {
@@ -1630,6 +1771,9 @@
           option.textContent = room;
           roomFilter.appendChild(option);
         });
+        
+        // Create a DocumentFragment to hold all room containers before appending to the main container
+        const roomsFragment = document.createDocumentFragment();
         
         // Create room sections
         Object.keys(itemsByRoom).sort().forEach(room => {
@@ -1689,13 +1833,53 @@
           itemsContainer.className = 'items-container';
           itemsContainer.id = `items-${room.replace(/\s+/g, '-')}`;
           
+          // Use a DocumentFragment for batching item row appends
+          const itemsFragment = document.createDocumentFragment();
           // Add each item
           roomItems.forEach((item, index) => {
             const itemRow = createItemRow(item, index, room);
-            itemsContainer.appendChild(itemRow);
+            itemsFragment.appendChild(itemRow);
           });
+          itemsContainer.appendChild(itemsFragment); // Append all item rows at once
           
+          // Add delegated event listeners to itemsContainer
+          itemsContainer.addEventListener('change', function(event) {
+            const target = event.target;
+            if (target.classList.contains('item-input') ||
+                target.classList.contains('type-input') ||
+                target.classList.contains('quantity-input') ||
+                target.classList.contains('budget-input')) {
+              if (target.dataset.room && target.dataset.index !== undefined && target.dataset.field) {
+                updateItemData(target.dataset.room, target.dataset.index, target.dataset.field, target.value);
+              }
+            }
+          });
+
+          itemsContainer.addEventListener('input', function(event) {
+            const target = event.target;
+            if (target.classList.contains('item-input') ||
+                target.classList.contains('type-input') ||
+                target.classList.contains('quantity-input') ||
+                target.classList.contains('budget-input')) {
+              if (target.dataset.room && target.dataset.index !== undefined && target.dataset.field) {
+                updateItemData(target.dataset.room, target.dataset.index, target.dataset.field, target.value);
+              }
+            }
+          });
+
+          itemsContainer.addEventListener('click', function(event) {
+            const target = event.target;
+            if (target.classList.contains('delete-button')) {
+              if (target.dataset.room && target.dataset.index !== undefined) {
+                deleteItemRow(target.dataset.room, target.dataset.index);
+              }
+            }
+          });
+
           roomContainer.appendChild(itemsContainer);
+          
+          // Remove this call as it's redundant and causes placement issues
+          // updateRoomBudgetDisplay(room);
           
           // Add the "add item" button at the bottom of each room
           const addMoreRow = document.createElement('div');
@@ -1717,50 +1901,30 @@
           
           roomContainer.appendChild(addMoreRow);
           
-          container.appendChild(roomContainer);
+          // Only call updateRoomBudgetDisplay once, after both items container and add button are added
+          updateRoomBudgetDisplay(room);
+          
+          roomsFragment.appendChild(roomContainer); // Append room container to the fragment
         });
         
-        // Add action buttons
-        const actionsDiv = document.createElement('div');
-        actionsDiv.className = 'item-update-actions';
-        actionsDiv.style.display = 'flex';
-        actionsDiv.style.justifyContent = 'flex-end';
-        actionsDiv.style.gap = '10px';
-        actionsDiv.style.marginTop = '20px';
+        container.appendChild(roomsFragment); // Append all room containers at once
         
-        // Create back button
-        const backButton = document.createElement('button');
-        backButton.className = 'btn btn-outline';
-        backButton.addEventListener('click', showRoomManager);
-        
-        const backIcon = document.createElement('i');
-        backIcon.className = 'material-icons';
-        backIcon.textContent = 'arrow_back';
-        
-        backButton.appendChild(backIcon);
-        backButton.appendChild(document.createTextNode(' Back to Rooms'));
-        
-        // Create save button
-        const saveButton = document.createElement('button');
-        saveButton.className = 'btn';
-        saveButton.addEventListener('click', saveAllItemsFromDashboard);
-        
-        const saveIcon = document.createElement('i');
-        saveIcon.className = 'material-icons';
-        saveIcon.textContent = 'save';
-        
-        saveButton.appendChild(saveIcon);
-        saveButton.appendChild(document.createTextNode(' Save All Items'));
-        
-        // Add buttons to actions div
-        actionsDiv.appendChild(backButton);
-        actionsDiv.appendChild(saveButton);
-        
-        container.appendChild(actionsDiv);
+        // Re-run updateRoomBudgetDisplay for all rooms to ensure proper placement
+        Object.keys(itemsByRoom).sort().forEach(room => {
+          updateRoomBudgetDisplay(room);
+        });
         
         // Update the content area
         document.getElementById('fileContent').innerHTML = '';
         document.getElementById('fileContent').appendChild(container);
+        
+        // Add a small delay to ensure all DOM elements are fully rendered before calculating budget summaries
+        setTimeout(() => {
+          console.log('Applying budget summary updates after DOM render');
+          Object.keys(itemsByRoom).sort().forEach(room => {
+            updateRoomBudgetDisplay(room);
+          });
+        }, 50);
       }
 
       // Function to filter rooms in the dashboard
@@ -1810,6 +1974,20 @@
         // Add keydown event for keyboard navigation
         itemInput.addEventListener('keydown', function(e) {
           handleAutocompleteKeydown(e, this);
+        });
+        
+        // Add blur event to close the autocomplete dropdown when clicking outside
+        itemInput.addEventListener('blur', function() {
+          // Use a small delay to allow click events on autocomplete items to complete
+          setTimeout(() => {
+            if (activeAutocompleteInput === this) {
+              const autocompleteList = this.parentElement.querySelector('.autocomplete-list');
+              if (autocompleteList) {
+                autocompleteList.style.display = 'none';
+              }
+              activeAutocompleteInput = null;
+            }
+          }, 200);
         });
         
         const autocompleteList = document.createElement('div');
@@ -1894,9 +2072,11 @@
         const deleteButton = document.createElement('button');
         deleteButton.className = 'delete-button';
         deleteButton.textContent = '✕';
-        deleteButton.addEventListener('click', function() {
-          deleteItemRow(roomName, index);
-        });
+        deleteButton.dataset.room = roomName;
+        deleteButton.dataset.index = String(index); // For delegated event handler
+        // deleteButton.addEventListener('click', function() { // REMOVED
+        //   deleteItemRow(roomName, index);
+        // });
         
         deleteButtonContainer.appendChild(deleteButton);
         
@@ -1908,28 +2088,28 @@
         row.appendChild(highBudgetContainer);
         row.appendChild(deleteButtonContainer);
         
-        // Add event listeners to update data when inputs change
-        const inputs = [itemInput, typeInput, quantityInput, lowBudgetInput, highBudgetInput];
-        inputs.forEach(input => {
-          input.addEventListener('change', function() {
-            console.log('change event triggered');
-            updateItemData(this.dataset.room, this.dataset.index, this.dataset.field, this.value);
-            console.log(this.dataset.room, this.dataset.index, this.dataset.field, this.value);
-          });
-          
-          // Also add input event to capture changes as they type
-          input.addEventListener('input', function() {
-            console.log('input event triggered');
-            updateItemData(this.dataset.room, this.dataset.index, this.dataset.field, this.value);
-          });
-        });
+        // REMOVED direct event listeners for data updates
+        // const inputs = [itemInput, typeInput, quantityInput, lowBudgetInput, highBudgetInput];
+        // inputs.forEach(input => {
+        //   input.addEventListener('change', function() {
+        //     console.log('change event triggered');
+        //     updateItemData(this.dataset.room, this.dataset.index, this.dataset.field, this.value);
+        //     console.log(this.dataset.room, this.dataset.index, this.dataset.field, this.value);
+        //   });
+        //   
+        //   // Also add input event to capture changes as they type
+        //   input.addEventListener('input', function() {
+        //     console.log('input event triggered');
+        //     updateItemData(this.dataset.room, this.dataset.index, this.dataset.field, this.value);
+        //   });
+        // });
         
         return row;
       }
       
       // Add a new item to a room
       function addItemToRoom(roomName) {
-        console.log('Adding new item to room:', roomName);
+        // console.log('Adding new item to room:', roomName); // Removed
         const roomItems = dashboardItemData.itemsByRoom[roomName] || [];
         
         // Create new item object with temporary ID
@@ -1946,11 +2126,11 @@
           isNew: true // Flag to indicate this is a newly added item
         };
         
-        console.log('Creating new item:', newItem);
+        // console.log('Creating new item:', newItem); // Removed
         
         // Make sure the room container exists in the data structure
         if (!dashboardItemData.itemsByRoom[roomName]) {
-          console.log('Creating new room array for:', roomName);
+          // console.log('Creating new room array for:', roomName); // Removed
           dashboardItemData.itemsByRoom[roomName] = [];
         }
         
@@ -1960,8 +2140,8 @@
         // Make sure it's also added to the main items array
         dashboardItemData.items.push(newItem);
         
-        console.log('Items array after adding new item:', dashboardItemData.items.length);
-        console.log('Room items after adding:', dashboardItemData.itemsByRoom[roomName].length);
+        // console.log('Items array after adding new item:', dashboardItemData.items.length); // Removed
+        // console.log('Room items after adding:', dashboardItemData.itemsByRoom[roomName].length); // Removed
         
         // Get the container and add the new row
         const container = document.getElementById(`items-${roomName.replace(/\s+/g, '-')}`);
@@ -1986,6 +2166,9 @@
           document.getElementById('room-filter').value = roomName;
           filterRoomsInDashboard();
         }
+        
+        // Update the budget summary row for this room
+        updateRoomBudgetDisplay(roomName);
       }
       
       // Delete an item row
@@ -2021,6 +2204,9 @@
               }
             }
             
+            // Update the budget summary row for this room
+            updateRoomBudgetDisplay(roomName);
+            
             // Show status message
             showDashboardStatusMessage('Item deleted successfully');
           }
@@ -2035,11 +2221,17 @@
         // Clear the container
         container.innerHTML = '';
         
+        // Use a DocumentFragment for batching item row appends
+        const itemsFragment = document.createDocumentFragment();
         // Regenerate all item rows
         roomItems.forEach((item, index) => {
           const newRow = createItemRow(item, index, roomName);
-          container.appendChild(newRow);
+          itemsFragment.appendChild(newRow);
         });
+        container.appendChild(itemsFragment); // Append all item rows at once
+        
+        // Update the budget summary for this room
+        updateRoomBudgetDisplay(roomName);
       }
       
       // Update item data when inputs change
@@ -2110,6 +2302,9 @@
         } else {
           console.warn(`Couldn't find item in main items array. Room: ${roomName}, Index: ${idx}, Field: ${field}`);
         }
+        
+        // Update the budget summary row for this room
+        updateRoomBudgetDisplay(roomName);
       }
       
       // Save all items data to the server
@@ -2120,57 +2315,18 @@
           `${room}: ${dashboardItemData.itemsByRoom[room].length}`
         ));
         
+        // Get sheetId from the modal if available
+        const modal = document.getElementById('projectDetailsModal');
+        const sheetId = modal ? modal.getAttribute('data-sheet-id') : null;
+        console.log('saveAllItemsFromDashboard: found sheetId:', sheetId);
+        
         showDashboardLoading('Saving items...');
         
-        // Verify data integrity first
-        let allItems = [];
-        let hasItemsWithoutRoom = false;
-        
-        // Check if we need to rebuild the main items array
-        if (dashboardItemData.items.length === 0 && Object.keys(dashboardItemData.itemsByRoom).length > 0) {
-          console.log('Main items array is empty but room items exist - rebuilding');
-          Object.keys(dashboardItemData.itemsByRoom).forEach(room => {
-            const roomItems = dashboardItemData.itemsByRoom[room];
-            if (Array.isArray(roomItems)) {
-              roomItems.forEach(item => {
-                // Ensure room property is set
-                if (!item.room) {
-                  item.room = room;
-                  hasItemsWithoutRoom = true;
-                }
-                allItems.push(item);
-              });
-            }
-          });
-          
-          if (hasItemsWithoutRoom) {
-            console.log('Fixed items missing room property');
-          }
-          
-          // Update the main items array
-          dashboardItemData.items = allItems;
-          console.log('Rebuilt main items array with', allItems.length, 'items');
-        } else {
-          allItems = dashboardItemData.items;
-        }
-        
-        // Pre-process: ensure all items have a valid room property
-        allItems.forEach(item => {
-          if (!item.room && item._roomName) {
-            console.log('Fixed item with missing room property:', item);
-            item.room = item._roomName; // Use backup field if available
-          }
-        });
+        // Verify data integrity first and prepare items
+        const allItems = _getAndPrepareDashboardItems(dashboardItemData);
         
         // Filter out items that don't have valid data
-        const itemsToSave = allItems.filter(item => {
-          // Only save items that have at least a room and item name
-          const isValid = item && item.room && item.item && item.item.trim() !== '';
-          if (!isValid) {
-            console.log('Filtering out invalid item:', item);
-          }
-          return isValid;
-        });
+        const itemsToSave = _filterValidItemsToSave(allItems);
         
         console.log('Valid items to save:', itemsToSave.length);
         
@@ -2181,37 +2337,7 @@
         }
         
         // Make sure all budget values are properly formatted
-        const sanitizedItems = itemsToSave.map(item => {
-          // Create a deep copy to avoid modifying the original
-          const sanitizedItem = JSON.parse(JSON.stringify(item));
-          
-          // Ensure quantity is at least 1
-          sanitizedItem.quantity = Math.max(1, parseInt(sanitizedItem.quantity) || 1);
-          
-          // Convert budget values to numbers or null
-          sanitizedItem.lowBudget = sanitizedItem.lowBudget !== null && sanitizedItem.lowBudget !== '' && !isNaN(sanitizedItem.lowBudget) 
-            ? parseFloat(sanitizedItem.lowBudget) 
-            : null;
-            
-          sanitizedItem.highBudget = sanitizedItem.highBudget !== null && sanitizedItem.highBudget !== '' && !isNaN(sanitizedItem.highBudget) 
-            ? parseFloat(sanitizedItem.highBudget) 
-            : null;
-          
-          // Recalculate totals
-          sanitizedItem.lowBudgetTotal = sanitizedItem.lowBudget !== null 
-            ? sanitizedItem.lowBudget * sanitizedItem.quantity 
-            : null;
-            
-          sanitizedItem.highBudgetTotal = sanitizedItem.highBudget !== null 
-            ? sanitizedItem.highBudget * sanitizedItem.quantity 
-            : null;
-            
-          // Remove temporary properties that shouldn't be saved
-          if ('isNew' in sanitizedItem) delete sanitizedItem.isNew;
-          if ('id' in sanitizedItem && sanitizedItem.id.toString().startsWith('new_')) delete sanitizedItem.id;
-          
-          return sanitizedItem;
-        });
+        const sanitizedItems = itemsToSave.map(item => _sanitizeItemForSave(item));
         
         console.log('Sanitized items ready for saving:', sanitizedItems.length);
         console.log('Sample sanitized item:', sanitizedItems.length > 0 ? sanitizedItems[0] : 'No items');
@@ -2244,7 +2370,7 @@
             hideDashboardLoading();
             showDashboardStatusMessage('Error: ' + (error.message || error), true);
           })
-          .saveItemsFromDashboard(sanitizedItems);
+          .saveItemsFromDashboard(sanitizedItems, sheetId);
       }
       
       // Helper function to update item IDs after saving
@@ -2485,7 +2611,183 @@
           list.style.display = 'none';
         });
       }
+
+      function displayBudgetSummary(data) {
+        // Defensive: ensure the element exists before setting innerHTML
+        var budgetSummaryContainer = document.getElementById('budgetSummaryDisplay');
+        if (!budgetSummaryContainer) {
+          console.warn('budgetSummaryDisplay not found in displayBudgetSummary');
+          return;
+        }
+        
+        // Check if we have valid data
+        if (!data) {
+          handleBudgetError('No budget data received');
+          return;
+        }
+        
+        console.log('Budget data received:', data);
+        
+        // Check if there was an error in the response
+        if (data.error) {
+          handleBudgetError(data.error);
+          return;
+        }
+        
+        // Check for required properties
+        if (!data.summary || !data.rooms) {
+          handleBudgetError('Incomplete budget data: missing summary or rooms information');
+          return;
+        }
+        
+        // Budget Summary Box
+        const summaryHtml = `
+          <div class="budget-summary-box">
+            <div class="budget-summary-row">
+              <div class="budget-label">Low Budget Total:</div>
+              <div class="budget-value">$${formatCurrency(data.summary.totalLowBudget)}</div>
+            </div>
+            <div class="budget-summary-row">
+              <div class="budget-label">High Budget Total:</div>
+              <div class="budget-value">$${formatCurrency(data.summary.totalHighBudget)}</div>
+            </div>
+          </div>
+        `;
+        
+        // Room Cards for Sidebar with section header
+        let roomCardsHtml = `
+          <div class="budget-section-header">
+            <h3>Budget by Room</h3>
+          </div>
+        `;
+        
+        // Check if we have rooms to display
+        if (data.rooms.length === 0) {
+          roomCardsHtml += `
+            <div class="empty-state">
+              <i class="material-icons">info_outline</i>
+              <p>No room budget data available</p>
+            </div>
+          `;
+        } else {
+          data.rooms.forEach(room => {
+            roomCardsHtml += `
+              <div class="budget-card">
+                <div class="budget-header">
+                  <div class="room-name">
+                    ${room.name}
+                  </div>
+                </div>
+                <div class="budget-metrics">
+                  <div>Low: $${formatCurrency(room.lowBudget)}</div>
+                  <div>High: $${formatCurrency(room.highBudget)}</div>
+                </div>
+              </div>
+            `;
+          });
+        }
+        
+        // Calculate budget by item type
+        const typeData = {};
+        let typeCardsHtml = `
+          <div class="budget-section-header">
+            <h3>Budget by Item Type</h3>
+          </div>
+        `;
+        
+        // Process all items across all rooms to group by type
+        if (data.rooms && data.rooms.length > 0) {
+          data.rooms.forEach(room => {
+            if (room.items && Array.isArray(room.items)) {
+              room.items.forEach(item => {
+                const itemType = item.type ? item.type.trim() : 'Uncategorized';
+                
+                if (!typeData[itemType]) {
+                  typeData[itemType] = {
+                    name: itemType,
+                    lowBudget: 0,
+                    highBudget: 0
+                  };
+                }
+                
+                typeData[itemType].lowBudget += item.lowTotal || 0;
+                typeData[itemType].highBudget += item.highTotal || 0;
+              });
+            }
+          });
+          
+          // Convert to array and sort by high budget (highest first)
+          const typeArray = Object.values(typeData).sort((a, b) => b.highBudget - a.highBudget);
+          
+          if (typeArray.length === 0) {
+            typeCardsHtml += `
+              <div class="empty-state">
+                <i class="material-icons">info_outline</i>
+                <p>No item type data available</p>
+              </div>
+            `;
+          } else {
+            typeArray.forEach(type => {
+              typeCardsHtml += `
+                <div class="budget-card">
+                  <div class="budget-header">
+                    <div class="type-name">
+                      ${type.name}
+                    </div>
+                  </div>
+                  <div class="budget-metrics">
+                    <div>Low: $${formatCurrency(type.lowBudget)}</div>
+                    <div>High: $${formatCurrency(type.highBudget)}</div>
+                  </div>
+                </div>
+              `;
+            });
+          }
+        } else {
+          typeCardsHtml += `
+            <div class="empty-state">
+              <i class="material-icons">info_outline</i>
+              <p>No item type data available</p>
+            </div>
+          `;
+        }
+        
+        // Combine all sections
+        budgetSummaryContainer.innerHTML = `
+          <style>
+            .budget-section-header {
+              margin-top: 20px;
+              margin-bottom: 10px;
+              border-bottom: 1px solid rgba(0,0,0,0.1);
+              padding-bottom: 5px;
+            }
+            .budget-section-header h3 {
+              font-size: 16px;
+              font-weight: 500;
+              color: #333;
+              margin: 0;
+            }
+            .budget-card {
+              margin-bottom: 8px;
+            }
+          </style>
+          ${summaryHtml}
+          ${roomCardsHtml}
+          ${typeCardsHtml}
+        `;
+      }
       
+      // Helper function to escape HTML content
+      function escapeHtml(str) {
+        if (!str) return '';
+        return str
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
       // Function to show status message in the sidebar
       function showSidebarStatusMessage(message, isError = false) {
         const statusDiv = document.getElementById('sidebarStatusMessage');
@@ -2513,5 +2815,93 @@
           statusDiv.style.display = 'none';
         }, 5000);
       }
+      
+      /**
+       * Calculates the total low and high budget for a room's items.
+       * @param {Array} roomItems - The array of items in the room.
+       * @return {Object} Object with lowTotal and highTotal properties.
+       */
+      function calculateRoomBudgetTotals(roomItems) {
+        let lowTotal = 0;
+        let highTotal = 0;
+        
+        if (!roomItems || !Array.isArray(roomItems)) {
+          return { lowTotal, highTotal };
+        }
+        
+        roomItems.forEach(item => {
+          if (item.lowBudgetTotal !== null && !isNaN(item.lowBudgetTotal)) {
+            lowTotal += parseFloat(item.lowBudgetTotal);
+          }
+          
+          if (item.highBudgetTotal !== null && !isNaN(item.highBudgetTotal)) {
+            highTotal += parseFloat(item.highBudgetTotal);
+          }
+        });
+        
+        return { lowTotal, highTotal };
+      }
+      
+      // Helper function for consistent currency formatting
+      function formatCurrency(value) {
+        if (value === undefined || value === null) return '0';
+        return parseFloat(value).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      }
+
+      /**
+       * Updates the budget summary row for a specific room
+       * @param {string} roomName - The name of the room to update the budget summary for
+       */
+      function updateRoomBudgetDisplay(roomName) {
+        // Get the room container
+        const roomContainer = document.getElementById(`room-container-${roomName.replace(/\s+/g, '-')}`);
+        if (!roomContainer) {
+          console.warn(`Room container not found for ${roomName}`);
+          return;
+        }
+        
+        // Get the current room items
+        const roomItems = dashboardItemData.itemsByRoom[roomName] || [];
+        
+        // Calculate updated budget totals
+        const roomTotals = calculateRoomBudgetTotals(roomItems);
+        
+        // Find the add-more-row element to ensure proper placement
+        const addMoreRow = roomContainer.querySelector('.add-more-row');
+        if (!addMoreRow) {
+          console.warn(`Add-more-row not found for ${roomName}, cannot place budget summary`);
+          return;
+        }
+        
+        // Remove any existing budget summary rows to avoid duplicates
+        const existingBudgetRows = roomContainer.querySelectorAll('.room-budget-summary');
+        existingBudgetRows.forEach(row => row.remove());
+        
+        // Create a new budget summary row
+        const budgetSummaryRow = document.createElement('div');
+        budgetSummaryRow.className = 'room-budget-summary';
+        budgetSummaryRow.style.display = 'flex';
+        budgetSummaryRow.style.justifyContent = 'flex-end';
+        budgetSummaryRow.style.padding = '10px 12px';
+        budgetSummaryRow.style.borderTop = '1px solid rgba(38, 113, 125, 0.2)';
+        budgetSummaryRow.style.marginTop = '10px';
+        budgetSummaryRow.style.fontWeight = '500';
+        
+        // Insert after the add-more-row
+        if (addMoreRow.nextSibling) {
+          roomContainer.insertBefore(budgetSummaryRow, addMoreRow.nextSibling);
+        } else {
+          roomContainer.appendChild(budgetSummaryRow);
+        }
+        
+        // Update the budget summary content
+        budgetSummaryRow.innerHTML = `
+          <div style="margin-right: 70px;">Room Totals:</div>
+          <div style="width: 110px; text-align: right;">$${formatCurrency(roomTotals.lowTotal)}</div>
+          <div style="width: 110px; text-align: right;">$${formatCurrency(roomTotals.highTotal)}</div>
+          <div style="width: 100px;"></div>
+        `;
+      }
+
       
 </script> 

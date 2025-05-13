@@ -212,11 +212,6 @@ body {
   display: none;
 }
 
-/* Hide sidebar headers */
-.sidebar-content .sidebar-header {
-  display: none;
-}
-
 /* Exception for rooms sidebar header */
 #rooms-content .sidebar-header {
   display: block;
@@ -282,7 +277,7 @@ body {
 .sidebar-body {
   flex: 1;
   overflow-y: auto;
-  padding: 15px;
+  padding: 10px;
 }
 
 /* Meeting-related styles */
@@ -380,17 +375,11 @@ body {
   align-content: center;
 }
 
-.sidebar-body, .content-body {
+.content-body {
   flex: 1;
   overflow-y: auto;
   padding: 0 0 12px 0;
-}
-
-.content-body {
-  padding: 12px;
   position: relative;
-  flex: 1;
-  overflow-y: auto;
 }
 
 .sidebar-footer, .content-footer {
@@ -715,7 +704,7 @@ h2 .material-icons:hover {
   display: flex;
   justify-content: space-between;
   padding: 6px 12px;
-  font-size: 12px;
+  font-size: 13px;
   color: #7B763B;
 }
 
@@ -932,11 +921,6 @@ input[type="checkbox"]:hover {
 
 .quantity-header {
   width: 50px;
-  text-align: center;
-}
-
-.budget-header {
-  width: 110px;
   text-align: center;
 }
 
@@ -1259,11 +1243,6 @@ input[type="text"], input[type="number"] {
 .filter-label {
   color: #000000;
   font-size: 14px;
-}
-
-/* Adjust sidebar body to take full height without the header */
-.sidebar-body {
-  padding-top: 0px;
 }
 
 /* Action buttons for folders and tasks */
@@ -1623,7 +1602,7 @@ input[type="text"], input[type="number"] {
 
 .modal-header {
   margin-top: 0;
-  margin-bottom: 24px;
+  margin-bottom: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2536,7 +2515,7 @@ body.modal-open {
   padding: 0;
   border: 1px solid #888;
   width: 95%;
-  height: 95%;
+  height: 92%;
   max-width: 1400px;
   box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
   animation: modalopen 0.4s;
@@ -2568,7 +2547,6 @@ body.modal-open {
   padding: 0;
   flex: 1;
   overflow: auto;
-  max-height: calc(90vh - 60px);
 }
 
 .close-modal {

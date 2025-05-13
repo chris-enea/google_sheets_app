@@ -229,12 +229,15 @@
         bar_corner_radius: 3,
         arrow_curve: 5,
         padding: 18,
+        popup_on: 'hover',
         view_modes: ['Day', 'Week', 'Month', 'Year'],
         on_click: function(task) {
-          // Empty function - links are now in the popup
+          if (task.project) {
+            console.log('Filtering to project:', task.project);
+            toggleProjectFilter(task.project);
+          }
         },
         on_date_change: function(task, start, end) {
-          // This would be where we'd update the task dates in Asana
           console.log('Task ' + task.name + ' date changed: ' + start + ' to ' + end);
         },
         custom_popup_html: _createGanttPopupHtml
@@ -893,6 +896,7 @@
         const gantt = new Gantt(ganttElement, ganttTasks, {
           view_mode: 'Week',
           date_format: 'YYYY-MM-DD',
+          popup_on: 'hover',
           on_click: function(task) {
             window.open(task.url, '_blank');
           },
@@ -1169,6 +1173,8 @@
         // Get project ID
         const projectId = button.getAttribute('data-project-id');
         const sheetId = button.getAttribute('data-sheet-id');
+        const folderId = button.getAttribute('data-folder-id');
+        const projectName = button.getAttribute('data-project-name');
         
         if (!projectId) {
           alert('Project ID not found.');
@@ -1211,6 +1217,14 @@
             modal.setAttribute('data-project-id', projectId);
             if (sheetId) {
               modal.setAttribute('data-sheet-id', sheetId);
+            }
+            // Add folder ID and project name as data attributes
+            if (folderId) {
+              modal.setAttribute('data-folder-id', folderId);
+              console.log('Set folder ID data attribute:', folderId);
+            }
+            if (projectName) {
+              modal.setAttribute('data-project-name', projectName);
             }
             
             // Add a class to the body to prevent scrolling behind the modal

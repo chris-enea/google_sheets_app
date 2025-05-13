@@ -318,7 +318,7 @@ function getRooms() {
       Logger.log("No cached data found, fetching available items from Data sheet");
       
       // Get the active spreadsheet
-      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const ss = SpreadsheetApp.openById(ScriptProperties.getProperty('SHEET_ID'));
       const dataSheet = ss.getSheetByName("Data");
       
       if (!dataSheet) {
@@ -403,9 +403,10 @@ function getRooms() {
    * This allows the selections to be preserved when navigating back and forth.
    * 
    * @param {Object} roomItems - Object with room names as keys and arrays of items as values
+   * @param {string} sheetId - Optional spreadsheet ID. If not provided, uses active spreadsheet.
    * @return {Object} Object containing success status
    */
-  function saveItemSelections(roomItems) {
+  function saveItemSelections(roomItems, sheetId = null) {
     try {
       if (!roomItems || typeof roomItems !== 'object') {
         return {
@@ -414,7 +415,10 @@ function getRooms() {
         };
       }
       
-      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      // Use provided sheetId if available, otherwise fallback to active spreadsheet
+      const ss = sheetId 
+        ? SpreadsheetApp.openById(sheetId) 
+        : SpreadsheetApp.getActiveSpreadsheet();
       
       // Create or get the temporary selection sheet
       let tempSelectionSheet = ss.getSheetByName("_TempItemSelections");
@@ -578,9 +582,10 @@ function getRooms() {
    * Optimized for batch operations
    * 
    * @param {Array} items - Array of item objects
+   * @param {string} sheetId - Optional spreadsheet ID. If not provided, uses SHEET_ID from ScriptProperties.
    * @return {Object} Result object with success status and count
    */
-  function saveItemsToSheet(items) {
+  function saveItemsToSheet(items, sheetId = null) {
     try {
       // Validate input
       if (!items || !Array.isArray(items) || items.length === 0) {
@@ -590,8 +595,8 @@ function getRooms() {
       
       Logger.log(`Saving ${items.length} items to the sheet`);
       
-      // Get reference to spreadsheet - using one call to SpreadsheetApp
-      // const ss = SpreadsheetApp.getActiveSpreadsheet();
+      // Get reference to spreadsheet using the provided sheetId or fall back to script property
+      const ss = SpreadsheetApp.openById(sheetId);
       
       // Get or create the Items sheet
       let sheet = ss.getSheetByName("Items");
@@ -605,14 +610,14 @@ function getRooms() {
       
       // Set up headers
       const headers = [
-        "Room", 
-        "Type", 
-        "Item", 
-        "Quantity", 
-        "Low Budget", 
-        "Low Budget Total", 
-        "High Budget", 
-        "High Budget Total"
+        "ROOM", 
+        "TYPE", 
+        "ITEM", 
+        "QUANTITY", 
+        "LOW BUDGET", 
+        "LOW BUDGET TOTAL", 
+        "HIGH BUDGET", 
+        "HIGH BUDGET TOTAL"
       ];
       
       // Prepare all data rows at once to minimize service calls
@@ -746,7 +751,7 @@ function getRooms() {
         Logger.log("Items sheet not found, creating one");
         // Create items sheet if it doesn't exist
         const newSheet = ss.insertSheet("Items");
-        const headers = ["Room", "Type", "Item", "Quantity", "Low Budget", "Low Budget Total", "High Budget", "High Budget Total"];
+        const headers = ["ROOM", "TYPE", "ITEM", "QUANTITY", "LOW BUDGET", "LOW BUDGET TOTAL", "HIGH BUDGET", "HIGH BUDGET TOTAL"];
         newSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
         newSheet.setFrozenRows(1);
         
@@ -772,14 +777,14 @@ function getRooms() {
       
       // Extract headers
       const headers = values[0];
-      const roomIndex = headers.indexOf("Room");
-      const typeIndex = headers.indexOf("Type");
-      const itemIndex = headers.indexOf("Item");
-      const quantityIndex = headers.indexOf("Quantity");
-      const lowBudgetIndex = headers.indexOf("Low Budget");
-      const lowBudgetTotalIndex = headers.indexOf("Low Budget Total");
-      const highBudgetIndex = headers.indexOf("High Budget");
-      const highBudgetTotalIndex = headers.indexOf("High Budget Total");
+      const roomIndex = headers.indexOf("ROOM");
+      const typeIndex = headers.indexOf("TYPE");
+      const itemIndex = headers.indexOf("ITEM");
+      const quantityIndex = headers.indexOf("QUANTITY");
+      const lowBudgetIndex = headers.indexOf("LOW BUDGET");
+      const lowBudgetTotalIndex = headers.indexOf("LOW BUDGET TOTAL");
+      const highBudgetIndex = headers.indexOf("HIGH BUDGET");
+      const highBudgetTotalIndex = headers.indexOf("HIGH BUDGET TOTAL");
       
       // Check required columns
       if (roomIndex === -1 || itemIndex === -1) {
@@ -1227,9 +1232,10 @@ function getRooms() {
    * Used by both dashboard and dialog interfaces.
    * 
    * @param {Array} items - Array of item objects to save
+   * @param {string} sheetId - Optional spreadsheet ID. If not provided, uses SHEET_ID from ScriptProperties.
    * @return {Object} Result of the save operation
    */
-  function saveItemsCore(items) {
+  function saveItemsCore(items, sheetId = null) {
     try {
       Logger.log(`saveItemsCore called with ${items ? items.length : 0} items`);
       
@@ -1245,7 +1251,7 @@ function getRooms() {
       Logger.log(`Validation passed, proceeding to save ${validatedItems.length} items`);
       
       // Save to spreadsheet using the existing function
-      const saveResult = saveItemsToSheet(validatedItems);
+      const saveResult = saveItemsToSheet(validatedItems, sheetId);
       
       if (!saveResult.success) {
         Logger.log(`Failed to save items: ${saveResult.error}`);
@@ -1351,12 +1357,13 @@ function getRooms() {
    * Wrapper around saveItemsCore for consistent saving from any UI.
    * 
    * @param {Array} items - Array of item objects with room, type, item, quantity, lowBudget, etc.
+   * @param {string} sheetId - Optional spreadsheet ID. If not provided, uses SHEET_ID from ScriptProperties.
    * @return {Object} Object containing success status
    */
-  function saveItemsFromUI(items) {
+  function saveItemsFromUI(items, sheetId = null) {
     try {
       // Use the core function to save items
-      const result = saveItemsCore(items);
+      const result = saveItemsCore(items, sheetId);
       
       if (!result.success) {
         return result; // Forward the error
@@ -1377,8 +1384,8 @@ function getRooms() {
   }
   
   // Function alias for backward compatibility
-  function saveItemsFromDashboard(items) {
-    return saveItemsFromUI(items);
+  function saveItemsFromDashboard(items, sheetId = null) {
+    return saveItemsFromUI(items, sheetId);
   }
   
   /**

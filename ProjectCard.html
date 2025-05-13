@@ -66,7 +66,7 @@
       </div>
       <div id="taskContainer-${project.id}" class="task-container collapsed" style="display: none;"></div>
       <div class="project-card-actions">
-        <button class="project-action-btn view-details-btn" data-project-id="${project.id}" data-sheet-id="${project.sheetId || ''}">View Details</button>
+        <button class="project-action-btn view-details-btn" data-project-id="${project.id}" data-sheet-id="${project.sheetId || ''}" data-folder-id="${project.folderId || ''}" data-project-name="${project.name || ''}">View Details</button>
         <button class="project-action-btn view-tasks-btn" data-project-id="${project.id}" data-asana-id="${project.asanaProjectId ? project.asanaProjectId.replace(/["']/g, '') : ''}">View Tasks</button>
       </div>
     `;
