@@ -1,0 +1,1259 @@
+<script>
+    function openSettingsDialog() {
+      document.getElementById('settingsModal').style.display = 'flex';
+      document.getElementById('settingsStatus').textContent = '';
+      google.script.run.withSuccessHandler(function(data) {
+        document.getElementById('asanaPat').value = data.asanaToken || '';
+        document.getElementById('sheetId').value = data.sheetId || '';
+        document.getElementById('projectColor').value = data.projectColor || '#26717D';
+      }).getSettings();
+    }
+    function closeSettingsDialog() {
+      document.getElementById('settingsModal').style.display = 'none';
+    }
+    function saveSettings(e) {
+      e.preventDefault();
+      var token = document.getElementById('asanaPat').value.trim();
+      var sheetId = document.getElementById('sheetId').value.trim();
+      var projectColor = document.getElementById('projectColor').value;
+      document.getElementById('settingsStatus').textContent = 'Saving...';
+      google.script.run.withSuccessHandler(function() {
+        document.getElementById('settingsStatus').textContent = 'Settings saved!';
+        // Apply the color to existing project cards
+        applyProjectCardColor(projectColor);
+        setTimeout(closeSettingsDialog, 1000);
+      }).withFailureHandler(function(err) {
+        document.getElementById('settingsStatus').textContent = 'Error: ' + err.message;
+      }).saveSettings(token, sheetId, projectColor);
+    }
+    
+    // Apply color to project card headers
+    function applyProjectCardColor(color) {
+      const projectCardHeaders = document.querySelectorAll('.project-card-header');
+      projectCardHeaders.forEach(header => {
+        header.style.setProperty('background-color', color, 'important');
+        header.style.setProperty('color', '#FFFFFF', 'important'); // Set text color to white for better contrast
+      });
+    }
+    
+    // Apply color when dashboard loads
+    function applyColorToProjectCards() {
+      google.script.run.withSuccessHandler(function(data) {
+        if (data.projectColor) {
+          // Only apply default color to cards that don't have a custom color
+          const projectCardHeaders = document.querySelectorAll('.project-card-header');
+          projectCardHeaders.forEach(header => {
+            // Check if this card's parent has a data attribute for project color
+            const cardElement = header.closest('.project-card');
+            if (!cardElement || !cardElement.getAttribute('data-project-color')) {
+              header.style.setProperty('background-color', data.projectColor, 'important');
+              header.style.setProperty('color', '#FFFFFF', 'important');
+            }
+          });
+        }
+      }).getSettings();
+    }
+    
+    // Dashboard Loading functions
+    function showDashboardLoading(message) {
+      document.getElementById('dashboardLoadingMessage').textContent = message || 'Loading...';
+      document.getElementById('dashboardLoadingOverlay').style.display = 'flex';
+    }
+    
+    function hideDashboardLoading() {
+      document.getElementById('dashboardLoadingOverlay').style.display = 'none';
+    }
+    
+    // Global variables for Gantt
+    let ganttInstance = null;
+    let ganttViewMode = 'Month';  // Changed default from 'Week' to 'Month'
+    let ganttDataMode = 'sections';  // Changed default from 'tasks' to 'sections'
+    let ganttData = null; // Store the original task data
+    let ganttObserver = null; // MutationObserver for detecting chart rendering
+    let currentProjectFilter = 'all'; // Track the currently selected project filter
+    
+    function setGanttViewMode(mode) {
+      ganttViewMode = mode;
+      updateGanttView();
+      
+      // Update active button
+      document.querySelectorAll('.gantt-view-btn').forEach(btn => {
+        if (btn.textContent.trim() === mode) {
+          btn.classList.add('active');
+        } else if (btn.id !== 'ganttTaskViewBtn' && btn.id !== 'ganttSectionViewBtn') {
+          btn.classList.remove('active');
+        }
+      });
+    }
+    
+    function setGanttDataMode(mode) {
+      ganttDataMode = mode;
+      
+      // Update active button
+      document.getElementById('ganttTaskViewBtn').classList.toggle('active', mode === 'tasks');
+      document.getElementById('ganttSectionViewBtn').classList.toggle('active', mode === 'sections');
+      
+      // Redraw the Gantt chart with the new mode if we have data
+      if (ganttData) {
+        console.log('DEBUG - Switching to', mode, 'view mode');
+        drawFrappeGantt(ganttData);
+      }
+    }
+    
+    // Set up observer to detect when Gantt chart has been rendered to the DOM
+    function setupGanttObserver() {
+      // Disconnect existing observer if there is one
+      if (ganttObserver) {
+        ganttObserver.disconnect();
+      }
+      
+      // Create new observer
+      ganttObserver = new MutationObserver((mutations) => {
+        const ganttContainer = document.querySelector('#frappeGantt .gantt');
+        if (ganttContainer && ganttInstance) {
+          // Chart has been rendered, apply colors
+          console.log('Gantt chart rendered - applying colors');
+          // Stop observing once we've found the chart
+          ganttObserver.disconnect();
+          // Apply colors
+          colorizeGanttBars();
+        }
+      });
+      
+      // Start observing
+      const frappeGantt = document.getElementById('frappeGantt');
+      if (frappeGantt) {
+        ganttObserver.observe(frappeGantt, { childList: true, subtree: true });
+      }
+    }
+    
+    function loadFrappeGantt() {
+      // Only use the dashboard loading overlay, not secondary loading indicator
+      showDashboardLoading('Loading Gantt chart...');
+      document.getElementById('frappeGantt').innerHTML = ''; // Clear the container
+      
+      // Setup observer to detect when chart is rendered
+      setupGanttObserver();
+      
+      google.script.run
+        .withSuccessHandler(function(data) {
+          drawFrappeGantt(data);
+          // Force a refresh after a short delay to ensure proper rendering
+          setTimeout(function() {
+            if (ganttInstance) {
+              ganttInstance.refresh(ganttInstance.tasks);
+              // Apply colors again after refresh
+              colorizeGanttBars();
+            }
+          }, 300);
+        })
+        .withFailureHandler(function(error) {
+          document.getElementById('frappeGantt').innerHTML = '<div class="error-box">Error loading Gantt chart: ' + error + '</div>';
+          hideDashboardLoading();
+        })
+        .getAsanaTasksForGantt();
+    }
+    
+    function drawFrappeGantt(data) {
+      if (typeof Gantt === 'undefined') {
+        document.getElementById('frappeGantt').innerHTML = '<div class="error-box">Frappe Gantt library not loaded.</div>';
+        console.error('Frappe Gantt library not loaded.');
+        hideDashboardLoading();
+        return;
+      }
+      
+      if (!data.success) {
+        document.getElementById('frappeGantt').innerHTML = '<div class="error-box">' + (data.error || 'Error loading Gantt chart') + '</div>';
+        hideDashboardLoading();
+        return;
+      }
+      
+      if (!data.tasks || data.tasks.length === 0) {
+        document.getElementById('frappeGantt').innerHTML = '<div class="info-box">No tasks with start and due dates found in the selected projects.</div>';
+        hideDashboardLoading();
+        return;
+      }
+      
+      // Store the original data for view switching
+      ganttData = data;
+      
+      // Setup observer to detect when chart is rendered
+      setupGanttObserver();
+      
+      // Create a project color map for consistent coloring across all views
+      const projectColorMap = {};
+      data.tasks.forEach(task => {
+        if (task.project && task.projectColor && !projectColorMap[task.project]) {
+          projectColorMap[task.project] = task.projectColor;
+        }
+      });
+      
+      console.log('Current view mode:', ganttDataMode);
+      
+      // Filter by project if a specific project is selected
+      let filteredTasks = data.tasks;
+      
+      console.log('Filtering tasks - Available projects:', [...new Set(data.tasks.map(t => t.project))]);
+      console.log('Current project filter:', currentProjectFilter);
+      
+      if (currentProjectFilter && currentProjectFilter !== 'all') {
+        // Keep only tasks that belong to the selected project
+        filteredTasks = data.tasks.filter(task => {
+          return task.project === currentProjectFilter;
+        });
+        
+        console.log(`Filtered to ${filteredTasks.length} tasks with project=${currentProjectFilter}`);
+        
+        // If no tasks are found after filtering, display a message
+        if (filteredTasks.length === 0) {
+          document.getElementById('frappeGantt').innerHTML = 
+            '<div class="info-box">No tasks found for project "' + currentProjectFilter + '".</div>';
+          hideDashboardLoading();
+          return;
+        }
+      }
+      
+      // Get tasks based on the current view mode
+      const tasksToRender = _prepareTasksForGanttRender(filteredTasks, ganttDataMode, projectColorMap);
+      
+      console.log('Rendering', tasksToRender.length, 'items in', ganttDataMode, 'mode');
+      
+      // Clear previous chart
+      document.getElementById('frappeGantt').innerHTML = '';
+      
+      // Initialize the Gantt chart
+      ganttInstance = new Gantt('#frappeGantt', tasksToRender, {
+        view_mode: ganttViewMode,
+        date_format: 'YYYY-MM-DD',
+        bar_height: 20,
+        bar_corner_radius: 3,
+        arrow_curve: 5,
+        padding: 18,
+        view_modes: ['Day', 'Week', 'Month', 'Year'],
+        on_click: function(task) {
+          // Empty function - links are now in the popup
+        },
+        on_date_change: function(task, start, end) {
+          // This would be where we'd update the task dates in Asana
+          console.log('Task ' + task.name + ' date changed: ' + start + ' to ' + end);
+        },
+        custom_popup_html: _createGanttPopupHtml
+      });
+      
+      // The Observer will detect when the chart is rendered and apply colors
+      
+      // Add legend for projects
+      addProjectLegend(tasksToRender);
+      
+      hideDashboardLoading();
+    }
+    
+    /**
+     * Creates the HTML content for the Gantt chart task popup.
+     * @param {object} task - The task object from Frappe Gantt.
+     * @return {string} HTML string for the popup.
+     */
+    function _createGanttPopupHtml(task) {
+      const isSection = task.custom_class === 'section-bar';
+      const dateFormat = new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+      
+      const startDate = new Date(task.start);
+      const endDate = new Date(task.end);
+      
+      const formattedStart = dateFormat.format(startDate);
+      const formattedEnd = dateFormat.format(endDate);
+      
+      const durationMs = endDate - startDate;
+      const durationDays = Math.ceil(durationMs / (1000 * 60 * 60 * 24));
+      
+      let htmlContent = '<div class="gantt-popup-content">';
+      htmlContent += '<div class="popup-title">' + task.name + '</div>';
+      
+      if (isSection) {
+        const taskPlural = task.taskCount !== 1 ? 's' : '';
+        htmlContent += '<div class="popup-task-count">' + task.taskCount + ' task' + taskPlural + '</div>';
+      } else {
+        htmlContent += '<div class="popup-project">' + task.project + '</div>';
+        htmlContent += '<div class="popup-section">Section: ' + task.section + '</div>';
+      }
+      
+      htmlContent += '<div class="popup-dates">';
+      htmlContent += '<span>' + formattedStart + '</span> - <span>' + formattedEnd + '</span>';
+      htmlContent += '<span>(' + durationDays + ' day' + (durationDays !== 1 ? 's' : '') + ')</span>';
+      htmlContent += '</div>';
+      
+      htmlContent += '<div class="popup-progress">';
+      htmlContent += '<div class="progress-label">Progress: ' + task.progress + '%</div>';
+      htmlContent += '<div class="progress-bar">';
+      htmlContent += '<div class="progress-fill" style="width: ' + task.progress + '%"></div>';
+      htmlContent += '</div></div>';
+      
+      if (task.url) {
+        htmlContent += '<div class="popup-action-button">';
+        htmlContent += '<a href="' + task.url + '" target="_blank" class="popup-link-button">Open in Asana</a>';
+        htmlContent += '</div>';
+      }
+      
+      htmlContent += '</div>';
+      return htmlContent;
+    }
+    
+    /**
+     * Prepares tasks for Gantt rendering based on the selected data mode (tasks or sections).
+     * @param {Array<object>} filteredTasks - The array of tasks already filtered by project (if applicable).
+     * @param {string} dataMode - 'tasks' or 'sections'.
+     * @param {object} projectColorMap - A map of project names to their colors.
+     * @return {Array<object>} The array of tasks formatted and ready for Gantt rendering.
+     */
+    function _prepareTasksForGanttRender(filteredTasks, dataMode, projectColorMap) {
+      let tasksToRender;
+      if (dataMode === 'sections') {
+        console.log('Creating section view for Gantt');
+        tasksToRender = aggregateTasksBySection(filteredTasks, projectColorMap);
+      } else {
+        console.log('Creating task view for Gantt');
+        tasksToRender = filteredTasks.map(task => ({
+          id: task.id,
+          name: task.name,
+          start: task.start_on,
+          end: task.due_on,
+          progress: task.completed ? 100 : 0,
+          dependencies: '',
+          custom_class: task.completed ? 'task-completed' : 'task-pending',
+          project: task.project,
+          section: task.section,
+          projectId: task.projectId,
+          projectColor: task.projectColor || projectColorMap[task.project] || '#26717D',
+          url: task.url
+        }));
+        // Sort tasks by start date for task view
+        tasksToRender.sort((a, b) => new Date(a.start) - new Date(b.start));
+      }
+      return tasksToRender;
+    }
+    
+    /**
+     * Extracts a project URL from a given Asana task URL.
+     * @param {string} taskUrl - The URL of an Asana task.
+     * @return {string|null} The derived project URL or null if not derivable.
+     */
+    function _extractProjectUrlFromTask(taskUrl) {
+      if (!taskUrl) return null;
+
+      // Try to extract the project ID using patterns that match project/xxxx pattern
+      const projectIdRegex = /\/project\/(\d+)/;
+      const projectMatch = taskUrl.match(projectIdRegex);
+
+      if (projectMatch && projectMatch[1]) {
+        // If we found a project ID in the URL
+        const projectId = projectMatch[1];
+        // Assuming a common workspace ID. This might need to be more dynamic if it varies.
+        return 'https://app.asana.com/1/1205851800440605/project/' + projectId; 
+      } else {
+        // Fallback: try to extract any numeric ID that might be the project ID
+        // This is less reliable and assumes a certain URL structure.
+        const numericIds = taskUrl.match(/\/(\d+)/g) || [];
+        if (numericIds.length >= 2) { 
+          // Use the second numeric ID as the project ID (often workspace/project)
+          const projectId = numericIds[1].replace('/', '');
+          // Assuming a common workspace ID or a generic URL structure that works with /0/
+          return 'https://app.asana.com/0/0/project/' + projectId; // Or use a known workspace ID if available
+        }
+      }
+      return null; // Could not derive project URL
+    }
+
+    /**
+     * Creates a formatted section bar object for the Gantt chart from a group of tasks.
+     * @param {object} group - An object representing a group of tasks for a specific project/section.
+     *                         Expected properties: tasks (array), project, section, projectId, projectColor.
+     * @return {object} A formatted object ready for Frappe Gantt, representing the section bar.
+     */
+    function _createSectionBarFromGroup(group) {
+      // Find earliest start date and latest end date in the section
+      const startDates = group.tasks.map(t => new Date(t.start_on));
+      const endDates = group.tasks.map(t => new Date(t.due_on));
+      
+      const earliestStart = new Date(Math.min(...startDates));
+      const latestEnd = new Date(Math.max(...endDates));
+      
+      // Calculate overall progress as average of all tasks
+      const totalProgress = group.tasks.reduce((sum, task) => sum + (task.completed ? 100 : 0), 0);
+      const avgProgress = group.tasks.length > 0 ? Math.round(totalProgress / group.tasks.length) : 0;
+      
+      let projectUrl = null;
+      if (group.tasks.length > 0 && group.tasks[0].url) {
+        projectUrl = _extractProjectUrlFromTask(group.tasks[0].url);
+      }
+      
+      return {
+        id: 'section-' + group.project + '-' + group.section.replace(/\s+/g, '-'),
+        name: group.project + ' - ' + group.section,
+        start: earliestStart.toISOString().split('T')[0],
+        end: latestEnd.toISOString().split('T')[0],
+        progress: avgProgress,
+        dependencies: '',
+        custom_class: 'section-bar',
+        project: group.project,
+        section: group.section,
+        projectId: group.projectId,
+        projectColor: group.projectColor,
+        url: projectUrl, 
+        taskCount: group.tasks.length
+      };
+    }
+
+    function aggregateTasksBySection(tasks, projectColorMap) {
+      console.log('Aggregating tasks by section, total tasks:', tasks.length);
+      
+      // Group tasks by project and section
+      const sectionGroups = {};
+      
+      tasks.forEach(task => {
+        const key = task.project + '::' + task.section;
+        
+        if (!sectionGroups[key]) {
+          // Get project color from task or from the color map
+          const projectColor = task.projectColor || (projectColorMap && projectColorMap[task.project]) || '#26717D';
+          
+          sectionGroups[key] = {
+            tasks: [],
+            project: task.project,
+            section: task.section,
+            projectId: task.projectId,
+            projectColor: projectColor,
+          };
+        }
+        
+        sectionGroups[key].tasks.push(task);
+      });
+      
+      // Create aggregated tasks for each section
+      const sectionTasks = Object.values(sectionGroups).map(group => _createSectionBarFromGroup(group));
+      
+      // Sort section tasks by start date
+      sectionTasks.sort((a, b) => new Date(a.start) - new Date(b.start));
+      
+      console.log('Created', sectionTasks.length, 'section bars');
+      
+      return sectionTasks;
+    }
+    
+    // Function to render project legend and filters
+    function renderProjectLegend(projectColors) {
+      const legendContainer = document.createElement('div');
+      legendContainer.className = 'gantt-legend';
+      
+      // Add "All Projects" option
+      const allProjectsItem = document.createElement('div');
+      allProjectsItem.className = 'legend-item active';
+      allProjectsItem.innerHTML = `
+        <span class="legend-color all-projects"></span>
+        <span class="legend-label">All Projects</span>
+      `;
+      allProjectsItem.onclick = function() {
+        toggleProjectFilter('all');
+      };
+      legendContainer.appendChild(allProjectsItem);
+      
+      // Add each project with its color
+      Object.keys(projectColors).forEach(projectName => {
+        const legendItem = document.createElement('div');
+        legendItem.className = 'legend-item';
+        legendItem.innerHTML = `
+          <span class="legend-color ${projectColors[projectName]}"></span>
+          <span class="legend-label">${projectName}</span>
+        `;
+        legendItem.onclick = function() {
+          toggleProjectFilter(projectName);
+        };
+        legendContainer.appendChild(legendItem);
+      });
+      
+      // Add legend before the Gantt chart
+      const ganttContainer = document.getElementById('ganttContainer');
+      const existingLegend = document.querySelector('.gantt-legend');
+      if (existingLegend) {
+        ganttContainer.removeChild(existingLegend);
+      }
+      ganttContainer.insertBefore(legendContainer, document.getElementById('frappeGantt'));
+    }
+    
+    // Function to filter tasks by project
+    function toggleProjectFilter(projectName) {
+      // Update active state in legend
+      document.querySelectorAll('.legend-item').forEach(item => {
+        if ((projectName === 'all' && item.querySelector('.legend-label').textContent === 'All Projects') ||
+            item.querySelector('.legend-label').textContent === projectName) {
+          item.classList.add('active');
+        } else {
+          item.classList.remove('active');
+        }
+      });
+      
+      // Store the current project filter
+      currentProjectFilter = projectName;
+      console.log('Current project filter:', currentProjectFilter);
+      
+      // If we have gantt data, redraw the chart with the new filter
+      if (ganttData) {
+        drawFrappeGantt(ganttData);
+      }
+    }
+    
+    // Variable to track if Gantt has been loaded
+    let ganttLoaded = false;
+    
+    // Function to toggle Gantt chart visibility
+    function toggleGanttChart() {
+      const ganttContainer = document.getElementById('ganttContainer');
+      const welcomeMessage = document.querySelector('.welcome-message');
+      const projectsContainer = document.getElementById('projectsContainer');
+      const toggleButton = document.getElementById('toggleGanttButton');
+      
+      if (ganttContainer.style.display === 'none') {
+        // Show Gantt chart
+        ganttContainer.style.display = 'block';
+        
+        // Update button text and icon to show Dashboard option
+        if (toggleButton) {
+          toggleButton.innerHTML = '<i class="material-icons">dashboard</i> Dashboard';
+        }
+        
+        // Hide welcome message and projects if they exist
+        if (welcomeMessage) {
+          welcomeMessage.style.display = 'none';
+        }
+        
+        if (projectsContainer) {
+          projectsContainer.style.display = 'none';
+        }
+        
+        // Only load Gantt data if it hasn't been loaded yet
+        if (!ganttLoaded) {
+          // Show loading indicator only for first load
+          loadFrappeGantt();
+          ganttLoaded = true;
+        } else {
+          // Force a refresh after a short delay to ensure proper rendering
+          setTimeout(function() {
+            if (ganttInstance) {
+              ganttInstance.refresh(ganttInstance.tasks);
+              // Apply colors again after refresh
+              colorizeGanttBars();
+            }
+          }, 300);
+        }
+      } else {
+        // Hide Gantt chart
+        ganttContainer.style.display = 'none';
+        
+        // Update button text and icon to show Gantt option
+        if (toggleButton) {
+          toggleButton.innerHTML = '<i class="material-icons">timeline</i> Gantt';
+        }
+        
+        // Check if we have projects to display
+        if (projectsContainer && projectsContainer.children.length > 0 && 
+            !projectsContainer.querySelector('.error-message')) {
+          // Show projects if we have them
+          projectsContainer.style.display = 'grid';
+        } else {
+          // Otherwise show welcome message
+          if (welcomeMessage) {
+            welcomeMessage.style.display = 'flex';
+          }
+        }
+      }
+    }
+    
+    // Initialize components on document ready
+    document.addEventListener('DOMContentLoaded', function() {
+      // Don't load Gantt automatically - will be loaded when button is clicked
+    });
+    
+    // Load projects from Google Sheet
+    function loadProjects() {
+      showDashboardLoading('Loading projects...');
+      google.script.run
+        .withSuccessHandler(function(result) {
+          const projectsContainer = document.getElementById('projectsContainer');
+          hideDashboardLoading();
+          
+          if (result.success && result.projects && result.projects.length > 0) {
+            // Hide welcome message and show projects
+            document.querySelector('.welcome-message').style.display = 'none';
+            projectsContainer.style.display = 'grid';
+            
+            // Clear existing projects
+            projectsContainer.innerHTML = '';
+            
+            // Create and append project cards
+            result.projects.forEach(function(project) {
+              const card = createProjectCard(project);
+              projectsContainer.appendChild(card);
+            });
+            
+            // Apply color to project cards
+            applyColorToProjectCards();
+          } else {
+            // Show welcome message
+            document.querySelector('.welcome-message').style.display = 'flex';
+            projectsContainer.style.display = 'none';
+          }
+        })
+        .withFailureHandler(function(error) {
+          hideDashboardLoading();
+          showErrorMessage(error);
+        })
+        .getProjects();
+    }
+    
+    // The createProjectCard function has been moved to ProjectCard.html
+    
+    // Handle the Add Project modal
+    function setupAddProjectModal() {
+      const addProjectButton = document.getElementById('addProjectButton');
+      const modal = document.getElementById('addProjectModal');
+      const closeBtn = document.getElementById('closeModal');
+      const cancelBtn = document.getElementById('cancelAddProject');
+      const form = document.getElementById('addProjectForm');
+      const submitBtn = document.getElementById('submitAddProject');
+      const errorMessage = document.getElementById('formErrorMessage');
+      const modalTitle = document.getElementById('modalTitle');
+      const projectIdField = document.getElementById('projectId');
+      const isEditModeField = document.getElementById('isEditMode');
+      
+      /**
+       * Populates the add/edit project form with existing project data.
+       * @param {object} project - The project data object.
+       */
+      function _populateProjectForm(project) {
+        document.getElementById('projectNameInput').value = project.name;
+        document.getElementById('projectClient').value = project.client || '';
+        document.getElementById('projectClientEmail').value = project.clientEmail || '';
+        document.getElementById('projectClientAddress').value = project.clientAddress || '';
+        document.getElementById('projectArchitect').value = project.architect || '';
+        document.getElementById('projectArchitectEmail').value = project.architectEmail || '';
+        document.getElementById('projectContractor').value = project.contractor || '';
+        document.getElementById('projectContractorEmail').value = project.contractorEmail || '';
+        document.getElementById('projectStatus').value = project.status || 'Not Started';
+        document.getElementById('asanaProjectId').value = project.asanaProjectId ? project.asanaProjectId.replace(/["']/g, '') : '';
+        document.getElementById('projectSheetId').value = project.sheetId || '';
+        document.getElementById('projectFolderId').value = project.folderId || '';
+        document.getElementById('projectColorInput').value = project.projectColor || '#26717D';
+      }
+
+      /**
+       * Collects and returns data from the add/edit project form.
+       * @return {object} An object containing the project form data.
+       */
+      function _getProjectFormData() {
+        return {
+          name: document.getElementById('projectNameInput').value.trim(),
+          client: document.getElementById('projectClient').value.trim(),
+          clientEmail: document.getElementById('projectClientEmail').value.trim(),
+          clientAddress: document.getElementById('projectClientAddress').value.trim(),
+          architect: document.getElementById('projectArchitect').value.trim(),
+          architectEmail: document.getElementById('projectArchitectEmail').value.trim(),
+          contractor: document.getElementById('projectContractor').value.trim(),
+          contractorEmail: document.getElementById('projectContractorEmail').value.trim(),
+          status: document.getElementById('projectStatus').value,
+          asanaProjectId: document.getElementById('asanaProjectId').value ? 
+                          document.getElementById('asanaProjectId').value.replace(/["']/g, '').trim() : '',
+          sheetId: document.getElementById('projectSheetId').value.trim() || '',
+          folderId: document.getElementById('projectFolderId').value.trim() || '',
+          projectColor: document.getElementById('projectColorInput').value || '#26717D'
+        };
+      }
+
+      /**
+       * Handles the success response from adding or updating a project.
+       * @param {object} response - The response object from the server.
+       * @param {boolean} isEditMode - True if the operation was an update, false for an add.
+       * @param {HTMLElement} submitBtn - The submit button element.
+       * @param {function} closeModalFn - The function to close the modal.
+       * @param {HTMLElement} errorMessageElement - The error message display element.
+       */
+      function _handleProjectFormSubmitSuccess(response, isEditMode, submitBtn, closeModalFn, errorMessageElement) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = isEditMode ? 'Update Project' : 'Add Project';
+        hideDashboardLoading();
+
+        if (!response.success) {
+          errorMessageElement.textContent = response.error;
+          errorMessageElement.style.display = 'block';
+          return;
+        }
+        
+        closeModalFn();
+        const welcomeMessage = document.querySelector('.welcome-message');
+        if (welcomeMessage) {
+          welcomeMessage.style.display = 'none';
+        }
+        loadProjects(); // Reload projects on success
+      }
+
+      /**
+       * Handles the failure response from adding or updating a project.
+       * @param {object} error - The error object from the server call.
+       * @param {boolean} isEditMode - True if the operation was an update, false for an add.
+       * @param {HTMLElement} submitBtn - The submit button element.
+       * @param {HTMLElement} errorMessageElement - The error message display element.
+       */
+      function _handleProjectFormSubmitError(error, isEditMode, submitBtn, errorMessageElement) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = isEditMode ? 'Update Project' : 'Add Project';
+        hideDashboardLoading();
+        errorMessageElement.textContent = 'Error ' + (isEditMode ? 'updating' : 'adding') + ' project: ' + (error.message || error.toString());
+        errorMessageElement.style.display = 'block';
+      }
+
+      // Open modal for new project
+      addProjectButton.addEventListener('click', function() {
+        // Reset form and set to Add mode
+        form.reset();
+        modalTitle.textContent = 'Add New Project';
+        submitBtn.textContent = 'Add Project';
+        projectIdField.value = '';
+        isEditModeField.value = 'false';
+        
+        modal.classList.add('visible');
+      });
+      
+      // Close modal functions
+      function closeModal() {
+        modal.classList.remove('visible');
+        form.reset();
+        errorMessage.style.display = 'none';
+        
+        // Reset any edit buttons that might be in loading state
+        document.querySelectorAll('.edit-project-btn.loading').forEach(button => {
+          button.classList.remove('loading');
+        });
+      }
+      
+      closeBtn.addEventListener('click', closeModal);
+      cancelBtn.addEventListener('click', closeModal);
+      
+      // Close when clicking outside the modal
+      modal.addEventListener('click', function(event) {
+        if (event.target === modal) {
+          closeModal();
+        }
+      });
+      
+      // Open modal for editing an existing project
+      document.addEventListener('click', function(event) {
+        if (event.target.classList.contains('edit-project-btn') || 
+            (event.target.parentElement && event.target.parentElement.classList.contains('edit-project-btn'))) {
+          // Get the button and project ID
+          const button = event.target.classList.contains('edit-project-btn') ? 
+                         event.target : event.target.parentElement;
+          const projectId = button.getAttribute('data-project-id');
+          
+          // Show loading state on the button
+          button.classList.add('loading');
+          
+          // Fetch project data
+          google.script.run
+            .withSuccessHandler(function(response) {
+              // Reset loading state
+              button.classList.remove('loading');
+              
+              if (!response.success) {
+                alert('Error loading project: ' + response.error);
+                return;
+              }
+              
+              // Fill form with project data
+              _populateProjectForm(response.project);
+              
+              // Set form to Edit mode
+              modalTitle.textContent = 'Edit Project';
+              submitBtn.textContent = 'Update Project';
+              projectIdField.value = projectId;
+              isEditModeField.value = 'true';
+              
+              // Show modal
+              modal.classList.add('visible');
+            })
+            .withFailureHandler(function(error) {
+              // Reset loading state on error
+              button.classList.remove('loading');
+              alert('Error loading project: ' + error);
+            })
+            .getProjectById(projectId);
+        }
+      });
+      
+      // Form submission
+      submitBtn.addEventListener('click', function() {
+        const nameInput = document.getElementById('projectNameInput');
+        
+        if (!nameInput || !nameInput.value.trim()) {
+          errorMessage.textContent = 'Project name is required';
+          errorMessage.style.display = 'block';
+          return;
+        }
+        
+        // Get form data
+        const formData = _getProjectFormData();
+        
+        // Disable submit button and show loading state
+        submitBtn.disabled = true;
+        submitBtn.textContent = isEditModeField.value === 'true' ? 'Updating...' : 'Adding...';
+        errorMessage.style.display = 'none';
+        
+        // Determine whether to add or update
+        const isEditMode = isEditModeField.value === 'true';
+        const projectId = projectIdField.value;
+        
+        // Show loading overlay
+        showDashboardLoading(isEditMode ? 'Updating project...' : 'Adding project...');
+        
+        if (isEditMode) {
+          // Update existing project
+          google.script.run
+            .withSuccessHandler(function(response) {
+              _handleProjectFormSubmitSuccess(response, true, submitBtn, closeModal, errorMessage);
+            })
+            .withFailureHandler(function(error) {
+              _handleProjectFormSubmitError(error, true, submitBtn, errorMessage);
+            })
+            .updateProject(projectId, formData);
+        } else {
+          // Add new project
+          google.script.run
+            .withSuccessHandler(function(response) {
+              _handleProjectFormSubmitSuccess(response, false, submitBtn, closeModal, errorMessage);
+            })
+            .withFailureHandler(function(error) {
+              _handleProjectFormSubmitError(error, false, submitBtn, errorMessage);
+            })
+            .addProject(formData);
+        }
+      });
+    }
+    
+    // Initialize when the page loads
+    document.addEventListener('DOMContentLoaded', function() {
+      // Check if we're in Gantt mode
+      const modeElement = document.getElementById('modeHolder');
+      const mode = modeElement ? modeElement.getAttribute('data-mode') : 'dashboard';
+      
+      if (mode === 'gantt') {
+        // Get the project ID for Gantt view
+        const projectIdElement = document.getElementById('projectIdHolder');
+        const projectId = projectIdElement ? projectIdElement.getAttribute('data-project-id') : null;
+        
+        initializeGanttView(projectId);
+      } else {
+        // Regular dashboard initialization
+        loadProjects();
+        setupAddProjectModal();
+      }
+      
+    });
+    
+    // Render the Gantt chart with the provided tasks
+    function renderGanttChart(tasks) {
+      if (!tasks || tasks.length === 0) {
+        showGanttError('No timeline data available. Make sure your Asana tasks have start and due dates.');
+        return;
+      }
+      
+      // Format tasks for Frappe Gantt
+      const ganttTasks = tasks.map(task => {
+        return {
+          id: task.id,
+          name: task.name,
+          start: task.start_on,
+          end: task.due_on,
+          progress: task.completed ? 100 : 0,
+          dependencies: '', // No dependencies in this version
+          custom_class: task.completed ? 'task-completed' : 'task-pending',
+          project: task.project,
+          section: task.section,
+          url: task.url,
+          projectColor: task.projectColor
+        };
+      });
+      
+      // Initialize the Gantt chart
+      const ganttElement = document.getElementById('ganttChart');
+      if (ganttElement) {
+        // Clear previous chart
+        ganttElement.innerHTML = '';
+        
+        const gantt = new Gantt(ganttElement, ganttTasks, {
+          view_mode: 'Week',
+          date_format: 'YYYY-MM-DD',
+          on_click: function(task) {
+            window.open(task.url, '_blank');
+          },
+          on_date_change: function(task, start, end) {
+            console.log('Task ' + task.name + ' changed. New dates: ' + start + ' to ' + end);
+            // We're not saving changes in this version
+          },
+          custom_popup_html: function(task) {
+            return `
+              <div class="gantt-task-popup">
+                <h5>${task.name}</h5>
+                <p><strong>Project:</strong> ${task.project}</p>
+                <p><strong>Section:</strong> ${task.section}</p>
+                <p><strong>Start:</strong> ${new Date(task.start).toLocaleDateString()}</p>
+                <p><strong>End:</strong> ${new Date(task.end).toLocaleDateString()}</p>
+                <p><strong>Status:</strong> ${task.progress === 100 ? 'Completed' : 'In Progress'}</p>
+                <p class="popup-action">Click to open in Asana</p>
+              </div>
+            `;
+          }
+        });
+        
+        // Setup zoom controls
+        const zoomInBtn = document.getElementById('zoomInBtn');
+        const zoomOutBtn = document.getElementById('zoomOutBtn');
+        const viewModeSelect = document.getElementById('viewModeSelect');
+        
+        if (zoomInBtn) {
+          zoomInBtn.addEventListener('click', function() {
+            const modes = ['Quarter Day', 'Half Day', 'Day', 'Week', 'Month', 'Year'];
+            const currentIdx = modes.indexOf(gantt.options.view_mode);
+            if (currentIdx > 0) {
+              gantt.change_view_mode(modes[currentIdx - 1]);
+              viewModeSelect.value = modes[currentIdx - 1];
+            }
+          });
+        }
+        
+        if (zoomOutBtn) {
+          zoomOutBtn.addEventListener('click', function() {
+            const modes = ['Quarter Day', 'Half Day', 'Day', 'Week', 'Month', 'Year'];
+            const currentIdx = modes.indexOf(gantt.options.view_mode);
+            if (currentIdx < modes.length - 1) {
+              gantt.change_view_mode(modes[currentIdx + 1]);
+              viewModeSelect.value = modes[currentIdx + 1];
+            }
+          });
+        }
+        
+        if (viewModeSelect) {
+          viewModeSelect.addEventListener('change', function() {
+            gantt.change_view_mode(this.value);
+          });
+        }
+      }
+    }
+    
+    function showGanttError(message) {
+      const loadingIndicator = document.getElementById('ganttLoading');
+      const errorElement = document.getElementById('ganttErrorMessage');
+      
+      if (loadingIndicator) {
+        loadingIndicator.style.display = 'none';
+      }
+      
+      if (errorElement) {
+        errorElement.textContent = message;
+        errorElement.style.display = 'block';
+      }
+    }
+    
+    function updateGanttView() {
+      if (!ganttInstance) return;
+      
+      ganttInstance.change_view_mode(ganttViewMode);
+      
+      // Re-apply colors after view mode change
+      setTimeout(() => {
+        colorizeGanttBars();
+      }, 300);
+    }
+    
+    function colorizeGanttBars() {
+      if (!ganttInstance) return;
+      
+      console.log('Applying colors to bars...');
+      
+      // Store projects that need colors applied
+      const coloredTasks = [];
+      
+      // Add color styling for each task based on project color
+      ganttInstance.tasks.forEach(task => {
+        if (task.projectColor) {
+          coloredTasks.push(task);
+        }
+      });
+      
+      // Apply colors to all tasks with a slight delay between each
+      // to ensure the DOM has time to process each update
+      coloredTasks.forEach((task, index) => {
+        setTimeout(() => {
+          // Use more specific and robust selectors
+          let barWrappers = document.querySelectorAll(`.gantt .bar-wrapper[data-id="${task.id}"]`);
+          let barElements = document.querySelectorAll(`.gantt .bar-wrapper[data-id="${task.id}"] .bar`);
+          let progressElements = document.querySelectorAll(`.gantt .bar-wrapper[data-id="${task.id}"] .bar-progress`);
+          
+          if (barElements.length === 0) {
+            // Try with CSS escaping for IDs with special characters
+            const escapedId = CSS.escape(task.id);
+            barWrappers = document.querySelectorAll(`.gantt .bar-wrapper[data-id="${escapedId}"]`);
+            barElements = document.querySelectorAll(`.gantt .bar-wrapper[data-id="${escapedId}"] .bar`);
+            progressElements = document.querySelectorAll(`.gantt .bar-wrapper[data-id="${escapedId}"] .bar-progress`);
+          }
+          
+          // Apply colors to all matching elements
+          barElements.forEach(element => {
+            // Apply the project color
+            element.style.fill = task.projectColor;
+            element.style.stroke = task.projectColor;
+          });
+          
+          progressElements.forEach(element => {
+            // Make progress bar a darker shade of the project color
+            element.style.fill = adjustColor(task.projectColor, -20);
+          });
+        }, index * 10); // Stagger the updates with a small delay
+      });
+    }
+    
+    function adjustColor(color, amount) {
+      let usePound = false;
+      
+      if (color[0] === "#") {
+        color = color.slice(1);
+        usePound = true;
+      }
+      
+      const num = parseInt(color, 16);
+      
+      let r = (num >> 16) + amount;
+      r = Math.max(Math.min(r, 255), 0);
+      
+      let g = ((num >> 8) & 0x00FF) + amount;
+      g = Math.max(Math.min(g, 255), 0);
+      
+      let b = (num & 0x0000FF) + amount;
+      b = Math.max(Math.min(b, 255), 0);
+      
+      return (usePound ? "#" : "") + (g | (r << 8) | (b << 16)).toString(16).padStart(6, '0');
+    }
+    
+    function addProjectLegend(tasks) {
+      // Remove any existing legends first
+      const existingLegends = document.querySelectorAll('.gantt-legend');
+      existingLegends.forEach(legend => legend.remove());
+      
+      // Create a map of projects and their colors
+      const projectMap = {};
+      
+      tasks.forEach(task => {
+        if (task.project && task.projectColor && !projectMap[task.project]) {
+          projectMap[task.project] = task.projectColor;
+        }
+      });
+      
+      // Create legend container
+      const legendContainer = document.createElement('div');
+      legendContainer.className = 'gantt-legend';
+      
+      // Add "All Projects" option first
+      const allProjectsItem = document.createElement('div');
+      allProjectsItem.className = 'legend-item' + (currentProjectFilter === 'all' ? ' active' : '');
+      allProjectsItem.innerHTML = `
+        <span class="legend-color all-projects"></span>
+        <span class="legend-label">All Projects</span>
+      `;
+      allProjectsItem.onclick = function() {
+        toggleProjectFilter('all');
+      };
+      legendContainer.appendChild(allProjectsItem);
+      
+      // Add each project with its color
+      Object.keys(projectMap).forEach(projectName => {
+        const color = projectMap[projectName];
+        const projectItem = document.createElement('div');
+        projectItem.className = 'legend-item' + (currentProjectFilter === projectName ? ' active' : '');
+        projectItem.innerHTML = `
+          <div class="legend-color" style="background-color: ${color}"></div>
+          <div class="legend-label">${projectName}</div>
+        `;
+        projectItem.onclick = function() {
+          toggleProjectFilter(projectName);
+        };
+        legendContainer.appendChild(projectItem);
+      });
+      
+      // Add the legend to the Gantt container
+      const ganttContainer = document.getElementById('frappeGantt');
+      if (ganttContainer) {
+        ganttContainer.parentNode.insertBefore(legendContainer, ganttContainer);
+      }
+    }
+
+    // Function to initialize the Gantt view when loaded directly
+    function initializeGanttView(projectId) {
+      // Show Gantt container
+      const ganttContainer = document.getElementById('ganttContainer');
+      const welcomeMessage = document.querySelector('.welcome-message');
+      const projectsContainer = document.getElementById('projectsContainer');
+      const toggleButton = document.getElementById('toggleGanttButton');
+      
+      // Update button text to show Dashboard option
+      if (toggleButton) {
+        toggleButton.innerHTML = '<i class="material-icons">dashboard</i> Dashboard';
+      }
+      
+      // Show Gantt chart
+      if (ganttContainer) {
+        ganttContainer.style.display = 'block';
+      }
+      
+      // Hide welcome message and projects
+      if (welcomeMessage) {
+        welcomeMessage.style.display = 'none';
+      }
+      
+      if (projectsContainer) {
+        projectsContainer.style.display = 'none';
+      }
+      
+      // Load Gantt data
+      loadFrappeGantt(projectId);
+      ganttLoaded = true;
+    }
+    
+    // Load Gantt data from the server
+    function loadFrappeGantt(projectId) {
+      // Only use the dashboard loading overlay, not secondary loading indicator
+      showDashboardLoading('Loading Gantt chart...');
+      document.getElementById('frappeGantt').innerHTML = ''; // Clear the container
+      
+      // Setup observer to detect when chart is rendered
+      setupGanttObserver();
+      
+      google.script.run
+        .withSuccessHandler(function(data) {
+          drawFrappeGantt(data);
+          // Force a refresh after a short delay to ensure proper rendering
+          setTimeout(function() {
+            if (ganttInstance) {
+              ganttInstance.refresh(ganttInstance.tasks);
+              // Apply colors again after refresh
+              colorizeGanttBars();
+            }
+          }, 300);
+        })
+        .withFailureHandler(function(error) {
+          document.getElementById('frappeGantt').innerHTML = '<div class="error-box">Error loading Gantt chart: ' + error + '</div>';
+          hideDashboardLoading();
+        })
+        .getAsanaTasksForGantt(projectId);
+    }
+
+    // Project Details Modal Functionality
+    // Add event delegation for View Details buttons
+    document.addEventListener('click', function(event) {
+      if (event.target.classList.contains('view-details-btn') || 
+          (event.target.parentElement && event.target.parentElement.classList.contains('view-details-btn'))) {
+        
+        // Get the button element
+        const button = event.target.classList.contains('view-details-btn') ? 
+          event.target : event.target.parentElement;
+        
+        // Get project ID
+        const projectId = button.getAttribute('data-project-id');
+        const sheetId = button.getAttribute('data-sheet-id');
+        
+        if (!projectId) {
+          alert('Project ID not found.');
+          return;
+        }
+        
+        if (!sheetId) {
+          alert('This project does not have a Sheet ID configured. Please edit the project to add a Sheet ID.');
+          return;
+        }
+        
+        // Show loading overlay with enhanced overlay effect
+        const loadingEl = document.getElementById('dashboardLoadingOverlay');
+        if (loadingEl) {
+          loadingEl.style.display = 'flex';
+          document.getElementById('dashboardLoadingMessage').textContent = 'Loading project details...';
+          document.body.classList.add('loading-active'); // Add class to prevent scrolling
+        }
+        
+        // Load the Project_Details_.html content through a server-side function
+        google.script.run
+          .withSuccessHandler(function(result) {
+            // Hide loading overlay
+            if (loadingEl) {
+              loadingEl.style.display = 'none';
+              document.body.classList.remove('loading-active'); // Remove class when done
+            }
+            
+            // Get the modal and content container
+            const modal = document.getElementById('projectDetailsModal');
+            const contentContainer = document.getElementById('projectDetailsContent');
+            
+            // Clear the content container
+            contentContainer.innerHTML = '';
+            
+            // Append the processed content
+            contentContainer.innerHTML = result;
+            
+            // Set the project ID as a data attribute on the modal for reference
+            modal.setAttribute('data-project-id', projectId);
+            if (sheetId) {
+              modal.setAttribute('data-sheet-id', sheetId);
+            }
+            
+            // Add a class to the body to prevent scrolling behind the modal
+            document.body.classList.add('modal-open');
+            
+            // Show the modal
+            modal.style.display = 'block';
+            
+            // Initialize any scripts or components inside the loaded content
+            if (typeof initProjectDetailsPage === 'function') {
+              initProjectDetailsPage(projectId);
+              console.log('Project details loaded successfully');
+            }
+          })
+          .withFailureHandler(function(error) {
+            // Hide loading overlay
+            if (loadingEl) {
+              loadingEl.style.display = 'none';
+              document.body.classList.remove('loading-active'); // Remove class on error too
+            }
+            alert('Error loading project details: ' + error);
+            console.log('Error loading project details: ' + error);
+          })
+          .getProjectDetailsContent(projectId);
+      }
+    });
+    
+    // Close modal when clicking the X
+    document.addEventListener('click', function(event) {
+      if (event.target.classList.contains('close-modal')) {
+        const modal = document.getElementById('projectDetailsModal');
+        modal.style.display = 'none';
+        document.body.classList.remove('modal-open');
+      }
+    });
+    
+    // Close modal when clicking outside the content
+    window.addEventListener('click', function(event) {
+      const modal = document.getElementById('projectDetailsModal');
+      if (event.target === modal) {
+        modal.style.display = 'none';
+        document.body.classList.remove('modal-open');
+      }
+    });
+
+</script> 

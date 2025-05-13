@@ -108,26 +108,17 @@ function getAsanaTasksForGantt() {
         if (!projectId) continue;
         
         // Fetch tasks with start_on and due_on fields for this project
-        const tasksUrl = `https://app.asana.com/api/1.0/projects/${projectId}/tasks?opt_fields=gid,name,completed,start_on,due_on,memberships.section.name,permalink_url`;
-        const options = {
-          method: 'get',
-          headers: {
-            'Authorization': 'Bearer ' + asanaToken
-          },
-          muteHttpExceptions: true
-        };
+        const ganttTaskOptFields = 'gid,name,completed,start_on,due_on,memberships.section.name,permalink_url';
+        const ganttTaskQueryParams = { opt_fields: ganttTaskOptFields };
+        Logger.log(`Fetching Gantt tasks for project: ${projectName} (${projectId}) with params: ${JSON.stringify(ganttTaskQueryParams)}`);
         
-        Logger.log(`Fetching tasks for project: ${projectName} (${projectId})`);
-        const response = UrlFetchApp.fetch(tasksUrl, options);
-        const responseCode = response.getResponseCode();
-        
-        if (responseCode !== 200) {
-          Logger.log(`Failed to fetch tasks for project ${projectName} (HTTP ${responseCode})`);
+        const taskFetchResult = fetchAsanaTasksForProjectId(projectId, asanaToken, ganttTaskQueryParams);
+
+        if (!taskFetchResult.success) {
+          Logger.log(`Failed to fetch tasks for project ${projectName}. Error: ${taskFetchResult.error}`);
           continue; // Skip this project but continue with others
         }
-        
-        const data = JSON.parse(response.getContentText());
-        const projectTasks = data.data || [];
+        const projectTasks = taskFetchResult.tasks || [];
         
         // Log the number of tasks fetched and how many have start/due dates
         const tasksWithDates = projectTasks.filter(t => t.start_on && t.due_on).length;
@@ -268,6 +259,31 @@ function getProjects() {
 }
 
 /**
+ * Ensures that the 'Projects' sheet has all required standard columns.
+ * If a column is missing, it's added to the sheet header and the headers array.
+ * @param {Sheet} sheet - The Google Apps Script Sheet object for 'Projects'.
+ * @param {Array<string>} headers - The current array of header names from the sheet.
+ * @return {Array<string>} The updated array of header names, including any added columns.
+ * @private
+ */
+function _ensureProjectSheetColumns(sheet, headers) {
+  const standardColumns = [
+    'ProjectColor', 'Architect', 'Architect_email', 'Contractor', 'Contractor_email'
+  ];
+
+  let currentLastHeaderColumn = headers.length; // 0-based index, so length is the 1-based index of next new column
+
+  standardColumns.forEach(columnName => {
+    if (headers.indexOf(columnName) === -1) {
+      currentLastHeaderColumn++; // Increment first to get 1-based column index for new column
+      sheet.getRange(1, currentLastHeaderColumn).setValue(columnName).setFontWeight('bold');
+      headers.push(columnName); // Add to the headers array being managed
+    }
+  });
+  return headers;
+}
+
+/**
  * Add a new project to the Google Sheet
  * @param {Object} project - Project object with name, client, status, etc.
  * @return {Object} Object containing success status and newly added project
@@ -295,8 +311,10 @@ function addProject(project) {
     }
     
     // Get headers to ensure correct column order
-    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    
+    let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    headers = _ensureProjectSheetColumns(sheet, headers); // Use helper to add missing columns and update headers
+
+    // Define/Re-define indices AFTER headers array might have been modified by the helper
     const nameIndex = headers.indexOf('Project_name');
     const clientNameIndex = headers.indexOf('Client_name');
     const clientEmailIndex = headers.indexOf('Client_email');
@@ -310,46 +328,6 @@ function addProject(project) {
     const architectEmailIndex = headers.indexOf('Architect_email');
     const contractorIndex = headers.indexOf('Contractor');
     const contractorEmailIndex = headers.indexOf('Contractor_email');
-    
-    // Add ProjectColor column if it doesn't exist
-    if (projectColorIndex === -1) {
-      const lastCol = headers.length + 1;
-      sheet.getRange(1, lastCol).setValue('ProjectColor');
-      sheet.getRange(1, lastCol).setFontWeight('bold');
-      headers.push('ProjectColor');
-    }
-    
-    // Add Architect column if it doesn't exist
-    if (architectIndex === -1) {
-      const lastCol = headers.length + 1;
-      sheet.getRange(1, lastCol).setValue('Architect');
-      sheet.getRange(1, lastCol).setFontWeight('bold');
-      headers.push('Architect');
-    }
-    
-    // Add Architect_email column if it doesn't exist
-    if (architectEmailIndex === -1) {
-      const lastCol = headers.length + 1;
-      sheet.getRange(1, lastCol).setValue('Architect_email');
-      sheet.getRange(1, lastCol).setFontWeight('bold');
-      headers.push('Architect_email');
-    }
-    
-    // Add Contractor column if it doesn't exist
-    if (contractorIndex === -1) {
-      const lastCol = headers.length + 1;
-      sheet.getRange(1, lastCol).setValue('Contractor');
-      sheet.getRange(1, lastCol).setFontWeight('bold');
-      headers.push('Contractor');
-    }
-    
-    // Add Contractor_email column if it doesn't exist
-    if (contractorEmailIndex === -1) {
-      const lastCol = headers.length + 1;
-      sheet.getRange(1, lastCol).setValue('Contractor_email');
-      sheet.getRange(1, lastCol).setFontWeight('bold');
-      headers.push('Contractor_email');
-    }
     
     // Create a new row with data in the correct column positions
     const newRow = [];
@@ -477,8 +455,10 @@ function updateProject(id, project) {
     }
     
     // Get headers to ensure correct column order
-    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    headers = _ensureProjectSheetColumns(sheet, headers); // Use helper to add missing columns and update headers
     
+    // Define/Re-define indices AFTER headers array might have been modified by the helper
     const nameIndex = headers.indexOf('Project_name');
     const clientNameIndex = headers.indexOf('Client_name');
     const clientEmailIndex = headers.indexOf('Client_email');
@@ -492,47 +472,6 @@ function updateProject(id, project) {
     const architectEmailIndex = headers.indexOf('Architect_email');
     const contractorIndex = headers.indexOf('Contractor');
     const contractorEmailIndex = headers.indexOf('Contractor_email');
-    
-    // Add missing columns if they don't exist (same code as in addProject)
-    // Add ProjectColor column if it doesn't exist
-    if (projectColorIndex === -1) {
-      const lastCol = headers.length + 1;
-      sheet.getRange(1, lastCol).setValue('ProjectColor');
-      sheet.getRange(1, lastCol).setFontWeight('bold');
-      headers.push('ProjectColor');
-    }
-    
-    // Add Architect column if it doesn't exist
-    if (architectIndex === -1) {
-      const lastCol = headers.length + 1;
-      sheet.getRange(1, lastCol).setValue('Architect');
-      sheet.getRange(1, lastCol).setFontWeight('bold');
-      headers.push('Architect');
-    }
-    
-    // Add Architect_email column if it doesn't exist
-    if (architectEmailIndex === -1) {
-      const lastCol = headers.length + 1;
-      sheet.getRange(1, lastCol).setValue('Architect_email');
-      sheet.getRange(1, lastCol).setFontWeight('bold');
-      headers.push('Architect_email');
-    }
-    
-    // Add Contractor column if it doesn't exist
-    if (contractorIndex === -1) {
-      const lastCol = headers.length + 1;
-      sheet.getRange(1, lastCol).setValue('Contractor');
-      sheet.getRange(1, lastCol).setFontWeight('bold');
-      headers.push('Contractor');
-    }
-    
-    // Add Contractor_email column if it doesn't exist
-    if (contractorEmailIndex === -1) {
-      const lastCol = headers.length + 1;
-      sheet.getRange(1, lastCol).setValue('Contractor_email');
-      sheet.getRange(1, lastCol).setFontWeight('bold');
-      headers.push('Contractor_email');
-    }
     
     // Update the cells in the row
     if (nameIndex !== -1) sheet.getRange(rowNumber, nameIndex + 1).setValue(project.name || '');
@@ -610,65 +549,46 @@ function getAsanaTasksForProject(projectId) {
     Logger.log("Asana project ID: " + projectId);
     
     // Fetch tasks from Asana - Only fetch incomplete tasks with completed=false parameter
-    const tasksUrl = `https://app.asana.com/api/1.0/projects/${projectId}/tasks?opt_fields=name,completed,due_on,notes,assignee.name,memberships.section.name&completed=false`;
+    const taskOptFields = 'name,completed,due_on,notes,assignee.name,memberships.section.name,permalink_url'; // Added permalink_url for consistency with Gantt
+    const taskQueryParams = { opt_fields: taskOptFields, completed: 'false' }; // Ensure completed is a string 'false' for query param
     
     // Log the request URL for debugging (without token)
-    Logger.log("Requesting Asana tasks from: " + tasksUrl);
+    Logger.log(`Requesting Asana tasks for project ${projectId} with params: ${JSON.stringify(taskQueryParams)}`);
+
+    const tasksResult = fetchAsanaTasksForProjectId(projectId, asanaToken, taskQueryParams); // Direct function call
     
-    // Set up request options with authorization header
-    const options = {
-      method: 'get',
-      headers: {
-        'Authorization': 'Bearer ' + asanaToken
-      },
-      muteHttpExceptions: true
-    };
-    
-    // Make the API request
-    const response = UrlFetchApp.fetch(tasksUrl, options);
-    const responseCode = response.getResponseCode();
-    const responseBody = response.getContentText();
-    
-    Logger.log("Asana tasks response code: " + responseCode);
-    Logger.log("Asana tasks response length: " + responseBody.length + " characters");
-    
-    // Check for successful response
-    if (responseCode !== 200) {
-      Logger.log("Error fetching Asana tasks: " + responseBody);
-      return {
-        success: false,
-        error: "Failed to fetch tasks from Asana (HTTP " + responseCode + ")"
-      };
+    Logger.log("Asana tasks response success: " + tasksResult.success);
+    if (!tasksResult.success) {
+      Logger.log("Error fetching Asana tasks: " + tasksResult.error);
+      return { success: false, error: "Failed to fetch tasks from Asana: " + tasksResult.error };
     }
     
     // Parse the response
-    const data = JSON.parse(responseBody);
-    const tasks = data.data || [];
+    const tasks = tasksResult.tasks || []; // tasksResult.tasks directly contains the array
     
     Logger.log("Received " + tasks.length + " open tasks from Asana");
     
     // Fetch sections for this project
-    const sectionsUrl = `https://app.asana.com/api/1.0/projects/${projectId}/sections`;
-    const sectionsResponse = UrlFetchApp.fetch(sectionsUrl, options);
-    const sectionsResponseCode = sectionsResponse.getResponseCode();
-    const sectionsData = JSON.parse(sectionsResponse.getContentText());
+    const sectionsResult = fetchAsanaSectionsForProjectId(projectId, asanaToken); // Direct function call
     
-    Logger.log("Asana sections response code: " + sectionsResponseCode);
+    Logger.log("Asana sections response success: " + sectionsResult.success);
     
     // Create a map of section GIDs to section names
-    const sectionMap = {};
+    const sectionMap = {}; // This map is not strictly needed if we rely on sectionOrder from API
     const sectionOrder = [];
     
-    if (sectionsResponseCode === 200 && sectionsData.data) {
-      sectionsData.data.forEach(section => {
-        sectionMap[section.gid] = section.name;
-        sectionOrder.push(section.name);
+    if (sectionsResult.success && sectionsResult.sections) {
+      sectionsResult.sections.forEach(section => {
+        // sectionMap[section.gid] = section.name; // sectionMap might still be useful if tasks don't have section.name directly
+        if (section.name) { // Ensure section name exists
+          sectionOrder.push(section.name);
+        }
       });
       
-      Logger.log("Received " + sectionsData.data.length + " sections from Asana");
+      Logger.log("Received " + sectionsResult.sections.length + " sections from Asana");
       Logger.log("Section order: " + sectionOrder.join(", "));
     } else {
-      Logger.log("Failed to fetch sections, using fallback grouping");
+      Logger.log("Failed to fetch sections, using fallback grouping. Error: " + (sectionsResult.error || 'Unknown error'));
     }
     
     // Group tasks by section
@@ -701,11 +621,11 @@ function getAsanaTasksForProject(projectId) {
       // Add task to its section
       tasksBySection[sectionName].push({
         name: task.name,
-        completed: false, // All tasks should be incomplete
+        completed: false, // All tasks should be incomplete due to `completed=false` query param
         dueDate: task.due_on,
         notes: task.notes,
         assignee: task.assignee ? task.assignee.name : null,
-        url: `https://app.asana.com/0/${projectId}/${task.gid}`
+        url: task.permalink_url || `https://app.asana.com/0/${projectId}/${task.gid}` // Added permalink_url
       });
     });
     
@@ -803,3 +723,4 @@ function getProjectDetailsContent(projectId) {
     return "<div class='error-message'>Error loading project details: " + error.message + "</div>";
   }
 } 
+

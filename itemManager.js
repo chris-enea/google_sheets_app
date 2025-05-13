@@ -10,7 +10,7 @@
  */
 function getRooms() {
     try {
-      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const ss = SpreadsheetApp.openById(ScriptProperties.getProperty('SHEET_ID'));
       const dataSheet = ss.getSheetByName("Data");
       
       if (!dataSheet) {
@@ -103,7 +103,7 @@ function getRooms() {
       }
       
       // Get the Data sheet
-      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const ss = SpreadsheetApp.openById(ScriptProperties.getProperty('SHEET_ID'));
       const dataSheet = ss.getSheetByName("Data");
       
       // Calculate the row to insert at (header row + existing rooms + 1)
@@ -591,7 +591,7 @@ function getRooms() {
       Logger.log(`Saving ${items.length} items to the sheet`);
       
       // Get reference to spreadsheet - using one call to SpreadsheetApp
-      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      // const ss = SpreadsheetApp.getActiveSpreadsheet();
       
       // Get or create the Items sheet
       let sheet = ss.getSheetByName("Items");
@@ -872,7 +872,7 @@ function getRooms() {
       // Use provided sheetId if available, otherwise fallback to active spreadsheet
       const ss = sheetId 
         ? SpreadsheetApp.openById(sheetId) 
-        : SpreadsheetApp.getActiveSpreadsheet();
+        : SpreadsheetApp.openById(ScriptProperties.getProperty('SHEET_ID'));
       
       const dataSheet = ss.getSheetByName("Data");
       
@@ -927,7 +927,9 @@ function getRooms() {
   function getRoomsForDashboard(sheetId = null) {
     try {
       // Get all room names
-      const rooms = getRoomNamesFromSheet(sheetId);
+      let dataSheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+        
+      const rooms = getRoomNamesFromSheet(dataSheetId);
       
       // Get the currently selected rooms from temp sheet using core function
       const selectedRooms = getSelectedRoomsCore(sheetId);

@@ -3,8 +3,84 @@
       // Global variable to track which input has an open dropdown
       let activeAutocompleteInput = null;
 
+      /**
+       * Renders standardized UI states (loading, error, empty, success) within a given container.
+       * @param {string|HTMLElement} containerElementOrId - The ID of the container element or the element itself.
+       * @param {'loading'|'error'|'empty'|'success'} state - The UI state to render.
+       * @param {string} [message=''] - An optional message to display (e.g., error details, empty state text).
+       */
+      function renderUIState(containerElementOrId, state, message = '') {
+        const container = (typeof containerElementOrId === 'string') ? 
+                          document.getElementById(containerElementOrId) :
+                          containerElementOrId;
+
+        if (!container) {
+          console.error('renderUIState: Container not found:', containerElementOrId);
+          return;
+        }
+
+        container.innerHTML = ''; // Clear previous content
+
+        let iconName = '';
+        let defaultMessage = '';
+        let stateClass = '';
+
+        switch (state) {
+          case 'loading':
+            iconName = 'sync';
+            defaultMessage = 'Loading...';
+            stateClass = 'loading-state-standard';
+            // Add rotating class for spinner effect if not handled purely by CSS
+            container.innerHTML = `
+              <div class="${stateClass}">
+                <i class="material-icons rotating">${iconName}</i>
+                <span>${message || defaultMessage}</span>
+              </div>`;
+            break;
+          case 'error':
+            iconName = 'error_outline';
+            defaultMessage = 'An error occurred.';
+            stateClass = 'error-box-standard';
+            container.innerHTML = `
+              <div class="${stateClass}">
+                <i class="material-icons">${iconName}</i>
+                <span>${message || defaultMessage}</span>
+              </div>`;
+            break;
+          case 'empty':
+            iconName = 'info_outline';
+            defaultMessage = 'No items to display.';
+            stateClass = 'empty-state-standard';
+            container.innerHTML = `
+              <div class="${stateClass}">
+                <i class="material-icons">${iconName}</i>
+                <span>${message || defaultMessage}</span>
+              </div>`;
+            break;
+          case 'success':
+            // Typically, for success, the calling function will populate the actual content.
+            // This case can be used if a generic success message is needed.
+            if (message) {
+              iconName = 'check_circle_outline';
+              stateClass = 'success-box-standard';
+              container.innerHTML = `
+                <div class="${stateClass}">
+                  <i class="material-icons">${iconName}</i>
+                  <span>${message}</span>
+                </div>`;
+            }
+            // If no message, container remains empty, ready for content.
+            break;
+          default:
+            console.warn('renderUIState: Unknown state:', state);
+            container.innerHTML = `<div>Unknown state: ${state}</div>`; // Fallback
+        }
+      }
+
        // Sidebar toggle functionality
-       document.addEventListener('DOMContentLoaded', function() {
+       /* document.addEventListener('DOMContentLoaded', function() {
+        console.log('modal_scripts.js.html: DOMContentLoaded event fired.');
+
         const sidebarToggle = document.getElementById('sidebarToggle');
         const sidebar = document.querySelector('.sidebar');
         
@@ -61,7 +137,7 @@
             }
           });
         });
-      });
+      }); */
 
       // Function to toggle folder list visibility
       function toggleList(id) {
@@ -101,25 +177,12 @@
       
       function loadAsanaTasks() {
         const taskDisplay = document.getElementById('taskDisplay');
-        
-        // Clear the current content
-        taskDisplay.innerHTML = '';
-        
-        // Create loading indicator using DOM
-        const loadingDiv = document.createElement('div');
-        loadingDiv.className = 'loading';
-        
-        const loadingIcon = document.createElement('i');
-        loadingIcon.className = 'material-icons';
-        loadingIcon.textContent = 'sync';
-        
-        loadingDiv.appendChild(loadingIcon);
-        loadingDiv.appendChild(document.createTextNode(' Loading tasks...'));
-        
-        taskDisplay.appendChild(loadingDiv);
+        if (!taskDisplay) return;
+
+        renderUIState(taskDisplay, 'loading', 'Loading Asana tasks...');
         
         google.script.run
-          .withSuccessHandler(displayTasks)
+          .withSuccessHandler(displayTasks) // Assuming displayTasks handles its own content or calls renderUIState for empty state
           .withFailureHandler(handleTaskError)
           .getAsanaTasks();
       }
@@ -128,20 +191,34 @@
         loadAsanaTasks();
       }
       
+      // Assuming handleTaskError function exists or will be created:
+      function handleTaskError(error) {
+        const taskDisplay = document.getElementById('taskDisplay');
+        if (!taskDisplay) return;
+        let errorMessage = 'Error loading tasks.';
+        if (typeof error === 'string') {
+          errorMessage = error;
+        } else if (error && error.message) {
+          errorMessage = error.message;
+        } else if (error && error.details) {
+          errorMessage = error.details;
+        }
+        renderUIState(taskDisplay, 'error', errorMessage);
+        console.error('Asana Task Error:', error);
+      }
+      
       function createNewTask() {
         google.script.run.showAsanaTaskForm();
       }
       
       // Budget Integration Functions
       function loadBudgetData() {
-        document.getElementById('budgetSummaryDisplay').innerHTML = `
-          <div class="loading">
-            <i class="material-icons">sync</i> Loading budget data...
-          </div>
-        `;
+        const budgetDisplay = document.getElementById('budgetSummaryDisplay');
+        if (!budgetDisplay) return;
+        renderUIState(budgetDisplay, 'loading', 'Loading budget data...');
         
         google.script.run
-          .withSuccessHandler(displayBudgetSummary)
+          .withSuccessHandler(displayBudgetSummary) // Assuming displayBudgetSummary handles its own content or calls renderUIState for empty state
           .withFailureHandler(handleBudgetError)
           .getBudgetData();
       }
@@ -200,45 +277,77 @@
       
       // Modified function to show room manager in either main content or sidebar
       function showRoomManager(location = 'main') {
-        // Update the page title if showing in main content
+        let containerId;
+        let loadingMessage = 'Loading rooms...';
+
         if (location === 'main') {
           document.getElementById('projectName').innerText = 'Room Manager';
-          // Show loading overlay for main content
-          showDashboardLoading('Loading rooms...');
+          containerId = 'fileContent'; 
         } else if (location === 'sidebar') {
-          // Show loading indicator in the sidebar room content
-          document.getElementById('sidebarRoomManagerContent').innerHTML = `
-            <div class="loading">
-              <i class="material-icons">sync</i> Loading rooms...
-            </div>
-          `;
+          containerId = 'sidebarRoomManagerContent';
+        } else {
+          console.error('showRoomManager: Invalid location provided:', location);
+          // Attempt to show error in a fallback location if main page structure is available
+          const fallbackErrorDisplay = document.getElementById('fileContent') || document.body;
+          renderUIState(fallbackErrorDisplay, 'error', 'Invalid operation: Cannot determine where to display Room Manager.');
+          return;
         }
+
+        console.log('showRoomManager: containerId:', containerId);
+
+        // At this point, containerId should be valid for 'main' or 'sidebar'
+        renderUIState(containerId, 'loading', loadingMessage);
         
-        // Call server to get rooms data
-        google.script.run
-          .withSuccessHandler(function(result) {
-            if (location === 'main') {
-              hideDashboardLoading();
-              renderRoomManager(result, location);
-            } else if (location === 'sidebar') {
-              renderRoomManager(result, location);
-            }
-          })
-          .withFailureHandler(function(error) {
-            if (location === 'main') {
-              hideDashboardLoading();
-              document.getElementById('fileContent').innerHTML = `
-                <div class="error-box" style="margin: 20px;">
-                  <strong>Error:</strong> ${error.error || error}
-                </div>`;
-            } else if (location === 'sidebar') {
-              document.getElementById('sidebarRoomManagerContent').innerHTML = `
-                <div class="error-box" style="margin: 10px;">
-                  <strong>Error:</strong> ${error.error || error}
-                </div>`;
-            }
-          })
-          .getRoomsForDashboard();
+        // Check if we need to pass a sheetId (especially for sidebar in project details)
+        const modal = document.getElementById('projectDetailsModal');
+        const sheetId = modal ? modal.getAttribute('data-sheet-id') : null;
+        
+        console.log('showRoomManager: found sheetId:', sheetId);
+        
+        // Only pass sheetId if we have it (typically in the sidebar case)
+        if (sheetId) {
+          google.script.run
+            .withSuccessHandler(function(result) {
+              console.log('getRoomsForDashboard result with sheetId:', result);
+              renderUIState(containerId, 'success'); 
+              renderSidebarRoomManager(result);
+            })
+            .withFailureHandler(function(error) {
+              const errorMessage = error.error || error.message || error.toString() || 'Failed to load rooms.';
+              renderUIState(containerId, 'error', errorMessage);
+            })
+            .getRoomsForDashboard(sheetId);
+        } else {
+          google.script.run
+            .withSuccessHandler(function(result) {
+              renderUIState(containerId, 'success'); 
+              renderSidebarRoomManager(result);
+            })
+            .withFailureHandler(function(error) {
+              const errorMessage = error.error || error.message || error.toString() || 'Failed to load rooms.';
+              renderUIState(containerId, 'error', errorMessage);
+            })
+            .getRoomsForDashboard();
+        }
+      }
+      
+      /**
+       * Sets the loading state for a button.
+       * @param {HTMLElement} buttonElement - The button element.
+       * @param {boolean} isLoading - True to set loading state, false to restore original state.
+       * @param {string} loadingHtml - HTML content for the button in loading state (e.g., spinner icon and text).
+       * @param {string} originalHtml - Original HTML content of the button to restore.
+       */
+      function _setButtonLoadingState(buttonElement, isLoading, loadingHtml, originalHtml) {
+        if (!buttonElement) return;
+
+        if (isLoading) {
+          buttonElement.innerHTML = loadingHtml;
+          buttonElement.disabled = true;
+        } else {
+          buttonElement.innerHTML = originalHtml;
+          buttonElement.disabled = false;
+        }
       }
       
       // Function to add a new room from the dashboard or sidebar
@@ -256,10 +365,13 @@
           showDashboardLoading('Adding room...');
         } else {
           // Add loading state to the button in sidebar
-          const addButton = document.querySelector('.add-room-container button');
+          const addButton = document.querySelector('#sidebarRoomManagerContent .add-room-container button'); // More specific selector
           if (addButton) {
-            addButton.innerHTML = '<i class="material-icons" style="margin-right: 8px;">sync</i> Adding...';
-            addButton.disabled = true;
+            // Storing original HTML, assuming it's consistent or can be made so.
+            // For a more robust solution, original content could be stored on the element or passed if it varies.
+            const originalButtonHtml = '<i class="material-icons" style="margin-right: 8px;">add</i> Add Room';
+            const loadingButtonHtml = '<i class="material-icons rotating" style="margin-right: 8px;">sync</i> Adding...';
+            _setButtonLoadingState(addButton, true, loadingButtonHtml, originalButtonHtml);
           }
         }
         
@@ -270,10 +382,11 @@
               hideDashboardLoading();
             } else {
               // Restore button state in sidebar
-              const addButton = document.querySelector('.add-room-container button');
+              const addButton = document.querySelector('#sidebarRoomManagerContent .add-room-container button'); // More specific selector
               if (addButton) {
-                addButton.innerHTML = '<i class="material-icons" style="margin-right: 8px;">add</i> Add Room';
-                addButton.disabled = false;
+                const originalButtonHtml = '<i class="material-icons" style="margin-right: 8px;">add</i> Add Room';
+                // The loadingHTML isn't strictly needed for restore, but originalHTML is key.
+                _setButtonLoadingState(addButton, false, '', originalButtonHtml); 
               }
             }
             
@@ -291,10 +404,10 @@
               hideDashboardLoading();
             } else {
               // Restore button state in sidebar
-              const addButton = document.querySelector('.add-room-container button');
+              const addButton = document.querySelector('#sidebarRoomManagerContent .add-room-container button'); // More specific selector
               if (addButton) {
-                addButton.innerHTML = '<i class="material-icons" style="margin-right: 8px;">add</i> Add Room';
-                addButton.disabled = false;
+                 const originalButtonHtml = '<i class="material-icons" style="margin-right: 8px;">add</i> Add Room';
+                _setButtonLoadingState(addButton, false, '', originalButtonHtml);
               }
             }
             showDashboardStatusMessage(`Error: ${error}`, true, location);
@@ -321,10 +434,11 @@
           showDashboardLoading('Saving selected rooms...');
         } else {
           // Show loading state for the button in sidebar
-          const saveButton = document.querySelector('.sidebar-action-buttons button');
+          const saveButton = document.querySelector('#sidebarRoomManagerContent .sidebar-action-buttons button'); // More specific selector
           if (saveButton) {
-            saveButton.innerHTML = '<i class="material-icons">sync</i>';
-            saveButton.disabled = true;
+            const originalButtonHtml = '<i class="material-icons">arrow_forward</i>';
+            const loadingButtonHtml = '<i class="material-icons rotating">sync</i>';
+            _setButtonLoadingState(saveButton, true, loadingButtonHtml, originalButtonHtml);
           }
         }
         
@@ -335,10 +449,10 @@
               hideDashboardLoading();
             } else {
               // Restore button state in sidebar
-              const saveButton = document.querySelector('.sidebar-action-buttons button');
+              const saveButton = document.querySelector('#sidebarRoomManagerContent .sidebar-action-buttons button'); // More specific selector
               if (saveButton) {
-                saveButton.innerHTML = '<i class="material-icons">arrow_forward</i>';
-                saveButton.disabled = false;
+                const originalButtonHtml = '<i class="material-icons">arrow_forward</i>';
+                _setButtonLoadingState(saveButton, false, '', originalButtonHtml);
               }
             }
             
@@ -359,10 +473,10 @@
               hideDashboardLoading();
             } else {
               // Restore button state in sidebar
-              const saveButton = document.querySelector('.sidebar-action-buttons button');
+              const saveButton = document.querySelector('#sidebarRoomManagerContent .sidebar-action-buttons button'); // More specific selector
               if (saveButton) {
-                saveButton.innerHTML = '<i class="material-icons">arrow_forward</i>';
-                saveButton.disabled = false;
+                const originalButtonHtml = '<i class="material-icons">arrow_forward</i>';
+                _setButtonLoadingState(saveButton, false, '', originalButtonHtml);
               }
             }
             showDashboardStatusMessage('Error: ' + error, true, location);
@@ -370,28 +484,1632 @@
           .saveSelectedRoomsOnly(selectedRooms);
       }
       
+      // New function to directly show the manage items interface
+      function showManageItems() {
+        // Update the page title
+        document.getElementById('projectName').innerText = 'Manage Items';
+        const mainContentContainer = document.getElementById('fileContent');
+        
+        // Get the sheet ID from the project details modal
+        const modal = document.getElementById('projectDetailsModal');
+        const sheetId = modal ? modal.getAttribute('data-sheet-id') : null;
+        
+        console.log('showManageItems: found sheetId:', sheetId);
+        
+        // Only proceed if we have a sheetId
+        if (!sheetId) {
+          if (mainContentContainer) {
+            renderUIState(mainContentContainer, 'error', '<strong>Error:</strong> No sheet ID found. Unable to load items.');
+          }
+          return;
+        }
+        
+        // Show global loading overlay and set loading for main container
+        showDashboardLoading('Loading items management...');
+        if (mainContentContainer) {
+            renderUIState(mainContentContainer, 'loading', 'Loading items management...');
+        }
+        
+        // First get the currently selected rooms
+        google.script.run
+          .withSuccessHandler(function(selectedResult) {
+            if (!selectedResult.success) {
+              hideDashboardLoading();
+              if (mainContentContainer) {
+                renderUIState(mainContentContainer, 'error', '<strong>Error:</strong> ' + (selectedResult.error || 'Failed to get selected rooms'));
+              } else {
+                alert('Error: Failed to get selected rooms. Main content area missing.');
+              }
+              return;
+            }
+            
+            // Keep track of the already selected rooms
+            const currentlySelectedRooms = selectedResult.selectedRooms || [];
+            
+            // If there are no selected rooms yet, simply show the room manager
+            if (currentlySelectedRooms.length === 0) {
+              hideDashboardLoading(); // Hide global overlay since we are redirecting
+              // showRoomManager will handle its own loading state for fileContent
+              showRoomManager(); 
+              return;
+            }
+            
+            // If mainContentContainer was initially null, we might be in trouble here if we didn't return earlier.
+            // Assuming if we reached here, mainContentContainer exists, or showRoomManager would be called.
+            // The loading state was already set. Now get item data.
+
+            google.script.run
+              .withSuccessHandler(function(result) {
+                hideDashboardLoading();
+                if (mainContentContainer) {
+                    if (result.success) {
+                        // renderUIState(mainContentContainer, 'success'); // Clear loading before showing item update.
+                        showItemUpdateInDashboard(); // This function will now use the same sheetId
+                    } else {
+                        renderUIState(mainContentContainer, 'error', '<strong>Error:</strong> ' + (result.error || 'Failed to load items data'));
+                    }
+                } else {
+                     alert('Error loading items data. Main content area missing.');
+                }
+              })
+              .withFailureHandler(function(error) {
+                hideDashboardLoading();
+                if (mainContentContainer) {
+                    renderUIState(mainContentContainer, 'error', '<strong>Error:</strong> ' + (error.error || error.message || error.toString()));
+                } else {
+                     alert('Error loading items data. Main content area missing.');
+                }
+              })
+              .getItemUpdateContentForDashboard(sheetId);
+          })
+          .withFailureHandler(function(error) {
+            hideDashboardLoading();
+            if (mainContentContainer) {
+                renderUIState(mainContentContainer, 'error', '<strong>Error:</strong> ' + (error.error || error.message || error.toString()));
+            } else {
+                 alert('Error loading items management. Main content area missing.');
+            }
+          })
+          .getSelectedRooms(sheetId);
+      }
+
       // New function to show the item update interface in the dashboard
       function showItemUpdateInDashboard() {
         // Update the page title
         document.getElementById('projectName').innerText = 'Manage Items';
+        const mainContentContainer = document.getElementById('fileContent');
         
-        // Show loading indicator in main content area
-        showDashboardLoading('Loading items data...');
+        // Get the sheet ID from the project details modal
+        const modal = document.getElementById('projectDetailsModal');
+        const sheetId = modal ? modal.getAttribute('data-sheet-id') : null;
+        
+        console.log('showItemUpdateInDashboard: found sheetId:', sheetId);
+        
+        // Only proceed if we have a sheetId
+        if (!sheetId) {
+          if (mainContentContainer) {
+            renderUIState(mainContentContainer, 'error', '<strong>Error:</strong> No sheet ID found. Unable to load items.');
+          }
+          return;
+        }
+        
+        // Show global loading overlay (if desired) AND set loading state for the specific container
+        showDashboardLoading('Loading items data...'); 
+        if (mainContentContainer) {
+            renderUIState(mainContentContainer, 'loading', 'Loading items data...'); 
+        }
         
         // Call server to get item data
         google.script.run
           .withSuccessHandler(function(data) {
-            hideDashboardLoading();
-            renderItemUpdateInterface(data);
+            hideDashboardLoading(); // Hide global overlay
+            if (mainContentContainer) {
+                // Clear the container (loading state) and renderItemUpdateInterface will populate it.
+                renderUIState(mainContentContainer, 'success'); 
+                renderItemUpdateInterface(data); // This function should populate the cleared container
+            } else {
+                console.error('showItemUpdateInDashboard: fileContent container not found for success handler.');
+            }
           })
           .withFailureHandler(function(error) {
-            hideDashboardLoading();
-            document.getElementById('fileContent').innerHTML = `
-              <div class="error-box" style="margin: 20px;">
-                <strong>Error:</strong> ${error.error || error}
-              </div>`;
+            hideDashboardLoading(); // Hide global overlay
+            if (mainContentContainer) {
+                renderUIState(mainContentContainer, 'error', '<strong>Error:</strong> ' + (error.error || error.message || error.toString()));
+            } else {
+                console.error('showItemUpdateInDashboard: fileContent container not found for error handler.');
+                // Optionally, show a generic alert if main container is missing
+                alert('Error loading item data. Main content area missing.');
+            }
           })
-          .getItemUpdateContentForDashboard();
+          .getItemUpdateContentForDashboard(sheetId);
+      }
+      
+      /**
+       * Sanitizes a single item object for saving.
+       * Ensures quantity, budget values are correct, recalculates totals,
+       * and removes temporary properties.
+       * @param {object} item - The item object to sanitize.
+       * @return {object} The sanitized item object.
+       */
+      function _sanitizeItemForSave(item) {
+        // Create a deep copy to avoid modifying the original
+        const sanitizedItem = JSON.parse(JSON.stringify(item));
+        
+        // Ensure quantity is at least 1
+        sanitizedItem.quantity = Math.max(1, parseInt(sanitizedItem.quantity) || 1);
+        
+        // Convert budget values to numbers or null
+        sanitizedItem.lowBudget = sanitizedItem.lowBudget !== null && sanitizedItem.lowBudget !== '' && !isNaN(sanitizedItem.lowBudget) 
+          ? parseFloat(sanitizedItem.lowBudget) 
+          : null;
+          
+        sanitizedItem.highBudget = sanitizedItem.highBudget !== null && sanitizedItem.highBudget !== '' && !isNaN(sanitizedItem.highBudget) 
+          ? parseFloat(sanitizedItem.highBudget) 
+          : null;
+        
+        // Recalculate totals
+        sanitizedItem.lowBudgetTotal = sanitizedItem.lowBudget !== null 
+          ? sanitizedItem.lowBudget * sanitizedItem.quantity 
+          : null;
+          
+        sanitizedItem.highBudgetTotal = sanitizedItem.highBudget !== null 
+          ? sanitizedItem.highBudget * sanitizedItem.quantity 
+          : null;
+          
+        // Remove temporary properties that shouldn't be saved
+        if ('isNew' in sanitizedItem) delete sanitizedItem.isNew;
+        if ('id' in sanitizedItem && sanitizedItem.id.toString().startsWith('new_')) delete sanitizedItem.id;
+        
+        return sanitizedItem;
+      }
+
+      /**
+       * Prepares the list of all items from dashboardItemData.
+       * Rebuilds the main items array from itemsByRoom if necessary,
+       * and ensures each item has a 'room' property.
+       * @param {object} dashboardItemData - The global dashboard data object.
+       * @return {object[]} The prepared array of all item objects.
+       */
+      function _getAndPrepareDashboardItems(dashboardItemData) {
+        let allItems = [];
+        let hasItemsWithoutRoom = false; // To track if any fixes were made
+
+        // Check if we need to rebuild the main items array
+        if (dashboardItemData.items && dashboardItemData.items.length === 0 && 
+            dashboardItemData.itemsByRoom && Object.keys(dashboardItemData.itemsByRoom).length > 0) {
+          console.log('Main items array is empty but room items exist - rebuilding');
+          Object.keys(dashboardItemData.itemsByRoom).forEach(room => {
+            const roomItems = dashboardItemData.itemsByRoom[room];
+            if (Array.isArray(roomItems)) {
+              roomItems.forEach(item => {
+                // Ensure room property is set during rebuild
+                if (!item.room) {
+                  item.room = room;
+                  hasItemsWithoutRoom = true; // Mark that a fix occurred
+                }
+                allItems.push(item);
+              });
+            }
+          });
+          
+          if (hasItemsWithoutRoom) {
+            console.log('Fixed items missing room property during rebuild');
+          }
+          // Update the main items array in dashboardItemData as well for consistency
+          dashboardItemData.items = allItems;
+          console.log('Rebuilt main items array with', allItems.length, 'items');
+        } else {
+          // If not rebuilding, use the existing items array, but still ensure deep copy for modification safety
+          allItems = dashboardItemData.items ? JSON.parse(JSON.stringify(dashboardItemData.items)) : [];
+        }
+
+        // Pre-process: ensure all items (whether rebuilt or original) have a valid room property
+        // This also catches cases where items might have been added without a room directly to dashboardItemData.items
+        let fixedMissingRoomProperty = false;
+        allItems.forEach(item => {
+          if (!item.room && item._roomName) {
+            item.room = item._roomName; // Use backup field if available
+            fixedMissingRoomProperty = true;
+          }
+        });
+        if (fixedMissingRoomProperty) {
+            console.log('Fixed items with missing room property using _roomName backup.');
+        }
+        return allItems;
+      }
+
+      /**
+       * Filters an array of items to include only those valid for saving.
+       * A valid item must have a room and a non-empty item name.
+       * @param {object[]} items - The array of item objects to filter.
+       * @return {object[]} A new array containing only valid items.
+       */
+      function _filterValidItemsToSave(items) {
+        if (!Array.isArray(items)) return [];
+        return items.filter(item => {
+          const isValid = item && item.room && item.item && item.item.trim() !== '';
+          if (!isValid) {
+            console.log('Filtering out invalid item during save process:', item);
+          }
+          return isValid;
+        });
+      }
+
+      // Save all items data to the server
+      function saveAllItemsFromDashboard() {
+        console.log('Starting save process for all items');
+        console.log('Total items in dashboardItemData:', dashboardItemData.items.length);
+        console.log('Room counts:', Object.keys(dashboardItemData.itemsByRoom).map(room => 
+          `${room}: ${dashboardItemData.itemsByRoom[room].length}`
+        ));
+        
+        showDashboardLoading('Saving items...');
+        
+        // Verify data integrity first and prepare items
+        const allItems = _getAndPrepareDashboardItems(dashboardItemData);
+        
+        // Filter out items that don't have valid data
+        const itemsToSave = _filterValidItemsToSave(allItems);
+        
+        console.log('Valid items to save:', itemsToSave.length);
+        
+        if (itemsToSave.length === 0) {
+          hideDashboardLoading();
+          showDashboardStatusMessage('No valid items to save. Please add items with names before saving.', true);
+          return;
+        }
+        
+        // Make sure all budget values are properly formatted
+        const sanitizedItems = itemsToSave.map(item => _sanitizeItemForSave(item));
+        
+        console.log('Sanitized items ready for saving:', sanitizedItems.length);
+        console.log('Sample sanitized item:', sanitizedItems.length > 0 ? sanitizedItems[0] : 'No items');
+        
+        // Call the server-side function with the sanitized items
+        google.script.run
+          .withSuccessHandler(function(result) {
+            console.log('Server response for save operation:', result);
+            hideDashboardLoading();
+            
+            if (result.success) {
+              showDashboardStatusMessage(`Successfully saved ${result.itemCount} items`, false);
+              
+              // Update any temporary IDs with permanent ones if provided by server
+              if (result.items) {
+                updateItemIdsAfterSave(result.items);
+              }
+              
+              // Mark all items as no longer new
+              dashboardItemData.items.forEach(item => {
+                if (item.isNew) item.isNew = false;
+              });
+            } else {
+              console.error('Server reported error:', result.error || 'Unknown error');
+              showDashboardStatusMessage('Error: ' + (result.error || 'Failed to save items'), true);
+            }
+          })
+          .withFailureHandler(function(error) {
+            console.error('Error during save operation:', error);
+            hideDashboardLoading();
+            showDashboardStatusMessage('Error: ' + (error.message || error), true);
+          })
+          .saveItemsFromDashboard(sanitizedItems);
+      }
+
+      // Load dashboard when page opens
+      document.addEventListener('DOMContentLoaded', function() {
+        loadBudgetData();
+        
+        // Check if we're on a page with the Project Details modal and initialize sidebar if so
+        const projectDetailsModal = document.getElementById('projectDetailsModal');
+        if (projectDetailsModal) {
+          initializeProjectDetailsSidebarInteractions();
+        }
+      });
+
+      // Functions for Project_Details_.html
+      function loadProjectDetails() {
+        // Show loading state
+        showLoading(true);
+        
+        // Get projectId from the existing projectIdHolder element
+        const projectIdElement = document.getElementById('projectIdHolder');
+        const projectId = projectIdElement ? projectIdElement.getAttribute('data-project-id') : null;
+        
+        if (!projectId) {
+          // If no projectId is available, get all projects and display the first one
+          google.script.run
+            .withSuccessHandler(function(result) {
+              showLoading(false);
+              
+              if (!result.success) {
+                showError(result.error || "Failed to load projects");
+                return;
+              }
+              
+              // If no projects found
+              if (!result.projects || result.projects.length === 0) {
+                showError('No projects found.');
+                return;
+              }
+              
+              // Display the first project
+              displayProjectDetails(result.projects[0]);
+            })
+            .withFailureHandler(function(error) {
+              showLoading(false);
+              showError('Error loading projects: ' + error);
+            })
+            .getProjects();
+        } else {
+          // If we have a projectId, get that specific project
+          google.script.run
+            .withSuccessHandler(function(result) {
+              showLoading(false);
+              
+              if (!result.success) {
+                showError(result.error || "Failed to load project");
+                return;
+              }
+              
+              // Display the project details
+              displayProjectDetails(result.project);
+            })
+            .withFailureHandler(function(error) {
+              showLoading(false);
+              showError('Error loading project: ' + error);
+            })
+            .getProjectById(projectId);
+        }
+      }
+
+      // Function to preview file content in the main area
+      function showFilePreview(file) {
+        // Update the page title
+        document.getElementById('projectName').innerText = file.name;
+        
+        // Show loading indicator in main content area
+        const fileContent = document.getElementById('fileContent');
+        renderUIState(fileContent, 'loading', 'Loading preview...');
+        
+        // Determine the content type
+        if (file.embedUrl) {
+          // Display the file using an iframe if it has an embed URL
+          const iframe = document.createElement('iframe');
+          iframe.style.width = '100%';
+          iframe.style.height = '100%';
+          iframe.style.border = 'none';
+          
+          iframe.onload = function() {
+            renderUIState(fileContent, 'success'); // Clear loading/error
+            fileContent.appendChild(iframe); // Add the loaded iframe
+          };
+          iframe.onerror = function() {
+            const errorMessage = 'Unable to load file preview. <a href="' + file.url + '" target="_blank">Open in Google Drive</a> instead.';
+            renderUIState(fileContent, 'error', errorMessage);
+          };
+          
+          // Set iframe src after adding onload and error handlers to prevent race conditions
+          iframe.src = file.embedUrl;
+
+        } else if (file.thumbnailUrl) {
+          // Show thumbnail for images
+          renderUIState(fileContent, 'success'); // Clear loading state
+          
+          const imageContainer = document.createElement('div');
+          imageContainer.style.padding = '20px';
+          imageContainer.style.textAlign = 'center';
+          
+          const image = document.createElement('img');
+          image.src = file.thumbnailUrl;
+          image.style.maxWidth = '100%';
+          image.style.maxHeight = '80vh';
+          image.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+          
+          const caption = document.createElement('p');
+          caption.textContent = file.name;
+          caption.style.marginTop = '10px';
+          
+          const openLink = document.createElement('a');
+          openLink.href = file.url;
+          openLink.target = '_blank';
+          openLink.textContent = 'Open in Google Drive';
+          openLink.className = 'btn';
+          openLink.style.marginTop = '15px';
+          openLink.style.display = 'inline-block';
+          
+          imageContainer.appendChild(image);
+          imageContainer.appendChild(caption);
+          imageContainer.appendChild(openLink);
+          
+          fileContent.innerHTML = '';
+          fileContent.appendChild(imageContainer);
+        } else {
+          // Show a message that preview is not available
+          renderUIState(fileContent, 'success'); // Clear loading state
+          
+          const noPreviewDiv = document.createElement('div');
+          noPreviewDiv.className = 'empty-state';
+          noPreviewDiv.style.padding = '20px';
+          
+          const noPreviewIcon = document.createElement('i');
+          noPreviewIcon.className = 'material-icons';
+          noPreviewIcon.textContent = 'visibility_off';
+          noPreviewIcon.style.fontSize = '48px';
+          noPreviewIcon.style.marginBottom = '15px';
+          
+          const noPreviewText = document.createElement('p');
+          noPreviewText.textContent = 'Preview not available for this file type.';
+          
+          const openBtn = document.createElement('a');
+          openBtn.href = file.url;
+          openBtn.target = '_blank';
+          openBtn.className = 'btn';
+          openBtn.textContent = 'Open in Google Drive';
+          openBtn.style.marginTop = '15px';
+          openBtn.style.display = 'inline-block';
+          
+          noPreviewDiv.appendChild(noPreviewIcon);
+          noPreviewDiv.appendChild(noPreviewText);
+          noPreviewDiv.appendChild(openBtn);
+          
+          fileContent.appendChild(noPreviewDiv);
+        }
+      }
+
+      // Function to show dashboard loading overlay
+      function showDashboardLoading(message) {
+        const loadingOverlay = document.getElementById('dashboardLoadingOverlay');
+        const loadingMessage = document.getElementById('dashboardLoadingMessage');
+        
+        if (loadingMessage) {
+          loadingMessage.textContent = message || 'Loading...';
+        }
+        
+        if (loadingOverlay) {
+          loadingOverlay.style.display = 'flex';
+        }
+      }
+      
+      // Function to hide dashboard loading overlay
+      function hideDashboardLoading() {
+        const loadingOverlay = document.getElementById('dashboardLoadingOverlay');
+        
+        if (loadingOverlay) {
+          loadingOverlay.style.display = 'none';
+        }
+      }
+
+      // Additional functions from scripts.js should be added here
+      // ...
+      
+      // Initialize Project Details Page
+      function initProjectDetailsPage(projectId) {
+        // Get the modal element and check for sheetId
+        const modal = document.getElementById('projectDetailsModal');
+        const sheetId = modal ? modal.getAttribute('data-sheet-id') : null;
+        
+        if (!sheetId) {
+          console.error('Sheet ID not available for project', projectId);
+          // Attempt to display error in a general page area if specific containers aren't available
+          const errorDisplayArea = document.getElementById('fileContent') || document.body;
+          renderUIState(errorDisplayArea, 'error', 'Project spreadsheet ID not available. Unable to load project details.');
+          return;
+        }
+        
+        // Setup containers for UI state rendering
+        const summaryContainer = document.getElementById('projectSummaryActualContent');
+        const roomsContainerParent = document.getElementById('rooms-content'); // Parent of the list
+        let roomsListElement = roomsContainerParent ? roomsContainerParent.querySelector('.rooms-list') : null;
+
+        // If roomsListElement doesn't exist, we might need to create it or have a fallback
+        // For now, we proceed assuming it can be found or renderRoomsList will handle its absence.
+
+        if (summaryContainer) {
+          renderUIState(summaryContainer, 'loading', 'Loading project summary...');
+        }
+        
+        // Load project summary passing the sheet ID
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (!summaryContainer) return; // Should not happen if initial check passed
+            
+            if (!result.success) {
+              renderUIState(summaryContainer, 'error', 'Error loading project summary: ' + (result.error || 'Unknown error'));
+              return;
+            }
+            
+            renderUIState(summaryContainer, 'success'); // Clear loading/error, ready for content
+
+            // Update summary data on the page
+            if (result.projectName) {
+              const projectNameEl = document.getElementById('sidebarProjectName');
+              if (projectNameEl) projectNameEl.textContent = result.projectName;
+            }
+            
+            // Update room count, item count, budget totals
+            if (result.roomCount !== undefined) {
+              const roomCountEl = document.getElementById('roomCount');
+              if (roomCountEl) roomCountEl.textContent = result.roomCount;
+            }
+            
+            if (result.itemCount !== undefined) {
+              const itemCountEl = document.getElementById('itemCount');
+              if (itemCountEl) itemCountEl.textContent = result.itemCount;
+            }
+            
+            if (result.totalLowBudget !== undefined) {
+              const lowBudgetEl = document.getElementById('lowBudgetTotal');
+              if (lowBudgetEl) lowBudgetEl.textContent = formatCurrency(result.totalLowBudget);
+            }
+            
+            if (result.totalHighBudget !== undefined) {
+              const highBudgetEl = document.getElementById('highBudgetTotal');
+              if (highBudgetEl) highBudgetEl.textContent = formatCurrency(result.totalHighBudget);
+            }
+            
+            console.log('Project summary loaded successfully', result);
+          })
+          .withFailureHandler(function(error) {
+            if (summaryContainer) {
+              renderUIState(summaryContainer, 'error', 'Error loading project summary: ' + error.message || error.toString());
+            }
+          })
+          .getProjectSummary(sheetId);
+          
+        // // Also load rooms list (if we have a rooms tab and container)
+        // if (roomsContainerParent && roomsListElement) {
+        //   renderUIState(roomsListElement, 'loading', 'Loading rooms...');
+          
+        //   // Load rooms from the sheet using the sheetId
+        //   google.script.run
+        //     .withSuccessHandler(function(result) {
+        //       if (!roomsListElement) return;
+
+        //       if (!result.success) {
+        //         renderUIState(roomsListElement, 'error', 'Error loading rooms: ' + (result.error || 'Unknown error'));
+        //         return;
+        //       }
+              
+        //       // renderRoomsList should handle populating the content.
+        //       // If rooms are empty, renderRoomsList itself should call renderUIState(roomsListElement, 'empty', ...)
+        //       // So, we call success to clear loading/error, then let renderRoomsList take over.
+        //       renderUIState(roomsListElement, 'success'); 
+        //       if (result.rooms && result.rooms.length > 0) {
+        //         renderRoomsList(result.rooms, result.selectedRooms || [], roomsListElement);
+        //       } else {
+        //         renderUIState(roomsListElement, 'empty', 'No rooms found for this project.');
+        //       }
+        //     })
+        //     .withFailureHandler(function(error) {
+        //       if (roomsListElement) {
+        //         renderUIState(roomsListElement, 'error', 'Error loading rooms: ' + error.message || error.toString());
+        //       }
+        //     })
+        //     .getRoomsForDashboard(sheetId);
+        // } else if (roomsContainerParent) {
+        //     // If roomsListElement couldn't be found initially but parent exists, log or display mild warning.
+        //     console.warn('Rooms list element (.rooms-list) not found within #rooms-content for project details.');
+        //     // Optionally, display a message in the parent container
+        //     renderUIState(roomsContainerParent, 'empty', 'Rooms display area not fully initialized.');
+        // }
+
+        // AT THE END of initProjectDetailsPage, call the new sidebar setup function:
+        initializeProjectDetailsSidebarInteractions();
+      }
+      
+      // Helper function to format currency
+      function formatCurrency(value) {
+        if (value === undefined || value === null) return '$0';
+        return '$' + parseFloat(value).toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
+      }
+      
+      // Function to render rooms list with checkboxes
+      function renderRoomsList(rooms, selectedRooms, container) {
+        if (!container) return;
+        
+        // Clear container (renderUIState will do this for 'empty' or 'success' before content is added)
+        // container.innerHTML = ''; // No longer needed if renderUIState is used for empty state
+        
+        if (!rooms || rooms.length === 0) {
+          renderUIState(container, 'empty', 'No rooms available');
+          return;
+        }
+
+        // If we have rooms, clear any previous state (like 'empty') before adding new content.
+        // The 'success' state with no message effectively clears the container.
+        renderUIState(container, 'success');
+        
+        // Create room items
+        rooms.forEach(room => {
+          const isSelected = selectedRooms.includes(room);
+          
+          const roomItem = document.createElement('div');
+          roomItem.className = 'room-item';
+          
+          // Create checkbox for room selection
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.id = 'room-' + room.replace(/\s+/g, '-').toLowerCase();
+          checkbox.className = 'room-checkbox';
+          checkbox.checked = isSelected;
+          checkbox.setAttribute('data-room', room);
+          
+          // Create label for the checkbox
+          const label = document.createElement('label');
+          label.htmlFor = checkbox.id;
+          label.textContent = room;
+          
+          // Append to room item
+          roomItem.appendChild(checkbox);
+          roomItem.appendChild(label);
+          
+          // Append to container
+          container.appendChild(roomItem);
+        });
+        
+        // Add save button
+        const saveButton = document.createElement('button');
+        saveButton.className = 'btn room-save-btn';
+        saveButton.innerHTML = '<i class="material-icons">save</i> Save Selection';
+        saveButton.onclick = function() {
+          saveRoomsSelection(container);
+        };
+        
+        container.appendChild(saveButton);
+      }
+      
+      // Function to save selected rooms
+      function saveRoomsSelection(container) {
+        const checkboxes = container.querySelectorAll('input[type="checkbox"]:checked');
+        const selectedRooms = Array.from(checkboxes).map(cb => cb.getAttribute('data-room'));
+        
+        if (selectedRooms.length === 0) {
+          alert('Please select at least one room');
+          return;
+        }
+        
+        // Get sheet ID from modal
+        const modal = document.getElementById('projectDetailsModal');
+        const sheetId = modal ? modal.getAttribute('data-sheet-id') : null;
+        
+        if (!sheetId) {
+          alert('Sheet ID not available');
+          return;
+        }
+        
+        // Show loading state
+        const saveBtn = container.querySelector('.room-save-btn');
+        if (saveBtn) {
+          // Store original HTML, assuming it's <i class="material-icons">save</i> Save Selection
+          // This could be made more robust by storing on the element or if it varies.
+          const originalButtonHtml = '<i class="material-icons">save</i> Save Selection';
+          const loadingButtonHtml = '<i class="material-icons rotating">sync</i> Saving...';
+          _setButtonLoadingState(saveBtn, true, loadingButtonHtml, originalButtonHtml);
+        }
+        
+        // Save selected rooms
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (saveBtn) {
+              const originalButtonHtml = '<i class="material-icons">save</i> Save Selection';
+              _setButtonLoadingState(saveBtn, false, '', originalButtonHtml);
+            }
+            
+            if (!result.success) {
+              alert('Error saving rooms: ' + (result.error || 'Unknown error'));
+              return;
+            }
+            
+            alert('Rooms saved successfully');
+          })
+          .withFailureHandler(function(error) {
+            if (saveBtn) {
+              const originalButtonHtml = '<i class="material-icons">save</i> Save Selection';
+              _setButtonLoadingState(saveBtn, false, '', originalButtonHtml);
+            }
+            
+            alert('Error saving rooms: ' + error);
+          })
+          .saveSelectedRoomsOnly(selectedRooms, sheetId);
+      }
+
+      // Assuming handleBudgetError function exists or will be created:
+      function handleBudgetError(error) {
+        const budgetDisplay = document.getElementById('budgetSummaryDisplay');
+        if (!budgetDisplay) return;
+        let errorMessage = 'Error loading budget data.';
+        if (typeof error === 'string') {
+          errorMessage = error;
+        } else if (error && error.message) {
+          errorMessage = error.message;
+        } else if (error && error.details) {
+          errorMessage = error.details;
+        }
+        renderUIState(budgetDisplay, 'error', errorMessage);
+        console.error('Budget Data Error:', error);
+      }
+
+      /**
+       * Initializes sidebar interactions (toggle and tabs) specifically for the Project Details modal.
+       * This should be called after the Project Details modal content is loaded.
+       */
+      function initializeProjectDetailsSidebarInteractions() {
+        console.log('Initializing Project Details sidebar interactions...');
+        const modal = document.getElementById('projectDetailsModal');
+        if (!modal) {
+          console.error('Project Details Modal not found. Cannot initialize sidebar interactions.');
+          return;
+        }
+
+        const sidebar = modal.querySelector('.sidebar'); // Scope to within the modal
+        const sidebarToggle = modal.querySelector('#sidebarToggle'); // Scope to within the modal
+
+        // Main Sidebar Toggle Logic (scoped to this modal's sidebar)
+        if (sidebarToggle && sidebar) {
+          sidebarToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('collapsed');
+            const toggleIcon = sidebarToggle.querySelector('.material-icons');
+            if (sidebar.classList.contains('collapsed')) {
+              toggleIcon.textContent = 'chevron_right';
+              sidebarToggle.classList.add('collapsed');
+            } else {
+              toggleIcon.textContent = 'chevron_left';
+              sidebarToggle.classList.remove('collapsed');
+            }
+          });
+        } else {
+          console.warn('Sidebar toggle or sidebar container not found within #projectDetailsModal.');
+        }
+
+        // Sidebar Tab Logic using Event Delegation (scoped to this modal's sidebar)
+        if (sidebar) {
+          const sidebarTabsContainer = sidebar.querySelector('.sidebar-tabs'); // Assuming tabs are within .sidebar-tabs
+          if (sidebarTabsContainer) {
+            sidebarTabsContainer.addEventListener('click', function(event) {
+              const clickedTab = event.target.closest('.sidebar-tab');
+              if (!clickedTab) return; // Click was not on a tab or its child
+
+              // Remove active class from all tabs and contents within this modal
+              modal.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+              modal.querySelectorAll('.sidebar-content').forEach(c => c.classList.remove('active'));
+              
+              // Add active class to clicked tab
+              clickedTab.classList.add('active');
+              
+              // Show the corresponding content
+              const tabName = clickedTab.getAttribute('data-tab');
+              const contentElement = modal.querySelector(`#${tabName}-content`);
+              if (contentElement) {
+                contentElement.classList.add('active');
+                
+                // Load specific content based on tab (ensure these functions exist and are accessible)
+                if (tabName === 'rooms') {
+                  if (typeof showRoomManager === 'function') showRoomManager('sidebar'); else console.error('showRoomManager function not found');
+                } else if (tabName === 'folders') {
+                  if (typeof loadFolders === 'function') loadFolders('sidebar'); else console.error('loadFolders function not found');
+                } else if (tabName === 'tasks') {
+                  if (typeof loadAsanaTasks === 'function') loadAsanaTasks(); else console.error('loadAsanaTasks function not found');
+                } // Add other tab-specific loading functions here if needed
+              }
+              
+              // If sidebar is collapsed, expand it
+              if (sidebar.classList.contains('collapsed')) {
+                sidebar.classList.remove('collapsed');
+                if (sidebarToggle) {
+                  sidebarToggle.querySelector('.material-icons').textContent = 'chevron_left';
+                  sidebarToggle.classList.remove('collapsed');
+                }
+              }
+            });
+          } else {
+            console.warn('.sidebar-tabs container not found within #projectDetailsModal .sidebar');
+          }
+        } else {
+            console.warn('.sidebar container not found within #projectDetailsModal for tab delegation.');
+        }
+      }
+
+      // Function to load room data into the sidebar
+      function loadSidebarRoomManager() {
+        // Show a loading indicator in the sidebar room content
+        document.getElementById('sidebarRoomManagerContent').innerHTML = `
+          <div class="loading">
+            <i class="material-icons">sync</i> Loading rooms...
+          </div>
+        `;
+        
+        // Get sheet ID from the project details modal
+        const modal = document.getElementById('projectDetailsModal');
+        const sheetId = modal ? modal.getAttribute('data-sheet-id') : null;
+        
+        console.log('loadSidebarRoomManager: found sheetId:', sheetId);
+        
+        // Call server to get rooms data with sheetId if available
+        if (sheetId) {
+          google.script.run
+            .withSuccessHandler(function(result) {
+              console.log('getRoomsForDashboard result with sheetId in loadSidebarRoomManager:', result);
+              renderSidebarRoomManager(result);
+            })
+            .withFailureHandler(function(error) {
+              document.getElementById('sidebarRoomManagerContent').innerHTML = `
+                <div class="error-box" style="margin: 10px;">
+                  <strong>Error:</strong> ${error.error || error}
+                </div>`;
+            })
+            .getRoomsForDashboard(sheetId);
+        } else {
+          // Fallback to no sheetId if not available
+          google.script.run
+            .withSuccessHandler(function(result) {
+              renderSidebarRoomManager(result);
+            })
+            .withFailureHandler(function(error) {
+              document.getElementById('sidebarRoomManagerContent').innerHTML = `
+                <div class="error-box" style="margin: 10px;">
+                  <strong>Error:</strong> ${error.error || error}
+                </div>`;
+            })
+            .getRoomsForDashboard();
+        }
+      }
+      
+      // Render the room manager UI in the sidebar
+      function renderSidebarRoomManager(result) {
+        if (!result || !result.success) {
+          const errorMsg = result && result.error ? result.error : 'Failed to load rooms';
+          document.getElementById('sidebarRoomManagerContent').innerHTML = `
+            <div class="error-box" style="margin: 10px;">
+              <strong>Error:</strong> ${errorMsg}
+            </div>`;
+          return;
+        }
+
+        console.log('renderSidebarRoomManager: result:', result);
+        
+        const rooms = result.rooms || [];
+        const selectedRooms = result.selectedRooms || [];
+        
+        // Reset the content first
+        document.getElementById('sidebarRoomManagerContent').innerHTML = `
+          <div id="sidebarRoomList" class="room-checklist">
+          </div>
+          
+          <div class="add-room-container">
+            <div class="add-room-heading" style="font-weight: 500; margin-bottom: 12px; color: #26717D;">Add New Room</div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <input type="text" id="newRoomNameSidebar" placeholder="Enter room name" style="width: 100%;">
+              <button onclick="addNewRoomFromSidebar()" class="btn" style="align-self: flex-start;">
+                <i class="material-icons" style="margin-right: 8px;">add</i> Add Room
+              </button>
+            </div>
+          </div>
+          
+          <div id="sidebarStatusMessage" class="status-message" style="display: none;"></div>
+          
+          <div id="roomsSavingOverlay" class="saving-overlay" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255,255,255,0.7); z-index: 100; justify-content: center; align-items: center; flex-direction: column;">
+            <i class="material-icons rotating" style="font-size: 32px; margin-bottom: 16px; color: #26717D;">sync</i>
+            <div style="font-weight: 500;">Saving rooms...</div>
+          </div>
+        `;
+        
+        // Get the room list container
+        const roomListContainer = document.getElementById('sidebarRoomList');
+        
+        // Check if rooms array is empty
+        if (rooms.length === 0) {
+          roomListContainer.innerHTML = `
+            <div class="empty-state">
+              <i class="material-icons">meeting_room</i>
+              <p>No rooms found. Add a room below.</p>
+            </div>
+          `;
+        } else {
+          // Create room checkboxes
+          let roomListHtml = '';
+          rooms.forEach((room, index) => {
+            // Check if this room was previously selected
+            const isChecked = selectedRooms.includes(room) ? 'checked' : '';
+            
+            roomListHtml += `
+              <div class="room-checklist-item">
+                <input type="checkbox" id="sidebar-room-${index}" data-room="${room}" ${isChecked} class="room-checkbox">
+                <label for="sidebar-room-${index}" class="room-checklist-item-label">${room}</label>
+              </div>
+            `;
+          });
+          
+          roomListContainer.innerHTML = roomListHtml;
+          
+          // Add event listeners to all checkboxes for auto-save
+          const checkboxes = roomListContainer.querySelectorAll('.room-checkbox');
+          checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', debouncedAutoSaveRooms);
+          });
+        }
+      }
+      
+      // Debounce function to prevent multiple rapid saves
+      const debounce = (func, delay) => {
+        let debounceTimer;
+        return function() {
+          const context = this;
+          const args = arguments;
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => func.apply(context, args), delay);
+        };
+      };
+      
+      // Function to show the saving overlay
+      function showRoomsSavingOverlay(show = true) {
+        const overlay = document.getElementById('roomsSavingOverlay');
+        if (!overlay) return;
+        
+        overlay.style.display = show ? 'flex' : 'none';
+        
+        // Disable all checkboxes during save
+        const checkboxes = document.querySelectorAll('#sidebarRoomList .room-checkbox');
+        checkboxes.forEach(checkbox => {
+          checkbox.disabled = show;
+        });
+      }
+      
+      // Auto-save function that triggers when checkboxes change
+      function autoSaveRooms() {
+        // Collect all selected rooms
+        const checkboxes = document.querySelectorAll('#sidebarRoomList .room-checkbox');
+        const selectedRooms = Array.from(checkboxes)
+          .filter(checkbox => checkbox.checked)
+          .map(checkbox => checkbox.getAttribute('data-room'));
+        
+        // Get sheet ID from modal
+        const modal = document.getElementById('projectDetailsModal');
+        const sheetId = modal ? modal.getAttribute('data-sheet-id') : null;
+        
+        // Show saving overlay and disable checkboxes
+        showRoomsSavingOverlay(true);
+        
+        console.log('Auto-saving rooms:', { selectedRooms, sheetId });
+        
+        // Call server to save selected rooms
+        google.script.run
+          .withSuccessHandler(function(result) {
+            // Hide saving overlay and re-enable checkboxes
+            showRoomsSavingOverlay(false);
+            
+            if (result.success) {
+              showSidebarStatusMessage('Rooms saved');
+            } else {
+              showSidebarStatusMessage('Error: ' + (result.error || 'Failed to save rooms'), true);
+            }
+          })
+          .withFailureHandler(function(error) {
+            // Hide saving overlay and re-enable checkboxes
+            showRoomsSavingOverlay(false);
+            showSidebarStatusMessage('Error: ' + error, true);
+          })
+          .saveSelectedRoomsOnly(selectedRooms, sheetId);
+      }
+      
+      // Create a debounced version of autoSaveRooms to prevent saving on every checkbox change
+      const debouncedAutoSaveRooms = debounce(autoSaveRooms, 500);
+
+      // Function to add a new room from the sidebar
+      function addNewRoomFromSidebar() {
+        const newRoomName = document.getElementById('newRoomNameSidebar').value.trim();
+        
+        if (!newRoomName) {
+          showSidebarStatusMessage('Please enter a room name', true);
+          return;
+        }
+        
+        // Add loading state to the button
+        const addButton = document.querySelector('.add-room-container button');
+        const originalButtonHtml = addButton.innerHTML;
+        addButton.innerHTML = '<i class="material-icons" style="margin-right: 8px;">sync</i> Adding...';
+        addButton.disabled = true;
+        
+        // Call server to add room
+        google.script.run
+          .withSuccessHandler(function(result) {
+            // Restore button state
+            addButton.innerHTML = originalButtonHtml;
+            addButton.disabled = false;
+            
+            if (result.success) {
+              showSidebarStatusMessage(`Room "${result.roomName}" added successfully`);
+              document.getElementById('newRoomNameSidebar').value = '';
+              // Refresh room manager to show the new room
+              loadSidebarRoomManager();
+            } else {
+              showSidebarStatusMessage(result.error || 'Error adding room', true);
+            }
+          })
+          .withFailureHandler(function(error) {
+            // Restore button state
+            addButton.innerHTML = originalButtonHtml;
+            addButton.disabled = false;
+            showSidebarStatusMessage(`Error: ${error}`, true);
+          })
+          .addRoom(newRoomName);
+      }
+
+      // Render the item update interface in the dashboard
+      function renderItemUpdateInterface(data) {
+        if (!data.success) {
+          document.getElementById('fileContent').innerHTML = `
+            <div class="error-box" style="margin: 20px;">
+              <strong>Error:</strong> ${data.error || 'Failed to load item data'}
+            </div>`;
+          return;
+        }
+        
+        console.log('Data received in renderItemUpdateInterface:', data);
+        
+        // Store the data for later use
+        dashboardItemData = data;
+        
+        // Check if we have combinedItems property
+        if (!dashboardItemData.combinedItems || !Array.isArray(dashboardItemData.combinedItems)) {
+          console.warn('combinedItems is missing or not an array, initializing from availableItems');
+          
+          // Initialize combinedItems from availableItems if needed
+          if (dashboardItemData.availableItems && Array.isArray(dashboardItemData.availableItems)) {
+            dashboardItemData.combinedItems = dashboardItemData.availableItems.map(item => {
+              if (typeof item === 'string') return item;
+              return item.type && item.item ? `${item.type} | ${item.item}` : (item.item || '');
+            });
+            console.log('Created combinedItems with', dashboardItemData.combinedItems.length, 'items');
+          } else {
+            console.warn('availableItems is also missing or not an array, initializing empty array');
+            dashboardItemData.combinedItems = [];
+          }
+        }
+        
+        // Create container for all room sections
+        const container = document.createElement('div');
+        container.className = 'item-update-content';
+        container.style.padding = '20px';
+        
+        // Add help icon with tooltip instead of static instructions
+        const helpContainer = document.createElement('div');
+        helpContainer.className = 'tooltip';
+        helpContainer.style.position = 'absolute';
+        helpContainer.style.top = '16px';
+        helpContainer.style.right = '16px';
+        
+        const helpIcon = document.createElement('div');
+        helpIcon.className = 'help-icon';
+        helpIcon.innerHTML = '?';
+        
+        const tooltipText = document.createElement('div');
+        tooltipText.className = 'tooltip-text';
+        tooltipText.innerHTML = '<p>Review and update your items below. Make any necessary changes to the item details, then click Save All Items to update the spreadsheet.</p>';
+        
+        helpContainer.appendChild(helpIcon);
+        helpContainer.appendChild(tooltipText);
+        container.appendChild(helpContainer);
+        
+        // Group items by room first
+        const itemsByRoom = {};
+        data.selectedRooms.forEach(room => {
+          itemsByRoom[room] = data.itemsByRoom[room] || [];
+        });
+        
+        // Add room filter
+        const filterContainer = document.createElement('div');
+        filterContainer.id = 'filter-container';
+        
+        const filterLabel = document.createElement('label');
+        filterLabel.className = 'filter-label';
+        filterLabel.htmlFor = 'room-filter';
+        filterLabel.textContent = 'Filter by Room:';
+        
+        const roomFilter = document.createElement('select');
+        roomFilter.id = 'room-filter';
+        roomFilter.addEventListener('change', filterRoomsInDashboard);
+        
+        const allRoomsOption = document.createElement('option');
+        allRoomsOption.value = 'all';
+        allRoomsOption.textContent = 'All Rooms';
+        roomFilter.appendChild(allRoomsOption);
+        
+        filterContainer.appendChild(filterLabel);
+        filterContainer.appendChild(roomFilter);
+        
+        container.appendChild(filterContainer);
+        
+        // Populate filter dropdown with rooms
+        Object.keys(itemsByRoom).sort().forEach(room => {
+          const option = document.createElement('option');
+          option.value = room;
+          option.textContent = room;
+          roomFilter.appendChild(option);
+        });
+        
+        // Create room sections
+        Object.keys(itemsByRoom).sort().forEach(room => {
+          const roomItems = itemsByRoom[room];
+          
+          // Create room container
+          const roomContainer = document.createElement('div');
+          roomContainer.className = 'room-container';
+          roomContainer.id = `room-container-${room.replace(/\s+/g, '-')}`;
+          roomContainer.dataset.room = room;
+          
+          // Add room title
+          const roomTitle = document.createElement('div');
+          roomTitle.className = 'room-title';
+          roomTitle.textContent = room;
+          roomContainer.appendChild(roomTitle);
+          
+          // Add column headers
+          const headers = document.createElement('div');
+          headers.className = 'column-headers';
+          
+          const itemHeader = document.createElement('div');
+          itemHeader.className = 'column-header item-header';
+          itemHeader.textContent = 'Item';
+          
+          const typeHeader = document.createElement('div');
+          typeHeader.className = 'column-header type-header';
+          typeHeader.textContent = 'Type';
+          
+          const quantityHeader = document.createElement('div');
+          quantityHeader.className = 'column-header quantity-header';
+          quantityHeader.textContent = 'QTY';
+          
+          const lowBudgetHeader = document.createElement('div');
+          lowBudgetHeader.className = 'column-header budget-header';
+          lowBudgetHeader.textContent = 'Low Budget';
+          
+          const highBudgetHeader = document.createElement('div');
+          highBudgetHeader.className = 'column-header budget-header';
+          highBudgetHeader.textContent = 'High Budget';
+          
+          const actionsHeader = document.createElement('div');
+          actionsHeader.className = 'column-header actions-header';
+          actionsHeader.textContent = 'Remove Item';
+          
+          headers.appendChild(itemHeader);
+          headers.appendChild(typeHeader);
+          headers.appendChild(quantityHeader);
+          headers.appendChild(lowBudgetHeader);
+          headers.appendChild(highBudgetHeader);
+          headers.appendChild(actionsHeader);
+          
+          roomContainer.appendChild(headers);
+          
+          // Add items container
+          const itemsContainer = document.createElement('div');
+          itemsContainer.className = 'items-container';
+          itemsContainer.id = `items-${room.replace(/\s+/g, '-')}`;
+          
+          // Add each item
+          roomItems.forEach((item, index) => {
+            const itemRow = createItemRow(item, index, room);
+            itemsContainer.appendChild(itemRow);
+          });
+          
+          roomContainer.appendChild(itemsContainer);
+          
+          // Add the "add item" button at the bottom of each room
+          const addMoreRow = document.createElement('div');
+          addMoreRow.className = 'add-more-row';
+          
+          const addItemButton = document.createElement('button');
+          addItemButton.className = 'add-item-btn';
+          addItemButton.addEventListener('click', function() {
+            addItemToRoom(room);
+          });
+          
+          const buttonIcon = document.createElement('i');
+          buttonIcon.className = 'material-icons';
+          buttonIcon.textContent = 'add';
+          
+          addItemButton.appendChild(buttonIcon);
+          addItemButton.appendChild(document.createTextNode(' Add Item'));
+          addMoreRow.appendChild(addItemButton);
+          
+          roomContainer.appendChild(addMoreRow);
+          
+          container.appendChild(roomContainer);
+        });
+        
+        // Add action buttons
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'item-update-actions';
+        actionsDiv.style.display = 'flex';
+        actionsDiv.style.justifyContent = 'flex-end';
+        actionsDiv.style.gap = '10px';
+        actionsDiv.style.marginTop = '20px';
+        
+        // Create back button
+        const backButton = document.createElement('button');
+        backButton.className = 'btn btn-outline';
+        backButton.addEventListener('click', showRoomManager);
+        
+        const backIcon = document.createElement('i');
+        backIcon.className = 'material-icons';
+        backIcon.textContent = 'arrow_back';
+        
+        backButton.appendChild(backIcon);
+        backButton.appendChild(document.createTextNode(' Back to Rooms'));
+        
+        // Create save button
+        const saveButton = document.createElement('button');
+        saveButton.className = 'btn';
+        saveButton.addEventListener('click', saveAllItemsFromDashboard);
+        
+        const saveIcon = document.createElement('i');
+        saveIcon.className = 'material-icons';
+        saveIcon.textContent = 'save';
+        
+        saveButton.appendChild(saveIcon);
+        saveButton.appendChild(document.createTextNode(' Save All Items'));
+        
+        // Add buttons to actions div
+        actionsDiv.appendChild(backButton);
+        actionsDiv.appendChild(saveButton);
+        
+        container.appendChild(actionsDiv);
+        
+        // Update the content area
+        document.getElementById('fileContent').innerHTML = '';
+        document.getElementById('fileContent').appendChild(container);
+      }
+
+      // Function to filter rooms in the dashboard
+      function filterRoomsInDashboard() {
+        const selectedRoom = document.getElementById('room-filter').value;
+        const roomContainers = document.querySelectorAll('.room-container');
+        
+        roomContainers.forEach(container => {
+          if (selectedRoom === 'all' || container.dataset.room === selectedRoom) {
+            container.style.display = 'block';
+          } else {
+            container.style.display = 'none';
+          }
+        });
+      }
+      
+      // Create an item row
+      function createItemRow(item, index, roomName) {
+        // Create the main row container
+        const row = document.createElement('div');
+        row.className = 'item-row';
+        row.dataset.index = index;
+        row.dataset.room = roomName;
+        
+        // Item input container with autocomplete
+        const itemInputContainer = document.createElement('div');
+        itemInputContainer.className = 'item-input-container';
+        
+        const itemInput = document.createElement('input');
+        itemInput.type = 'text';
+        itemInput.className = 'item-input';
+        itemInput.value = item.item || '';
+        itemInput.dataset.field = 'item';
+        itemInput.dataset.room = roomName;
+        itemInput.dataset.index = index;
+        
+        // Add focus event to show autocomplete
+        itemInput.addEventListener('focus', function() {
+          showAutocomplete(this);
+        });
+        
+        // Add keydown event for filtering as user types
+        itemInput.addEventListener('input', function() {
+          filterAutocompleteItems(this);
+        });
+        
+        // Add keydown event for keyboard navigation
+        itemInput.addEventListener('keydown', function(e) {
+          handleAutocompleteKeydown(e, this);
+        });
+        
+        const autocompleteList = document.createElement('div');
+        autocompleteList.className = 'autocomplete-list';
+        
+        itemInputContainer.appendChild(itemInput);
+        itemInputContainer.appendChild(autocompleteList);
+        
+        // Type input container
+        const typeInputContainer = document.createElement('div');
+        typeInputContainer.className = 'item-input-container';
+        
+        // Type input
+        const typeInput = document.createElement('input');
+        typeInput.type = 'text';
+        typeInput.className = 'type-input';
+        typeInput.value = item.type || '';
+        typeInput.dataset.field = 'type';
+        typeInput.dataset.room = roomName;
+        typeInput.dataset.index = index;
+        
+        typeInputContainer.appendChild(typeInput);
+        
+        // Quantity input
+        const quantityInput = document.createElement('input');
+        quantityInput.type = 'number';
+        quantityInput.className = 'quantity-input';
+        quantityInput.value = item.quantity || 1;
+        quantityInput.min = '1';
+        quantityInput.dataset.field = 'quantity';
+        quantityInput.dataset.room = roomName;
+        quantityInput.dataset.index = index;
+        
+        // Low budget input container
+        const lowBudgetContainer = document.createElement('div');
+        lowBudgetContainer.className = 'budget-input-container';
+        
+        const lowCurrencySymbol = document.createElement('span');
+        lowCurrencySymbol.className = 'currency-symbol';
+        lowCurrencySymbol.textContent = '$';
+        
+        const lowBudgetInput = document.createElement('input');
+        lowBudgetInput.type = 'number';
+        lowBudgetInput.className = 'budget-input';
+        lowBudgetInput.value = item.lowBudget !== null ? item.lowBudget : '';
+        lowBudgetInput.min = '0';
+        lowBudgetInput.step = '0.01';
+        lowBudgetInput.dataset.field = 'lowBudget';
+        lowBudgetInput.dataset.room = roomName;
+        lowBudgetInput.dataset.index = index;
+        lowBudgetInput.placeholder = '0';
+        
+        lowBudgetContainer.appendChild(lowCurrencySymbol);
+        lowBudgetContainer.appendChild(lowBudgetInput);
+        
+        // High budget input container
+        const highBudgetContainer = document.createElement('div');
+        highBudgetContainer.className = 'budget-input-container';
+        
+        const highCurrencySymbol = document.createElement('span');
+        highCurrencySymbol.className = 'currency-symbol';
+        highCurrencySymbol.textContent = '$';
+        
+        const highBudgetInput = document.createElement('input');
+        highBudgetInput.type = 'number';
+        highBudgetInput.className = 'budget-input';
+        highBudgetInput.value = item.highBudget !== null ? item.highBudget : '';
+        highBudgetInput.min = '0';
+        highBudgetInput.step = '0.01';
+        highBudgetInput.dataset.field = 'highBudget';
+        highBudgetInput.dataset.room = roomName;
+        highBudgetInput.dataset.index = index;
+        highBudgetInput.placeholder = '0';
+        
+        highBudgetContainer.appendChild(highCurrencySymbol);
+        highBudgetContainer.appendChild(highBudgetInput);
+        
+        // Delete button container
+        const deleteButtonContainer = document.createElement('div');
+        deleteButtonContainer.className = 'delete-button-container';
+        
+        const deleteButton = document.createElement('button');
+        deleteButton.className = 'delete-button';
+        deleteButton.textContent = '✕';
+        deleteButton.addEventListener('click', function() {
+          deleteItemRow(roomName, index);
+        });
+        
+        deleteButtonContainer.appendChild(deleteButton);
+        
+        // Add all elements to the row
+        row.appendChild(itemInputContainer);
+        row.appendChild(typeInputContainer);
+        row.appendChild(quantityInput);
+        row.appendChild(lowBudgetContainer);
+        row.appendChild(highBudgetContainer);
+        row.appendChild(deleteButtonContainer);
+        
+        // Add event listeners to update data when inputs change
+        const inputs = [itemInput, typeInput, quantityInput, lowBudgetInput, highBudgetInput];
+        inputs.forEach(input => {
+          input.addEventListener('change', function() {
+            console.log('change event triggered');
+            updateItemData(this.dataset.room, this.dataset.index, this.dataset.field, this.value);
+            console.log(this.dataset.room, this.dataset.index, this.dataset.field, this.value);
+          });
+          
+          // Also add input event to capture changes as they type
+          input.addEventListener('input', function() {
+            console.log('input event triggered');
+            updateItemData(this.dataset.room, this.dataset.index, this.dataset.field, this.value);
+          });
+        });
+        
+        return row;
+      }
+      
+      // Add a new item to a room
+      function addItemToRoom(roomName) {
+        console.log('Adding new item to room:', roomName);
+        const roomItems = dashboardItemData.itemsByRoom[roomName] || [];
+        
+        // Create new item object with temporary ID
+        const newItem = {
+          id: 'new_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9), // Temporary unique ID
+          room: roomName,
+          type: '',
+          item: '',
+          quantity: 1,
+          lowBudget: null,
+          highBudget: null,
+          lowBudgetTotal: null,
+          highBudgetTotal: null,
+          isNew: true // Flag to indicate this is a newly added item
+        };
+        
+        console.log('Creating new item:', newItem);
+        
+        // Make sure the room container exists in the data structure
+        if (!dashboardItemData.itemsByRoom[roomName]) {
+          console.log('Creating new room array for:', roomName);
+          dashboardItemData.itemsByRoom[roomName] = [];
+        }
+        
+        // Add the new item to the room's items array
+        dashboardItemData.itemsByRoom[roomName].push(newItem);
+        
+        // Make sure it's also added to the main items array
+        dashboardItemData.items.push(newItem);
+        
+        console.log('Items array after adding new item:', dashboardItemData.items.length);
+        console.log('Room items after adding:', dashboardItemData.itemsByRoom[roomName].length);
+        
+        // Get the container and add the new row
+        const container = document.getElementById(`items-${roomName.replace(/\s+/g, '-')}`);
+        const newIndex = dashboardItemData.itemsByRoom[roomName].length - 1;
+        const newRow = createItemRow(newItem, newIndex, roomName);
+        
+        // Add new row to the DOM
+        container.appendChild(newRow);
+        
+        // Focus on the new input
+        setTimeout(() => {
+          const itemInput = newRow.querySelector('.item-input');
+          if (itemInput) {
+            itemInput.focus();
+          }
+        }, 100);
+        
+        // After adding, make sure the room is visible if it was filtered out
+        const currentFilter = document.getElementById('room-filter').value;
+        if (currentFilter !== 'all' && currentFilter !== roomName) {
+          // Switch the filter to the room where we just added an item
+          document.getElementById('room-filter').value = roomName;
+          filterRoomsInDashboard();
+        }
+      }
+      
+      // Delete an item row
+      function deleteItemRow(roomName, index) {
+        if (confirm('Are you sure you want to delete this item?')) {
+          // Remove from data structure
+          const roomItems = dashboardItemData.itemsByRoom[roomName] || [];
+          if (roomItems[index]) {
+            // Find the item in the overall items array
+            const itemToRemove = roomItems[index];
+            const overallIndex = dashboardItemData.items.findIndex(item => 
+              item === itemToRemove || 
+              (item.room === roomName && item.item === itemToRemove.item)
+            );
+            
+            if (overallIndex !== -1) {
+              dashboardItemData.items.splice(overallIndex, 1);
+            }
+            
+            // Remove from room items
+            roomItems.splice(index, 1);
+            
+            // Refresh the entire room section to update indices
+            refreshRoomItemsDisplay(roomName);
+            
+            // If this was the last item in the room and we're filtering by this room,
+            // switch back to "All Rooms" view
+            if (roomItems.length === 0) {
+              const currentFilter = document.getElementById('room-filter').value;
+              if (currentFilter === roomName) {
+                document.getElementById('room-filter').value = 'all';
+                filterRoomsInDashboard();
+              }
+            }
+            
+            // Show status message
+            showDashboardStatusMessage('Item deleted successfully');
+          }
+        }
+      }
+      
+      // Refresh the display of all items for a room
+      function refreshRoomItemsDisplay(roomName) {
+        const roomItems = dashboardItemData.itemsByRoom[roomName] || [];
+        const container = document.getElementById(`items-${roomName.replace(/\s+/g, '-')}`);
+        
+        // Clear the container
+        container.innerHTML = '';
+        
+        // Regenerate all item rows
+        roomItems.forEach((item, index) => {
+          const newRow = createItemRow(item, index, roomName);
+          container.appendChild(newRow);
+        });
+      }
+      
+      // Update item data when inputs change
+      function updateItemData(roomName, index, field, value) {
+        const idx = parseInt(index);
+        const roomItems = dashboardItemData.itemsByRoom[roomName] || [];
+        
+        if (idx < 0 || idx >= roomItems.length) {
+          console.error(`Invalid index: ${idx}. Room ${roomName} items length: ${roomItems.length}`);
+          return;
+        }
+        
+        const item = roomItems[idx];
+        console.log(`Updating ${field} for item in ${roomName} at index ${idx} to value: ${value}`);
+        console.log('Item before update:', JSON.stringify(item));
+        
+        if (field === 'quantity') {
+          item[field] = parseInt(value) || 1;
+          
+          // Recalculate totals
+          if (item.lowBudget !== null && !isNaN(item.lowBudget)) {
+            item.lowBudgetTotal = item.lowBudget * item.quantity;
+          } else {
+            item.lowBudgetTotal = null;
+          }
+          
+          if (item.highBudget !== null && !isNaN(item.highBudget)) {
+            item.highBudgetTotal = item.highBudget * item.quantity;
+          } else {
+            item.highBudgetTotal = null;
+          }
+        } else if (field === 'lowBudget' || field === 'highBudget') {
+          // Handle empty string input (make it null), otherwise parse as float
+          item[field] = value === '' ? null : (parseFloat(value) || (parseFloat(value) === 0 ? 0 : null));
+          
+          // Recalculate totals
+          const qty = item.quantity || 1;
+          if (field === 'lowBudget') {
+            if (item.lowBudget !== null && !isNaN(item.lowBudget)) {
+              item.lowBudgetTotal = item.lowBudget * qty;
+            } else {
+              item.lowBudgetTotal = null;
+            }
+          } else {
+            if (item.highBudget !== null && !isNaN(item.highBudget)) {
+              item.highBudgetTotal = item.highBudget * qty;
+            } else {
+              item.highBudgetTotal = null;
+            }
+          }
+        } else {
+          item[field] = value;
+        }
+        
+        console.log('Item after update:', JSON.stringify(item));
+        
+        // Find the same item in the main items array and update it too
+        const mainIndex = dashboardItemData.items.findIndex(i => 
+          i === item || 
+          (i.id && item.id && i.id === item.id) ||
+          (i.room === roomName && i.item === item.item && i.type === item.type)
+        );
+        
+        if (mainIndex >= 0) {
+          console.log(`Updating main items array at index ${mainIndex}`);
+          // Update the corresponding fields, not just the one field
+          dashboardItemData.items[mainIndex] = { ...item };
+        } else {
+          console.warn(`Couldn't find item in main items array. Room: ${roomName}, Index: ${idx}, Field: ${field}`);
+        }
       }
       
       // Save all items data to the server
@@ -528,481 +2246,272 @@
           })
           .saveItemsFromDashboard(sanitizedItems);
       }
-
-      // New function to directly show the manage items interface
-      function showManageItems() {
-        // Update the page title
-        document.getElementById('projectName').innerText = 'Manage Items';
+      
+      // Helper function to update item IDs after saving
+      function updateItemIdsAfterSave(savedItems) {
+        console.log('Updating item IDs after save');
         
-        // Show loading overlay
-        showDashboardLoading('Loading items...');
+        // Flatten the saved items from all rooms
+        const allSavedItems = [];
+        Object.keys(savedItems).forEach(room => {
+          savedItems[room].forEach(item => {
+            // Add the room to each item for matching
+            allSavedItems.push({...item, room: room});
+          });
+        });
         
-        // First get the currently selected rooms
-        google.script.run
-          .withSuccessHandler(function(selectedResult) {
-            if (!selectedResult.success) {
-              hideDashboardLoading();
-              document.getElementById('fileContent').innerHTML = `
-                <div class="error-box" style="margin: 20px;">
-                  <strong>Error:</strong> ${selectedResult.error || 'Failed to get selected rooms'}
-                </div>`;
-              return;
-            }
+        // Update dashboard items with IDs from saved items
+        dashboardItemData.items.forEach((item, index) => {
+          if (item.isNew || (item.id && item.id.toString().startsWith('new_'))) {
+            // Find the matching saved item
+            const savedItem = allSavedItems.find(saved => 
+              saved.room === item.room && 
+              saved.item === item.item && 
+              saved.type === item.type
+            );
             
-            // Keep track of the already selected rooms
-            const currentlySelectedRooms = selectedResult.selectedRooms || [];
-            
-            // If there are no selected rooms yet, simply show the room manager
-            if (currentlySelectedRooms.length === 0) {
-              hideDashboardLoading();
-              showRoomManager();
-              return;
-            }
-            
-            // Now get item data using the currently selected rooms
-            google.script.run
-              .withSuccessHandler(function(result) {
-                hideDashboardLoading();
-                
-                if (result.success) {
-                  // Display the item update interface with the selected rooms
-                  showItemUpdateInDashboard();
-                } else {
-                  document.getElementById('fileContent').innerHTML = `
-                    <div class="error-box" style="margin: 20px;">
-                      <strong>Error:</strong> ${result.error || 'Failed to load items data'}
-                    </div>`;
+            if (savedItem && savedItem.id) {
+              console.log(`Updating item ID: ${item.id || 'none'} → ${savedItem.id}`);
+              dashboardItemData.items[index].id = savedItem.id;
+              delete dashboardItemData.items[index].isNew;
+              
+              // Also update in itemsByRoom
+              const roomItems = dashboardItemData.itemsByRoom[item.room];
+              if (roomItems) {
+                const roomIndex = roomItems.findIndex(ri => 
+                  (ri.id === item.id) || 
+                  (ri.item === item.item && ri.type === item.type)
+                );
+                if (roomIndex >= 0) {
+                  dashboardItemData.itemsByRoom[item.room][roomIndex].id = savedItem.id;
+                  delete dashboardItemData.itemsByRoom[item.room][roomIndex].isNew;
                 }
-              })
-              .withFailureHandler(function(error) {
-                hideDashboardLoading();
-                document.getElementById('fileContent').innerHTML = `
-                  <div class="error-box" style="margin: 20px;">
-                    <strong>Error:</strong> ${error.error || error}
-                  </div>`;
-              })
-              .getItemUpdateContentForDashboard();
-          })
-          .withFailureHandler(function(error) {
-            hideDashboardLoading();
-            document.getElementById('fileContent').innerHTML = `
-              <div class="error-box" style="margin: 20px;">
-                <strong>Error:</strong> ${error.error || error}
-              </div>`;
-          })
-          .getSelectedRooms();
-      }
-
-      // Load dashboard when page opens
-      document.addEventListener('DOMContentLoaded', function() {
-        loadBudgetData();
-      });
-
-      // Functions for Project_Details_.html
-      function loadProjectDetails() {
-        // Show loading state
-        showLoading(true);
-        
-        // Get projectId from the existing projectIdHolder element
-        const projectIdElement = document.getElementById('projectIdHolder');
-        const projectId = projectIdElement ? projectIdElement.getAttribute('data-project-id') : null;
-        
-        if (!projectId) {
-          // If no projectId is available, get all projects and display the first one
-          google.script.run
-            .withSuccessHandler(function(result) {
-              showLoading(false);
-              
-              if (!result.success) {
-                showError(result.error || "Failed to load projects");
-                return;
               }
-              
-              // If no projects found
-              if (!result.projects || result.projects.length === 0) {
-                showError('No projects found.');
-                return;
-              }
-              
-              // Display the first project
-              displayProjectDetails(result.projects[0]);
-            })
-            .withFailureHandler(function(error) {
-              showLoading(false);
-              showError('Error loading projects: ' + error);
-            })
-            .getProjects();
-        } else {
-          // If we have a projectId, get that specific project
-          google.script.run
-            .withSuccessHandler(function(result) {
-              showLoading(false);
-              
-              if (!result.success) {
-                showError(result.error || "Failed to load project");
-                return;
-              }
-              
-              // Display the project details
-              displayProjectDetails(result.project);
-            })
-            .withFailureHandler(function(error) {
-              showLoading(false);
-              showError('Error loading project: ' + error);
-            })
-            .getProjectById(projectId);
-        }
-      }
-
-      // Function to preview file content in the main area
-      function showFilePreview(file) {
-        // Update the page title
-        document.getElementById('projectName').innerText = file.name;
-        
-        // Show loading indicator in main content area
-        const fileContent = document.getElementById('fileContent');
-        fileContent.innerHTML = '';
-        
-        const loadingDiv = document.createElement('div');
-        loadingDiv.className = 'loading';
-        loadingDiv.style.height = '100%';
-        
-        const loadingIcon = document.createElement('i');
-        loadingIcon.className = 'material-icons';
-        loadingIcon.textContent = 'sync';
-        
-        loadingDiv.appendChild(loadingIcon);
-        loadingDiv.appendChild(document.createTextNode(' Loading preview...'));
-        
-        fileContent.appendChild(loadingDiv);
-        
-        // Determine the content type
-        if (file.embedUrl) {
-          // Display the file using an iframe if it has an embed URL
-          const iframe = document.createElement('iframe');
-          iframe.src = file.embedUrl;
-          iframe.style.width = '100%';
-          iframe.style.height = '100%';
-          iframe.style.border = 'none';
-          iframe.onload = function() {
-            fileContent.innerHTML = '';
-            fileContent.appendChild(iframe);
-          };
-          iframe.onerror = function() {
-            fileContent.innerHTML = '';
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'error-box';
-            errorDiv.innerHTML = '<strong>Error:</strong> Unable to load file preview. <a href="' + file.url + '" target="_blank">Open in Google Drive</a> instead.';
-            fileContent.appendChild(errorDiv);
-          };
-          
-          // Set iframe src after adding error handler
-          setTimeout(() => {
-            iframe.src = file.embedUrl;
-          }, 100);
-        } else if (file.thumbnailUrl) {
-          // Show thumbnail for images
-          const imageContainer = document.createElement('div');
-          imageContainer.style.padding = '20px';
-          imageContainer.style.textAlign = 'center';
-          
-          const image = document.createElement('img');
-          image.src = file.thumbnailUrl;
-          image.style.maxWidth = '100%';
-          image.style.maxHeight = '80vh';
-          image.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
-          
-          const caption = document.createElement('p');
-          caption.textContent = file.name;
-          caption.style.marginTop = '10px';
-          
-          const openLink = document.createElement('a');
-          openLink.href = file.url;
-          openLink.target = '_blank';
-          openLink.textContent = 'Open in Google Drive';
-          openLink.className = 'btn';
-          openLink.style.marginTop = '15px';
-          openLink.style.display = 'inline-block';
-          
-          imageContainer.appendChild(image);
-          imageContainer.appendChild(caption);
-          imageContainer.appendChild(openLink);
-          
-          fileContent.innerHTML = '';
-          fileContent.appendChild(imageContainer);
-        } else {
-          // Show a message that preview is not available
-          fileContent.innerHTML = '';
-          
-          const noPreviewDiv = document.createElement('div');
-          noPreviewDiv.className = 'empty-state';
-          noPreviewDiv.style.padding = '20px';
-          
-          const noPreviewIcon = document.createElement('i');
-          noPreviewIcon.className = 'material-icons';
-          noPreviewIcon.textContent = 'visibility_off';
-          noPreviewIcon.style.fontSize = '48px';
-          noPreviewIcon.style.marginBottom = '15px';
-          
-          const noPreviewText = document.createElement('p');
-          noPreviewText.textContent = 'Preview not available for this file type.';
-          
-          const openBtn = document.createElement('a');
-          openBtn.href = file.url;
-          openBtn.target = '_blank';
-          openBtn.className = 'btn';
-          openBtn.textContent = 'Open in Google Drive';
-          openBtn.style.marginTop = '15px';
-          openBtn.style.display = 'inline-block';
-          
-          noPreviewDiv.appendChild(noPreviewIcon);
-          noPreviewDiv.appendChild(noPreviewText);
-          noPreviewDiv.appendChild(openBtn);
-          
-          fileContent.appendChild(noPreviewDiv);
-        }
-      }
-
-      // Function to show dashboard loading overlay
-      function showDashboardLoading(message) {
-        const loadingOverlay = document.getElementById('dashboardLoadingOverlay');
-        const loadingMessage = document.getElementById('dashboardLoadingMessage');
-        
-        if (loadingMessage) {
-          loadingMessage.textContent = message || 'Loading...';
-        }
-        
-        if (loadingOverlay) {
-          loadingOverlay.style.display = 'flex';
-        }
-      }
-      
-      // Function to hide dashboard loading overlay
-      function hideDashboardLoading() {
-        const loadingOverlay = document.getElementById('dashboardLoadingOverlay');
-        
-        if (loadingOverlay) {
-          loadingOverlay.style.display = 'none';
-        }
-      }
-
-      // Additional functions from scripts.js should be added here
-      // ...
-      
-      // Initialize Project Details Page
-      function initProjectDetailsPage(projectId) {
-        // Get the modal element and check for sheetId
-        const modal = document.getElementById('projectDetailsModal');
-        const sheetId = modal ? modal.getAttribute('data-sheet-id') : null;
-        
-        if (!sheetId) {
-          console.error('Sheet ID not available for project', projectId);
-          showError('Project spreadsheet ID not available. Unable to load project details.');
-          return;
-        }
-        
-        // Show loading state
-        const summaryLoading = document.getElementById('projectSummaryLoading');
-        const summaryContent = document.getElementById('projectSummaryActualContent');
-        
-        if (summaryLoading) summaryLoading.style.display = 'flex';
-        if (summaryContent) summaryContent.style.display = 'none';
-        
-        // Load project summary passing the sheet ID
-        google.script.run
-          .withSuccessHandler(function(result) {
-            // Hide loading state
-            if (summaryLoading) summaryLoading.style.display = 'none';
-            if (summaryContent) summaryContent.style.display = 'block';
-            
-            if (!result.success) {
-              showError('Error loading project summary: ' + (result.error || 'Unknown error'));
-              return;
             }
-            
-            // Update summary data on the page
-            if (result.projectName) {
-              const projectNameEl = document.getElementById('sidebarProjectName');
-              if (projectNameEl) projectNameEl.textContent = result.projectName;
-            }
-            
-            // Update room count, item count, budget totals
-            if (result.roomCount !== undefined) {
-              const roomCountEl = document.getElementById('roomCount');
-              if (roomCountEl) roomCountEl.textContent = result.roomCount;
-            }
-            
-            if (result.itemCount !== undefined) {
-              const itemCountEl = document.getElementById('itemCount');
-              if (itemCountEl) itemCountEl.textContent = result.itemCount;
-            }
-            
-            if (result.totalLowBudget !== undefined) {
-              const lowBudgetEl = document.getElementById('lowBudgetTotal');
-              if (lowBudgetEl) lowBudgetEl.textContent = formatCurrency(result.totalLowBudget);
-            }
-            
-            if (result.totalHighBudget !== undefined) {
-              const highBudgetEl = document.getElementById('highBudgetTotal');
-              if (highBudgetEl) highBudgetEl.textContent = formatCurrency(result.totalHighBudget);
-            }
-            
-            console.log('Project summary loaded successfully', result);
-          })
-          .withFailureHandler(function(error) {
-            // Hide loading, show error
-            if (summaryLoading) summaryLoading.style.display = 'none';
-            showError('Error loading project summary: ' + error);
-          })
-          .getProjectSummary(sheetId);
-          
-        // Also load rooms list (if we have a rooms tab)
-        const roomsTabContent = document.getElementById('rooms-content');
-        if (roomsTabContent) {
-          const roomsLoading = roomsTabContent.querySelector('.loading-state');
-          const roomsList = roomsTabContent.querySelector('.rooms-list');
-          
-          if (roomsLoading) roomsLoading.style.display = 'flex';
-          if (roomsList) roomsList.innerHTML = '';
-          
-          // Load rooms from the sheet using the sheetId
-          google.script.run
-            .withSuccessHandler(function(result) {
-              if (roomsLoading) roomsLoading.style.display = 'none';
-              
-              if (!result.success) {
-                if (roomsList) {
-                  roomsList.innerHTML = `<div class="empty-state">Error loading rooms: ${result.error || 'Unknown error'}</div>`;
-                }
-                return;
-              }
-              
-              // Display rooms
-              if (roomsList && result.rooms && result.rooms.length > 0) {
-                renderRoomsList(result.rooms, result.selectedRooms || [], roomsList);
-              } else if (roomsList) {
-                roomsList.innerHTML = '<div class="empty-state">No rooms found</div>';
-              }
-            })
-            .withFailureHandler(function(error) {
-              if (roomsLoading) roomsLoading.style.display = 'none';
-              if (roomsList) {
-                roomsList.innerHTML = `<div class="empty-state">Error loading rooms: ${error}</div>`;
-              }
-            })
-            .getRoomsForDashboard(sheetId);
-        }
-      }
-      
-      // Helper function to format currency
-      function formatCurrency(value) {
-        if (value === undefined || value === null) return '$0';
-        return '$' + parseFloat(value).toLocaleString('en-US', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2
+          }
         });
       }
       
-      // Function to render rooms list with checkboxes
-      function renderRoomsList(rooms, selectedRooms, container) {
-        if (!container) return;
-        
-        // Clear container
-        container.innerHTML = '';
-        
-        if (!rooms || rooms.length === 0) {
-          container.innerHTML = '<div class="empty-state">No rooms available</div>';
-          return;
+      // Autocomplete functionality
+      let currentFocus = -1;
+      let lastActiveInput = null;
+      
+      // Show autocomplete list
+      function showAutocomplete(input) {
+        // Close previous autocomplete lists - but not all of them
+        if (activeAutocompleteInput && activeAutocompleteInput !== input) {
+          // Close only the previous dropdown, not all dropdowns
+          const prevList = activeAutocompleteInput.parentElement.querySelector('.autocomplete-list');
+          if (prevList) {
+            prevList.style.display = 'none';
+          }
         }
         
-        // Create room items
-        rooms.forEach(room => {
-          const isSelected = selectedRooms.includes(room);
-          
-          const roomItem = document.createElement('div');
-          roomItem.className = 'room-item';
-          
-          // Create checkbox for room selection
-          const checkbox = document.createElement('input');
-          checkbox.type = 'checkbox';
-          checkbox.id = 'room-' + room.replace(/\s+/g, '-').toLowerCase();
-          checkbox.className = 'room-checkbox';
-          checkbox.checked = isSelected;
-          checkbox.setAttribute('data-room', room);
-          
-          // Create label for the checkbox
-          const label = document.createElement('label');
-          label.htmlFor = checkbox.id;
-          label.textContent = room;
-          
-          // Append to room item
-          roomItem.appendChild(checkbox);
-          roomItem.appendChild(label);
-          
-          // Append to container
-          container.appendChild(roomItem);
+        const autocompleteList = input.parentElement.querySelector('.autocomplete-list');
+        lastActiveInput = input;
+        
+        // Track this as the active autocomplete input
+        activeAutocompleteInput = input;
+        
+        // Reset focus
+        currentFocus = -1;
+        
+        // Show all available items initially
+        let listHtml = '';
+        console.log('Combined items:', dashboardItemData.combinedItems);
+        dashboardItemData.combinedItems.forEach((item, index) => {
+          listHtml += `<div class="autocomplete-item" data-index="${index}" data-value="${escapeHtml(item)}">${item}</div>`;
         });
         
-        // Add save button
-        const saveButton = document.createElement('button');
-        saveButton.className = 'btn room-save-btn';
-        saveButton.innerHTML = '<i class="material-icons">save</i> Save Selection';
-        saveButton.onclick = function() {
-          saveRoomsSelection(container);
-        };
+        autocompleteList.innerHTML = listHtml;
+        autocompleteList.style.display = 'block';
         
-        container.appendChild(saveButton);
+        // Add click listeners
+        addClickListenersToItems(autocompleteList);
       }
       
-      // Function to save selected rooms
-      function saveRoomsSelection(container) {
-        const checkboxes = container.querySelectorAll('input[type="checkbox"]:checked');
-        const selectedRooms = Array.from(checkboxes).map(cb => cb.getAttribute('data-room'));
+      // Filter autocomplete items based on input
+      function filterAutocompleteItems(input) {
+        const value = input.value.toLowerCase();
+        const autocompleteList = input.parentElement.querySelector('.autocomplete-list');
         
-        if (selectedRooms.length === 0) {
-          alert('Please select at least one room');
-          return;
+        // Reset focus
+        currentFocus = -1;
+        
+        // Show all items if input is empty
+        if (value === '') {
+          let listHtml = '';
+          dashboardItemData.combinedItems.forEach((item, index) => {
+            listHtml += `<div class="autocomplete-item" data-index="${index}" data-value="${escapeHtml(item)}">${item}</div>`;
+          });
+          
+          autocompleteList.innerHTML = listHtml;
+          autocompleteList.style.display = 'block';
+        } else {
+          // Filter available items that match the input
+          const filteredItems = dashboardItemData.combinedItems.filter(item => 
+            item.toLowerCase().includes(value)
+          );
+          
+          // Generate HTML for autocomplete list
+          let listHtml = '';
+          filteredItems.forEach((item, index) => {
+            listHtml += `<div class="autocomplete-item" data-index="${index}" data-value="${escapeHtml(item)}">${item}</div>`;
+          });
+          
+          autocompleteList.innerHTML = listHtml;
+          autocompleteList.style.display = filteredItems.length > 0 ? 'block' : 'none';
         }
         
-        // Get sheet ID from modal
-        const modal = document.getElementById('projectDetailsModal');
-        const sheetId = modal ? modal.getAttribute('data-sheet-id') : null;
-        
-        if (!sheetId) {
-          alert('Sheet ID not available');
-          return;
-        }
-        
-        // Show loading state
-        const saveBtn = container.querySelector('.room-save-btn');
-        if (saveBtn) {
-          saveBtn.disabled = true;
-          saveBtn.innerHTML = '<i class="material-icons rotating">sync</i> Saving...';
-        }
-        
-        // Save selected rooms
-        google.script.run
-          .withSuccessHandler(function(result) {
-            if (saveBtn) {
-              saveBtn.disabled = false;
-              saveBtn.innerHTML = '<i class="material-icons">save</i> Save Selection';
-            }
-            
-            if (!result.success) {
-              alert('Error saving rooms: ' + (result.error || 'Unknown error'));
-              return;
-            }
-            
-            alert('Rooms saved successfully');
-          })
-          .withFailureHandler(function(error) {
-            if (saveBtn) {
-              saveBtn.disabled = false;
-              saveBtn.innerHTML = '<i class="material-icons">save</i> Save Selection';
-            }
-            
-            alert('Error saving rooms: ' + error);
-          })
-          .saveSelectedRoomsOnly(selectedRooms, sheetId);
+        // Add click listeners to all items
+        addClickListenersToItems(autocompleteList);
       }
+      
+      // Handle keyboard navigation in autocomplete
+      function handleAutocompleteKeydown(e, input) {
+        const autocompleteList = input.parentElement.querySelector('.autocomplete-list');
+        const items = autocompleteList.getElementsByClassName('autocomplete-item');
+        
+        if (items.length === 0) return;
+        
+        // Down arrow
+        if (e.key === 'ArrowDown') {
+          currentFocus++;
+          // Wrap around if at the end
+          if (currentFocus >= items.length) currentFocus = 0;
+          setActiveItem(items);
+          e.preventDefault();
+        }
+        // Up arrow
+        else if (e.key === 'ArrowUp') {
+          currentFocus--;
+          // Wrap around if at the beginning
+          if (currentFocus < 0) currentFocus = items.length - 1;
+          setActiveItem(items);
+          e.preventDefault();
+        }
+        // Enter key
+        else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (currentFocus > -1) {
+            // Click the active item
+            items[currentFocus].click();
+          }
+        }
+        // Escape key
+        else if (e.key === 'Escape') {
+          closeAllAutocompletes();
+        }
+      }
+      
+      // Set the active item in the list
+      function setActiveItem(items) {
+        // Remove active class from all items
+        Array.from(items).forEach(item => {
+          item.classList.remove('autocomplete-active');
+        });
+        
+        // Add active class to the current focus item
+        if (currentFocus >= 0 && currentFocus < items.length) {
+          items[currentFocus].classList.add('autocomplete-active');
+          
+          // Ensure the active item is visible (scroll to it if needed)
+          items[currentFocus].scrollIntoView({ block: 'nearest' });
+        }
+      }
+      
+      // Add click listeners to autocomplete items
+      function addClickListenersToItems(autocompleteList) {
+        const items = autocompleteList.getElementsByClassName('autocomplete-item');
+        Array.from(items).forEach(item => {
+          // Use mousedown to prevent blur from firing first
+          item.addEventListener('mousedown', function(e) {
+            // Prevent default to avoid input blur
+            e.preventDefault();
+          });
+          
+          item.addEventListener('click', function(e) {
+            // Select the item
+            selectAutocompleteItem(this);
+            
+            // Focus back on the input after selection
+            if (lastActiveInput) {
+              lastActiveInput.focus();
+            }
+          });
+        });
+      }
+      
+      // Handle item selection from autocomplete
+      function selectAutocompleteItem(selectedItem) {
+        if (!lastActiveInput) return;
+        
+        const value = selectedItem.getAttribute('data-value');
+        
+        // Extract room and index from input attributes
+        const roomName = lastActiveInput.getAttribute('data-room');
+        const index = lastActiveInput.getAttribute('data-index');
+        
+        // Extract item parts (type and name) from combined format
+        const parts = value.split(' - ');
+        
+        // Update the input field with just the item name
+        lastActiveInput.value = parts.length > 1 ? parts[1] : value;
+        
+        // If we have a type, set it in the type field
+        if (parts.length > 1) {
+          const typeInput = document.querySelector(`.type-input[data-room="${roomName}"][data-index="${index}"]`);
+          if (typeInput) {
+            typeInput.value = parts[0];
+          }
+          
+          // Update data
+          updateItemData(roomName, index, 'item', parts[1]);
+          updateItemData(roomName, index, 'type', parts[0]);
+        } else {
+          // Update just the item
+          updateItemData(roomName, index, 'item', value);
+        }
+        
+        // Close all autocomplete lists
+        closeAllAutocompletes();
+      }
+      
+      // Close all autocomplete lists
+      function closeAllAutocompletes() {
+        // Hide all autocomplete lists
+        const lists = document.getElementsByClassName('autocomplete-list');
+        Array.from(lists).forEach(list => {
+          list.style.display = 'none';
+        });
+      }
+      
+      // Function to show status message in the sidebar
+      function showSidebarStatusMessage(message, isError = false) {
+        const statusDiv = document.getElementById('sidebarStatusMessage');
+        if (!statusDiv) {
+          console.error('Sidebar status message container not found');
+          return;
+        }
+        
+        // Clear any existing classes first
+        statusDiv.className = 'status-message';
+        
+        // Add appropriate styling based on message type
+        if (isError) {
+          statusDiv.classList.add('error');
+        } else {
+          statusDiv.classList.add('success');
+        }
+        
+        // Set message content
+        statusDiv.textContent = message;
+        statusDiv.style.display = 'block';
+        
+        // Auto-hide the message after 5 seconds
+        setTimeout(() => {
+          statusDiv.style.display = 'none';
+        }, 5000);
+      }
+      
 </script> 
