@@ -27,24 +27,13 @@
 
         switch (state) {
           case 'loading':
-            iconName = 'sync';
-            defaultMessage = 'Loading...';
+            defaultMessage = 'Loading...'; // Default message if none provided
             stateClass = 'loading-state';
-            // Add rotating class for spinner effect if not handled purely by CSS
             container.innerHTML = `
-              <div class="${stateClass}" style="display: flex; align-items: center; justify-content: center; padding: 20px; text-align: center;">
-                <i class="material-icons rotating" style="animation: spin 2s linear infinite; margin-right: 8px;">${iconName}</i>
-                <span>${message || defaultMessage}</span>
+              <div class="${stateClass}">
+                <div class="spinner"></div>
+                <p>${message || defaultMessage}</p>
               </div>
-              <style>
-                @keyframes spin {
-                  0% { transform: rotate(0deg); }
-                  100% { transform: rotate(360deg); }
-                }
-                .rotating {
-                  animation: spin 2s linear infinite;
-                }
-              </style>
             `;
             break;
           case 'error':
@@ -241,19 +230,7 @@
         const budgetDisplay = document.getElementById('budgetSummaryDisplay');
         if (!budgetDisplay) return;
         
-        // Create a more visible loading animation
-        budgetDisplay.innerHTML = `
-          <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center;">
-            <i class="material-icons" style="font-size: 32px; margin-bottom: 15px; color: #26717D; animation: spin 2s linear infinite;">sync</i>
-            <span>Loading budget data...</span>
-          </div>
-          <style>
-            @keyframes spin {
-              0% { transform: rotate(0deg); }
-              100% { transform: rotate(360deg); }
-            }
-          </style>
-        `;
+        renderUIState(budgetDisplay, 'loading', 'Loading budget data...');
         
         // Get the sheet ID from the project details modal
         const modal = document.getElementById('projectDetailsModal');
@@ -270,7 +247,53 @@
       function refreshBudget() {
         loadBudgetData();
       }
-      
+
+      /**
+       * Shows the welcome screen in the main content area.
+       * Clears any existing content (like Item Manager or Gantt chart) and displays the standard welcome message.
+       * Restores the original project name in the main header.
+       */
+      function showWelcomeScreen() {
+        console.log('showWelcomeScreen called - resetting main content');
+        const mainContentContainer = document.getElementById('fileContent');
+        const projectNameHeader = document.getElementById('projectName');
+
+        if (mainContentContainer) {
+          // Set the main content to the welcome message HTML
+          mainContentContainer.innerHTML = `
+            <div class="welcome-message">
+              <i class="material-icons">dashboard</i>
+              <h3>Welcome to Norton Interiors</h3>
+            </div>
+            <!-- Note: The dashboardLoadingOverlay is structurally part of fileContent in Project_Details_.html -->
+            <!-- but it is controlled by show/hideDashboardLoading functions globally. -->
+            <!-- Re-adding it here might be redundant if those functions expect it to always exist. -->
+            <!-- For now, omitting it from direct innerHTML reset, assuming global functions handle it. -->
+          `;
+          console.log('Main content reset to welcome message.');
+        } else {
+          console.error('Main content container (fileContent) not found!');
+        }
+
+        // Restore the original project name in the header
+        if (projectNameHeader && typeof window.originalProjectName === 'string' && window.originalProjectName !== '') {
+          projectNameHeader.textContent = window.originalProjectName;
+          console.log('Project name restored to:', window.originalProjectName);
+        } else if (!projectNameHeader) {
+          console.error('Project name header element (projectName) not found!');
+        } else {
+          console.warn('Original project name (window.originalProjectName) not found, not a string, or is empty. Header not restored.');
+          // As a fallback, if originalProjectName isn't available, we might want to set a default or leave it as is.
+          // For example: projectNameHeader.textContent = 'Project Dashboard';
+        }
+        
+        // Hide any global loading overlays if they were active
+        if (typeof hideDashboardLoading === 'function') {
+            hideDashboardLoading();
+            console.log('Dashboard loading overlay hidden.');
+        }
+      }
+
       function exportBudgetReport() {
         google.script.run
           .withSuccessHandler(function() {
@@ -319,65 +342,54 @@
           .createVendorEmailDraft(vendorName, email, customMessage);
       }
       
-      // Modified function to show room manager in either main content or sidebar
-      function showRoomManager(displayContext = 'main') {
+      // Modified function to show room manager ONLY in the sidebar
+      function showRoomManager() {
         // Store the original project name if not already stored
         const projectNameElement = document.getElementById('projectName');
         if (projectNameElement && !window.originalProjectName) {
           window.originalProjectName = projectNameElement.innerText;
         }
         
-        // Update the page title
+        // Update the page title (can still be useful for context)
         if (projectNameElement) {
           projectNameElement.innerText = 'Room Manager';
         }
         
-        if (displayContext === 'sidebar') {
-          containerId = 'sidebarRoomManagerContent';
-        } else {
-          console.error('showRoomManager: Invalid location provided:', displayContext);
-          // Attempt to show error in a fallback location if main page structure is available
-          const fallbackErrorDisplay = document.getElementById('fileContent') || document.body;
-          renderUIState(fallbackErrorDisplay, 'error', 'Invalid operation: Cannot determine where to display Room Manager.');
-          return;
+        const containerId = 'sidebarRoomManagerContent';
+
+        console.log('showRoomManager: rendering in sidebar container:', containerId);
+
+        const targetContainer = document.getElementById(containerId);
+        if (!targetContainer) {
+            console.error('showRoomManager: Sidebar container not found:', containerId);
+            // If the main sidebar container itself is missing, there's a larger issue.
+            // We could try a body alert as a last resort if no other UI is available.
+            alert('Critical Error: Sidebar Room Manager container (id: ' + containerId + ') is missing from the page.');
+            return;
         }
 
-        console.log('showRoomManager: containerId:', containerId);
-
-        // At this point, containerId should be valid for 'main' or 'sidebar'
-        renderUIState(containerId, 'loading', 'Loading rooms...');
+        renderUIState(targetContainer, 'loading', 'Loading rooms...');
         
-        // Check if we need to pass a sheetId (especially for sidebar in project details)
+        // Get the sheet ID from the project details modal
         const modal = document.getElementById('projectDetailsModal');
         const sheetId = modal ? modal.getAttribute('data-sheet-id') : null;
         
         console.log('showRoomManager: found sheetId:', sheetId);
         
-        // Only pass sheetId if we have it (typically in the sidebar case)
-        if (sheetId) {
-          google.script.run
-            .withSuccessHandler(function(result) {
-              console.log('getRoomsForDashboard result with sheetId:', result);
-              renderUIState(containerId, 'success'); 
-              renderSidebarRoomManager(result);
-            })
-            .withFailureHandler(function(error) {
-              const errorMessage = error.error || error.message || error.toString() || 'Failed to load rooms.';
-              renderUIState(containerId, 'error', errorMessage);
-            })
-            .getRoomsForDashboard(sheetId);
-        } else {
-          google.script.run
-            .withSuccessHandler(function(result) {
-              renderUIState(containerId, 'success'); 
-              renderSidebarRoomManager(result);
-            })
-            .withFailureHandler(function(error) {
-              const errorMessage = error.error || error.message || error.toString() || 'Failed to load rooms.';
-              renderUIState(containerId, 'error', errorMessage);
-            })
-            .getRoomsForDashboard();
-        }
+        // Always pass sheetId, as this function is now sidebar-specific
+        // and sidebar context implies a sheetId should be available from the projectDetailsModal.
+        // If sheetId is null here, getRoomsForDashboard might handle it or error gracefully.
+        google.script.run
+          .withSuccessHandler(function(result) {
+            console.log('getRoomsForDashboard result with sheetId:', result);
+            renderUIState(targetContainer, 'success'); 
+            renderSidebarRoomManager(result); // This function is designed for sidebar
+          })
+          .withFailureHandler(function(error) {
+            const errorMessage = error.error || error.message || error.toString() || 'Failed to load rooms.';
+            renderUIState(targetContainer, 'error', errorMessage);
+          })
+          .getRoomsForDashboard(sheetId);
       }
       
       /**
@@ -908,6 +920,9 @@
                 return;
               }
               
+              // Store project data globally for sidebar access
+              window.currentProject = result.projects[0];
+              
               // Display the first project
               displayProjectDetails(result.projects[0]);
             })
@@ -926,6 +941,9 @@
                 showError(result.error || "Failed to load project");
                 return;
               }
+              
+              // Store project data globally for sidebar access
+              window.currentProject = result.project;
               
               // Display the project details
               displayProjectDetails(result.project);
@@ -1133,43 +1151,6 @@
             }
           })
           .getProjectSummary(sheetId);
-          
-        // // Also load rooms list (if we have a rooms tab and container)
-        // if (roomsContainerParent && roomsListElement) {
-        //   renderUIState(roomsListElement, 'loading', 'Loading rooms...');
-          
-        //   // Load rooms from the sheet using the sheetId
-        //   google.script.run
-        //     .withSuccessHandler(function(result) {
-        //       if (!roomsListElement) return;
-
-        //       if (!result.success) {
-        //         renderUIState(roomsListElement, 'error', 'Error loading rooms: ' + (result.error || 'Unknown error'));
-        //         return;
-        //       }
-              
-        //       // renderRoomsList should handle populating the content.
-        //       // If rooms are empty, renderRoomsList itself should call renderUIState(roomsListElement, 'empty', ...)
-        //       // So, we call success to clear loading/error, then let renderRoomsList take over.
-        //       renderUIState(roomsListElement, 'success'); 
-        //       if (result.rooms && result.rooms.length > 0) {
-        //         renderRoomsList(result.rooms, result.selectedRooms || [], roomsListElement);
-        //       } else {
-        //         renderUIState(roomsListElement, 'empty', 'No rooms found for this project.');
-        //       }
-        //     })
-        //     .withFailureHandler(function(error) {
-        //       if (roomsListElement) {
-        //         renderUIState(roomsListElement, 'error', 'Error loading rooms: ' + error.message || error.toString());
-        //       }
-        //     })
-        //     .getRoomsForDashboard(sheetId);
-        // } else if (roomsContainerParent) {
-        //     // If roomsListElement couldn't be found initially but parent exists, log or display mild warning.
-        //     console.warn('Rooms list element (.rooms-list) not found within #rooms-content for project details.');
-        //     // Optionally, display a message in the parent container
-        //     renderUIState(roomsContainerParent, 'empty', 'Rooms display area not fully initialized.');
-        // }
 
         // AT THE END of initProjectDetailsPage, call the new sidebar setup function:
         initializeProjectDetailsSidebarInteractions();
@@ -1380,8 +1361,10 @@
               if (contentElement) {
                 contentElement.classList.add('active');
                 
-                // Load specific content based on tab (ensure these functions exist and are accessible)
+                // Load specific content based on tab
                 if (tabName === 'home') {
+                  // Display project details in the home tab sidebar
+                  updateHomeSidebarContent();
                   if (typeof showWelcomeScreen === 'function') showWelcomeScreen(); else console.error('showWelcomeScreen function not found');
                 } else if (tabName === 'rooms') {
                   if (typeof showRoomManager === 'function') showRoomManager('sidebar'); else console.error('showRoomManager function not found');
@@ -1392,23 +1375,7 @@
                 } else if (tabName === 'budget') {
                   // Show loading state for budget before fetching
                   const budgetDisplay = document.getElementById('budgetSummaryDisplay');
-                  if (budgetDisplay) {
-                    // Create a more visible loading animation
-                    budgetDisplay.innerHTML = `
-                      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center;">
-                        <i class="material-icons" style="font-size: 32px; margin-bottom: 15px; color: #26717D; animation: spin 2s linear infinite;">sync</i>
-                        <span>Loading budget data...</span>
-                      </div>
-                      <style>
-                        @keyframes spin {
-                          0% { transform: rotate(0deg); }
-                          100% { transform: rotate(360deg); }
-                        }
-                      </style>
-                    `;
-                  }
-                  
-                  // Small delay to ensure loading state is visible
+                  // Small delay to ensure loading state is visible, then loadBudgetData will set its own loading state.
                   setTimeout(() => {
                     if (typeof loadBudgetData === 'function') loadBudgetData();
                     else console.error('loadBudgetData function not found');
@@ -1426,12 +1393,157 @@
                 }
               }
             });
+
+            // Initially select the home tab and update its content
+            if (sidebar.querySelector('.sidebar-tab[data-tab="home"].active')) {
+              updateHomeSidebarContent();
+            }
           } else {
             console.warn('.sidebar-tabs container not found within #projectDetailsModal .sidebar');
           }
         } else {
             console.warn('.sidebar container not found within #projectDetailsModal for tab delegation.');
         }
+      }
+
+      /**
+       * Updates the home tab sidebar content with project details
+       */
+      function updateHomeSidebarContent() {
+        const modal = document.getElementById('projectDetailsModal');
+        if (!modal) return;
+
+        // Get project data from the modal's data attribute
+        const projectId = modal.getAttribute('data-project-id');
+        const sheetId = modal.getAttribute('data-sheet-id');
+        const projectData = window.currentProject;
+        
+        if (!projectData) {
+          console.error('No project data found for home sidebar content');
+          
+          // Display loading state while we fetch the project data
+          const homeSidebarContent = modal.querySelector('#home-content .sidebar-body');
+          if (homeSidebarContent) {
+            homeSidebarContent.innerHTML = `
+              <div class="loading-state">
+                <div class="spinner"></div>
+                <p>Loading project information...</p>
+              </div>
+            `;
+          }
+          
+          if (projectId) {
+            // Fetch project data using the project ID
+            google.script.run
+              .withSuccessHandler(function(response) {
+                if (response.success) {
+                  window.currentProject = response.project;
+                  updateHomeSidebarContent(); // Call again after data is loaded
+                } else {
+                  if (homeSidebarContent) {
+                    homeSidebarContent.innerHTML = `
+                      <div class="error-box">
+                        <strong>Error:</strong> ${response.error || 'Failed to load project information'}
+                      </div>
+                    `;
+                  }
+                }
+              })
+              .withFailureHandler(function(error) {
+                if (homeSidebarContent) {
+                  homeSidebarContent.innerHTML = `
+                    <div class="error-box">
+                      <strong>Error:</strong> ${error.message || error.toString() || 'Failed to load project information'}
+                    </div>
+                  `;
+                }
+              })
+              .getProjectById(projectId);
+          }
+          return;
+        }
+
+        // Get the sidebar content element for the home tab
+        const homeSidebarContent = modal.querySelector('#home-content .sidebar-body');
+        if (!homeSidebarContent) {
+          console.error('Home sidebar content element not found');
+          return;
+        }
+
+        // Create HTML for the project info section
+        const projectInfoHTML = `
+          <div id="projectDetailsSummary" class="project-info-section">
+            <div class="project-info-item">
+              <label>Project Name:</label>
+              <div class="info-value">${projectData.name || 'N/A'}</div>
+            </div>
+            <div class="project-info-item">
+              <label>Client Name:</label>
+              <div class="info-value">${projectData.client || 'N/A'}</div>
+            </div>
+            <div class="project-info-item">
+              <label>Client Email:</label>
+              <div class="info-value">
+                ${projectData.clientEmail ? `<span class="copyable-email" onclick="copyEmailToClipboard(\'${projectData.clientEmail}\', this)" title="Copy to clipboard">${projectData.clientEmail}</span>` : 'N/A'}
+              </div>
+            </div>
+            <div class="project-info-item">
+              <label>Architect Name:</label>
+              <div class="info-value">${projectData.architect || 'N/A'}</div>
+            </div>
+            <div class="project-info-item">
+              <label>Architect Email:</label>
+              <div class="info-value">
+                ${projectData.architectEmail ? `<span class="copyable-email" onclick="copyEmailToClipboard(\'${projectData.architectEmail}\', this)" title="Copy to clipboard">${projectData.architectEmail}</span>` : 'N/A'}
+              </div>
+            </div>
+            <div class="project-info-item">
+              <label>Contractor Name:</label>
+              <div class="info-value">${projectData.contractor || 'N/A'}</div>
+            </div>
+            <div class="project-info-item">
+              <label>Contractor Email:</label>
+              <div class="info-value">
+                ${projectData.contractorEmail ? `<span class="copyable-email" onclick="copyEmailToClipboard(\'${projectData.contractorEmail}\', this)" title="Copy to clipboard">${projectData.contractorEmail}</span>` : 'N/A'}
+              </div>
+            </div>
+          </div>
+          <div id="projectSummaryContent" style="margin-top: 20px;">
+            <!-- Original content will be preserved here -->
+            ${homeSidebarContent.querySelector("#projectSummaryContent")?.innerHTML || ''}
+          </div>
+        `;
+
+        // Update the home sidebar content
+        homeSidebarContent.innerHTML = projectInfoHTML;
+      }
+
+      /**
+       * Copies the given text to the clipboard and provides visual feedback.
+       * @param {string} textToCopy - The text to copy.
+       * @param {HTMLElement} element - The clicked HTML element for visual feedback.
+       */
+      function copyEmailToClipboard(textToCopy, element) {
+        navigator.clipboard.writeText(textToCopy).then(function() {
+          // Success feedback
+          const originalText = element.textContent;
+          element.textContent = 'Copied!';
+          element.classList.add('copied');
+          setTimeout(function() {
+            element.textContent = originalText;
+            element.classList.remove('copied');
+          }, 1500); // Revert after 1.5 seconds
+        }).catch(function(err) {
+          // Error feedback
+          console.error('Failed to copy email: ', err);
+          const originalText = element.textContent;
+          element.textContent = 'Copy Failed'; 
+          element.classList.add('copy-failed');
+          setTimeout(function() {
+            element.textContent = originalText;
+            element.classList.remove('copy-failed');
+          }, 1500);
+        });
       }
 
       // Function to load room data into the sidebar
@@ -1451,7 +1563,7 @@
         
         // Call server to get rooms data with sheetId if available
         if (sheetId) {
-          google.script.run
+            google.script.run
             .withSuccessHandler(function(result) {
               console.log('getRoomsForDashboard result with sheetId in loadSidebarRoomManager:', result);
               renderSidebarRoomManager(result);
@@ -1463,7 +1575,7 @@
                 </div>`;
             })
             .getRoomsForDashboard(sheetId);
-        } else {
+                } else {
           // Fallback to no sheetId if not available
           google.script.run
             .withSuccessHandler(function(result) {
@@ -1515,8 +1627,8 @@
           <div id="roomsSavingOverlay" class="saving-overlay" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255,255,255,0.7); z-index: 100; justify-content: center; align-items: center; flex-direction: column;">
             <i class="material-icons rotating" style="font-size: 32px; margin-bottom: 16px; color: #26717D;">sync</i>
             <div style="font-weight: 500;">Saving rooms...</div>
-          </div>
-        `;
+                      </div>
+                    `;
         
         // Get the room list container
         const roomListContainer = document.getElementById('sidebarRoomList');
@@ -1606,9 +1718,9 @@
               showSidebarStatusMessage('Rooms saved');
             } else {
               showSidebarStatusMessage('Error: ' + (result.error || 'Failed to save rooms'), true);
-            }
-          })
-          .withFailureHandler(function(error) {
+                }
+              })
+              .withFailureHandler(function(error) {
             // Hide saving overlay and re-enable checkboxes
             showRoomsSavingOverlay(false);
             showSidebarStatusMessage('Error: ' + error, true);
@@ -1781,7 +1893,6 @@
         const actionsContainer = document.createElement('div');
         actionsContainer.style.display = 'flex';
         actionsContainer.style.gap = '10px';
-        actionsContainer.appendChild(backButton);
         actionsContainer.appendChild(saveButton);
         
         // Add filter and actions to sticky container
@@ -2678,8 +2789,8 @@
               <div class="budget-label">High Budget Total:</div>
               <div class="budget-value">$${formatCurrency(data.summary.totalHighBudget)}</div>
             </div>
-          </div>
-        `;
+                    </div>
+                  `;
         
         // Room Cards for Sidebar with section header
         let roomCardsHtml = `
@@ -2822,7 +2933,7 @@
           console.error('Sidebar status message container not found');
           return;
         }
-        
+
         // Clear any existing classes first
         statusDiv.className = 'status-message';
         
@@ -2930,5 +3041,23 @@
         `;
       }
 
-      
+      function displayProjectDetails(project) {
+        // Add code here to display project details in the main content area
+        const projectNameElement = document.getElementById('projectName');
+        if (projectNameElement) {
+          projectNameElement.textContent = project.name || 'Project Details';
+        }
+        
+        // Set project data attributes on the modal for use in other functions
+        const modal = document.getElementById('projectDetailsModal');
+        if (modal) {
+          modal.setAttribute('data-project-id', project.id);
+          modal.setAttribute('data-sheet-id', project.sheetId || '');
+          
+          // Update home sidebar with project details
+          updateHomeSidebarContent();
+        }
+        
+        // Your existing code to display project details...
+      }
 </script> 

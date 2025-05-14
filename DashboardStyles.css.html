@@ -212,6 +212,9 @@ body {
   display: none;
 }
 
+.sidebar-header {
+  position: relative;
+}
 /* Exception for rooms sidebar header */
 #rooms-content .sidebar-header {
   display: block;
@@ -230,6 +233,77 @@ body {
 /* Add padding to the sidebarRoomManagerContent */
 #sidebarRoomManagerContent {
   padding: 10px;
+}
+
+/* Project details summary styles */
+.project-info-section {
+  margin-bottom: 16px;
+}
+
+.project-info-section h4 {
+  color: #26717D;
+  font-size: 16px;
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-weight: 500;
+  border-bottom: 1px solid rgba(38, 113, 125, 0.2);
+  padding-bottom: 8px;
+}
+
+.project-info-item {
+  margin-bottom: 10px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.project-info-item:last-child {
+  margin-bottom: 0;
+}
+
+.project-info-item label {
+  font-weight: 600;
+  color: #555;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.project-info-item .info-value {
+  color: #333;
+}
+
+.project-info-item .info-value a {
+  color: #26717D;
+  text-decoration: none;
+}
+
+.project-info-item .info-value a:hover {
+  text-decoration: underline;
+}
+
+/* Styles for copyable email addresses */
+.copyable-email {
+  cursor: pointer;
+  color: #26717D; /* Same as link color for consistency */
+  text-decoration: none; /* Initially no underline */
+  border-bottom: 1px dotted #26717D; /* Subtle dotted underline to indicate clickability */
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.copyable-email:hover {
+  background-color: #e0f2f1; /* Light teal background on hover */
+  text-decoration: none; /* Ensure no browser default underline on hover */
+}
+
+.copyable-email.copied {
+  color: #00695C; /* Darker green for success */
+  font-weight: bold;
+  border-bottom: 1px solid transparent; /* Remove underline when "Copied!" is shown */
+}
+
+.copyable-email.copy-failed {
+  color: #D32F2F; /* Red for failure */
+  font-weight: bold;
+  border-bottom: 1px solid transparent;
 }
 
 .sidebar-toggle {
@@ -730,7 +804,7 @@ h2 .material-icons:hover {
 }
 
 .budget-summary-box {
-  background-color: rgba(38, 113, 125, 0.1);
+  background-color:rgb(245 243 241);
   border-radius: 4px;
   padding: 12px;
   margin-bottom: 16px;
@@ -1383,7 +1457,7 @@ input[type="text"], input[type="number"] {
   padding: 12px;
   position: absolute;
   z-index: 101;
-  top: 30px;
+  top: 47px;
   right: 0;
   opacity: 0;
   transition: opacity 0.3s;
@@ -1705,7 +1779,7 @@ input[type="text"], input[type="number"] {
 
 .gantt-view-modes {
   display: flex;
-  margin-bottom: 10px;
+  margin: 10px;
   gap: 5px;
   justify-content: space-between;
 }
@@ -1777,7 +1851,7 @@ input[type="text"], input[type="number"] {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin-bottom: 16px;
+  margin: 10px;
   padding: 12px;
   background-color: #f5f5f5;
   border-radius: 4px;

@@ -12,49 +12,7 @@
     return; // Exit if element is not found
   }
   
-  // Clear the current content first
-  folderDisplay.innerHTML = '';
-  
-  // Create a loading indicator using DOM methods
-  const loadingDiv = document.createElement('div');
-  loadingDiv.className = 'loading';
-  loadingDiv.id = 'folderLoadingIndicator';
-  
-  const loadingIcon = document.createElement('i');
-  loadingIcon.className = 'material-icons';
-  loadingIcon.textContent = 'sync';
-  
-  loadingDiv.appendChild(loadingIcon);
-  loadingDiv.appendChild(document.createTextNode(' Loading...'));
-  
-  folderDisplay.appendChild(loadingDiv);
-  
-  // Add timeout to prevent infinite loading
-  let timeoutId = setTimeout(() => {
-    // Check if loading indicator still exists after timeout
-    if (document.getElementById('folderLoadingIndicator')) {
-      console.log('Folder data loading timeout triggered');
-      folderDisplay.innerHTML = '';
-      
-      const errorBox = document.createElement('div');
-      errorBox.className = 'error-box';
-      
-      const errorStrong = document.createElement('strong');
-      errorStrong.textContent = 'Loading Error:';
-      
-      errorBox.appendChild(errorStrong);
-      errorBox.appendChild(document.createTextNode(' Request timed out. '));
-      
-      const refreshButton = document.createElement('button');
-      refreshButton.className = 'btn-small';
-      refreshButton.style.marginLeft = '10px';
-      refreshButton.innerHTML = '<i class="material-icons">refresh</i> Retry';
-      refreshButton.addEventListener('click', () => loadFolders(source));
-      
-      errorBox.appendChild(refreshButton);
-      folderDisplay.appendChild(errorBox);
-    }
-  }, 15000); // 15 second timeout
+  renderUIState(folderDisplay, 'loading', 'Loading folders...');
   
   // Get the project data from the modal
   const modal = document.getElementById('projectDetailsModal');
@@ -66,50 +24,20 @@
   
   google.script.run
     .withSuccessHandler(data => {
-      // Clear the timeout since we got a response
-      clearTimeout(timeoutId);
-      
       // Check for error message
       if (data.error) {
-        // Clear the container
-        folderDisplay.innerHTML = '';
-        
-        // Create error message using DOM methods
-        const errorBox = document.createElement('div');
-        errorBox.className = 'error-box';
-        
-        const errorStrong = document.createElement('strong');
-        errorStrong.textContent = 'Error:';
-        
-        errorBox.appendChild(errorStrong);
-        errorBox.appendChild(document.createTextNode(' ' + data.error));
-        
-        folderDisplay.appendChild(errorBox);
+        renderUIState(folderDisplay, 'error', data.error);
         return;
       }
       
-      if (!data.files) {
-        // Clear the container
-        folderDisplay.innerHTML = '';
-        
-        // Create empty state using DOM methods
-        const emptyState = document.createElement('div');
-        emptyState.className = 'empty-state';
-        
-        const emptyIcon = document.createElement('i');
-        emptyIcon.className = 'material-icons';
-        emptyIcon.textContent = 'folder_off';
-        
-        const emptyText = document.createElement('p');
-        emptyText.textContent = 'No files found. Please configure a folder in Settings.';
-        
-        emptyState.appendChild(emptyIcon);
-        emptyState.appendChild(emptyText);
-        
-        folderDisplay.appendChild(emptyState);
+      if (!data.files || Object.keys(data.files).length === 0) {
+        renderUIState(folderDisplay, 'empty', 'No files found. Please configure a folder in Settings.');
         return;
       }
       
+      // Clear the successful loading state before adding content
+      renderUIState(folderDisplay, 'success'); // Clears the container
+
       // Use DocumentFragment to build the entire structure once
       const fragment = document.createDocumentFragment();
       const folderEntries = Object.entries(data.files);
@@ -212,35 +140,18 @@
         fragment.appendChild(fileList);
       });
       
-      // Clear the container and add the entire fragment at once
-      folderDisplay.innerHTML = '';
       folderDisplay.appendChild(fragment);
     })
     .withFailureHandler(error => {
-      // Clear the timeout since we got a response
-      clearTimeout(timeoutId);
-      
-      // Clear the container
-      folderDisplay.innerHTML = '';
-      
-      // Create error message using DOM methods
-      const errorBox = document.createElement('div');
-      errorBox.className = 'error-box';
-      
-      const errorStrong = document.createElement('strong');
-      errorStrong.textContent = 'Error loading data:';
-      
-      errorBox.appendChild(errorStrong);
-      errorBox.appendChild(document.createTextNode(' ' + error));
-      
-      const refreshButton = document.createElement('button');
-      refreshButton.className = 'btn-small';
-      refreshButton.style.marginLeft = '10px';
-      refreshButton.innerHTML = '<i class="material-icons">refresh</i> Retry';
-      refreshButton.addEventListener('click', () => loadFolders(source));
-      
-      errorBox.appendChild(refreshButton);
-      folderDisplay.appendChild(errorBox);
+      let errorMessage = 'Error loading folder data.';
+      if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error && error.message) {
+        errorMessage = error.message;
+      } else if (error && error.details) {
+        errorMessage = error.details;
+      }
+      renderUIState(folderDisplay, 'error', errorMessage);
     })
     .getDashboardData(folderId, projectName);
 }
