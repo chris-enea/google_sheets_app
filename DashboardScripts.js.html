@@ -6,6 +6,17 @@
         document.getElementById('asanaPat').value = data.asanaToken || '';
         document.getElementById('sheetId').value = data.sheetId || '';
         document.getElementById('projectColor').value = data.projectColor || '#26717D';
+         // Set header color on open
+        var colorInput = document.getElementById('projectColorInput');
+        var header = document.querySelector('#addProjectModal .modal-header, #addProjectModal h2.modal-header');
+        if (colorInput && header) {
+          header.style.backgroundColor = colorInput.value;
+          header.style.color = '#fff';
+          // Update header color live
+          colorInput.addEventListener('input', function() {
+            header.style.backgroundColor = colorInput.value;
+          });
+        }
       }).getSettings();
     }
     function closeSettingsDialog() {

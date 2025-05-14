@@ -1470,12 +1470,19 @@
           return;
         }
 
+        // Clear any existing content to prevent duplicates
+        homeSidebarContent.innerHTML = '';
+
         // Create HTML for the project info section
         const projectInfoHTML = `
           <div id="projectDetailsSummary" class="project-info-section">
             <div class="project-info-item">
               <label>Project Name:</label>
               <div class="info-value">${projectData.name || 'N/A'}</div>
+            </div>
+            <div class="project-info-item project-address-item">
+              <label>Project Address:</label>
+              <div class="info-value">${projectData.address || 'N/A'}</div>
             </div>
             <div class="project-info-item">
               <label>Client Name:</label>
@@ -1484,7 +1491,7 @@
             <div class="project-info-item">
               <label>Client Email:</label>
               <div class="info-value">
-                ${projectData.clientEmail ? `<span class="copyable-email" onclick="copyEmailToClipboard(\'${projectData.clientEmail}\', this)" title="Copy to clipboard">${projectData.clientEmail}</span>` : 'N/A'}
+                ${projectData.clientEmail ? `<span class="copyable-email" onclick="copyEmailToClipboard('${projectData.clientEmail}', this)" title="Copy to clipboard">${projectData.clientEmail}</span>` : 'N/A'}
               </div>
             </div>
             <div class="project-info-item">
@@ -1494,7 +1501,7 @@
             <div class="project-info-item">
               <label>Architect Email:</label>
               <div class="info-value">
-                ${projectData.architectEmail ? `<span class="copyable-email" onclick="copyEmailToClipboard(\'${projectData.architectEmail}\', this)" title="Copy to clipboard">${projectData.architectEmail}</span>` : 'N/A'}
+                ${projectData.architectEmail ? `<span class="copyable-email" onclick="copyEmailToClipboard('${projectData.architectEmail}', this)" title="Copy to clipboard">${projectData.architectEmail}</span>` : 'N/A'}
               </div>
             </div>
             <div class="project-info-item">
@@ -1504,7 +1511,7 @@
             <div class="project-info-item">
               <label>Contractor Email:</label>
               <div class="info-value">
-                ${projectData.contractorEmail ? `<span class="copyable-email" onclick="copyEmailToClipboard(\'${projectData.contractorEmail}\', this)" title="Copy to clipboard">${projectData.contractorEmail}</span>` : 'N/A'}
+                ${projectData.contractorEmail ? `<span class="copyable-email" onclick="copyEmailToClipboard('${projectData.contractorEmail}', this)" title="Copy to clipboard">${projectData.contractorEmail}</span>` : 'N/A'}
               </div>
             </div>
           </div>
