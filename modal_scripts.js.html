@@ -1922,7 +1922,7 @@
         
         // Create room sections
         Object.keys(itemsByRoom).sort().forEach(room => {
-          const roomItems = itemsByRoom[room];
+          const currentRoomItems = itemsByRoom[room];
           
           // Create room container
           const roomContainer = document.createElement('div');
@@ -1981,7 +1981,7 @@
           // Use a DocumentFragment for batching item row appends
           const itemsFragment = document.createDocumentFragment();
           // Add each item
-          roomItems.forEach((item, index) => {
+          currentRoomItems.forEach((item, index) => {
             const itemRow = createItemRow(item, index, room);
             itemsFragment.appendChild(itemRow);
           });
@@ -2026,10 +2026,11 @@
           // Remove this call as it's redundant and causes placement issues
           // updateRoomBudgetDisplay(room);
           
-          // Add the "add item" button at the bottom of each room
+          // Create the button row for "Add Item" and quick-add buttons
           const addMoreRow = document.createElement('div');
           addMoreRow.className = 'add-more-row';
           
+          // Create standard "Add Item" button
           const addItemButton = document.createElement('button');
           addItemButton.className = 'add-item-btn';
           addItemButton.addEventListener('click', function() {
@@ -2043,6 +2044,45 @@
           addItemButton.appendChild(buttonIcon);
           addItemButton.appendChild(document.createTextNode(' Add Item'));
           addMoreRow.appendChild(addItemButton);
+          
+          // Add Quick-Add buttons for suggested items
+          const suggestedItems = getSuggestedItemsForRoom(room);
+          
+          // Create a container for the quick-add buttons
+          const quickAddContainer = document.createElement('div');
+          quickAddContainer.className = 'quick-add-container';
+          
+          // Initialize tracking for visible suggested items if needed
+          if (!dashboardItemData.visibleSuggestedItems) {
+            dashboardItemData.visibleSuggestedItems = {};
+          }
+          
+          // Filter out items that already exist in the room
+          const availableSuggestions = suggestedItems.filter(item => 
+            !itemExistsInRoom(dashboardItemData.itemsByRoom[room] || [], item)
+          );
+          
+          // Initialize with up to 5 available suggestions
+          dashboardItemData.visibleSuggestedItems[room] = availableSuggestions.slice(0, 5);
+          
+          // Create buttons for the visible items (max 5)
+          dashboardItemData.visibleSuggestedItems[room].forEach(itemName => {
+            const quickAddButton = document.createElement('button');
+            quickAddButton.className = 'quick-add-btn';
+            quickAddButton.textContent = `Add ${itemName.toUpperCase()}`;
+            
+            // Add click handler to add this specific item
+            quickAddButton.addEventListener('click', function() {
+              addSpecificItemToRoom(room, itemName);
+            });
+            
+            quickAddContainer.appendChild(quickAddButton);
+          });
+          
+          // Only add the container if it has buttons
+          if (quickAddContainer.children.length > 0) {
+            addMoreRow.appendChild(quickAddContainer);
+          }
           
           roomContainer.appendChild(addMoreRow);
           
@@ -2354,6 +2394,9 @@
             
             // Show status message
             showDashboardStatusMessage('Item deleted successfully');
+            
+            // Refresh quick-add buttons to show the button for the deleted item if it was in the suggested items
+            refreshQuickAddButtons(roomName);
           }
         }
       }
@@ -3066,5 +3109,204 @@
         }
         
         // Your existing code to display project details...
+      }
+
+      // Add after the global variables at the top of the file
+      // Define room-specific suggested items
+      function getSuggestedItemsForRoom(roomName) {
+        const roomLower = roomName.toLowerCase();
+        const suggestedItems = {
+          'living room': ['Sofa', 'Coffee Table', 'Side Table', 'Rug', 'TV Console', 'Armchair', 'Floor Lamp'],
+          'dining room': ['Dining Table', 'Dining Chairs', 'Buffet', 'Chandelier', 'Rug', 'Bar Cart'],
+          'kitchen': ['Bar Stools', 'Pendant Lights', 'Kitchen Island', 'Rack', 'Storage Container'],
+          'bedroom': ['Bed', 'Nightstand', 'Dresser', 'Armoire', 'Bench', 'Table Lamp', 'Rug'],
+          'bathroom': ['Mirror', 'Vanity', 'Shower Curtain', 'Bath Mat', 'Storage Cabinet'],
+          'office': ['Desk', 'Office Chair', 'Bookshelf', 'Desk Lamp', 'Filing Cabinet'],
+          'entryway': ['Console Table', 'Mirror', 'Bench', 'Coat Rack', 'Rug'],
+          'hallway': ['Runner Rug', 'Console Table', 'Wall Sconce'],
+          'guest room': ['Bed', 'Nightstand', 'Dresser', 'Mirror', 'Luggage Rack'],
+          'nursery': ['Crib', 'Changing Table', 'Rocking Chair', 'Dresser', 'Rug'],
+          'playroom': ['Storage Unit', 'Play Table', 'Rug', 'Bookshelf', 'Seating'],
+          'mudroom': ['Bench', 'Coat Hooks', 'Storage Baskets', 'Shoe Rack']
+        };
+        
+        // Check for exact room matches first
+        if (suggestedItems[roomLower]) {
+          return suggestedItems[roomLower];
+        }
+        
+        // If no exact match, check if the room name contains any of the keys
+        for (const key in suggestedItems) {
+          if (roomLower.includes(key)) {
+            return suggestedItems[key];
+          }
+        }
+        
+        // Return empty array if no match found (no default suggestions)
+        return [];
+      }
+
+      /**
+       * Checks if an item already exists in the room items list
+       * @param {Array} roomItems - The items in the room
+       * @param {string} itemName - The name of the item to check
+       * @returns {boolean} - True if the item already exists
+       */
+      function itemExistsInRoom(roomItems, itemName) {
+        if (!roomItems || !Array.isArray(roomItems)) return false;
+        
+        return roomItems.some(item => {
+          // Case-insensitive comparison
+          return item.item && item.item.toLowerCase() === itemName.toLowerCase();
+        });
+      }
+
+      /**
+       * Adds a specific named item to a room
+       * @param {string} roomName - The name of the room to add the item to
+       * @param {string} itemName - The name of the item to add
+       */
+      function addSpecificItemToRoom(roomName, itemName) {
+        // Get current room items
+        const roomItems = dashboardItemData.itemsByRoom[roomName] || [];
+        
+        // Create new item object with temporary ID and the specified item name
+        const newItem = {
+          id: 'new_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9), // Temporary unique ID
+          room: roomName,
+          type: '', // This can be left blank for now or determined based on item name
+          item: itemName,
+          quantity: 1,
+          lowBudget: null,
+          highBudget: null,
+          lowBudgetTotal: null,
+          highBudgetTotal: null,
+          isNew: true // Flag to indicate this is a newly added item
+        };
+        
+        // Make sure the room container exists in the data structure
+        if (!dashboardItemData.itemsByRoom[roomName]) {
+          dashboardItemData.itemsByRoom[roomName] = [];
+        }
+        
+        // Add the new item to the room's items array
+        dashboardItemData.itemsByRoom[roomName].push(newItem);
+        
+        // Make sure it's also added to the main items array
+        dashboardItemData.items.push(newItem);
+        
+        // Get the container and add the new row
+        const container = document.getElementById(`items-${roomName.replace(/\s+/g, '-')}`);
+        const newIndex = dashboardItemData.itemsByRoom[roomName].length - 1;
+        const newRow = createItemRow(newItem, newIndex, roomName);
+        
+        // Add new row to the DOM
+        container.appendChild(newRow);
+        
+        // Focus on the type input since the item name is already set
+        setTimeout(() => {
+          const typeInput = newRow.querySelector('.type-input');
+          if (typeInput) {
+            typeInput.focus();
+          }
+        }, 100);
+        
+        // After adding, make sure the room is visible if it was filtered out
+        const currentFilter = document.getElementById('room-filter').value;
+        if (currentFilter !== 'all' && currentFilter !== roomName) {
+          // Switch the filter to the room where we just added an item
+          document.getElementById('room-filter').value = roomName;
+          filterRoomsInDashboard();
+        }
+        
+        // Update the budget summary row for this room
+        updateRoomBudgetDisplay(roomName);
+        
+        // Refresh the quick-add buttons to remove the one we just added
+        refreshQuickAddButtons(roomName);
+      }
+
+      /**
+       * Refreshes the quick-add buttons for a room to remove buttons for items that now exist
+       * @param {string} roomName - The name of the room to refresh buttons for
+       */
+      function refreshQuickAddButtons(roomName) {
+        const roomContainer = document.getElementById(`room-container-${roomName.replace(/\s+/g, '-')}`);
+        if (!roomContainer) return;
+        
+        const addMoreRow = roomContainer.querySelector('.add-more-row');
+        if (!addMoreRow) return;
+        
+        // Remove existing quick-add container
+        const existingContainer = addMoreRow.querySelector('.quick-add-container');
+        if (existingContainer) {
+          existingContainer.remove();
+        }
+        
+        // Get all suggested items for this room
+        const allSuggestedItems = getSuggestedItemsForRoom(roomName);
+        const roomItems = dashboardItemData.itemsByRoom[roomName] || [];
+        
+        // Filter out items that already exist in the room
+        const availableSuggestions = allSuggestedItems.filter(item => 
+          !itemExistsInRoom(roomItems, item)
+        );
+        
+        // Initialize visible items tracking if needed
+        if (!dashboardItemData.visibleSuggestedItems) {
+          dashboardItemData.visibleSuggestedItems = {};
+        }
+        
+        // If we don't have a list for this room or the list is empty, initialize it
+        if (!dashboardItemData.visibleSuggestedItems[roomName] || 
+            dashboardItemData.visibleSuggestedItems[roomName].length === 0) {
+          // Start with up to 5 items
+          dashboardItemData.visibleSuggestedItems[roomName] = availableSuggestions.slice(0, 5);
+        } else {
+          // Filter out any items that are no longer available
+          dashboardItemData.visibleSuggestedItems[roomName] = 
+            dashboardItemData.visibleSuggestedItems[roomName].filter(item => 
+              availableSuggestions.includes(item)
+            );
+          
+          // If we have less than 5 items, add more from available suggestions
+          if (dashboardItemData.visibleSuggestedItems[roomName].length < 5) {
+            // Find items that are available but not currently visible
+            const additionalSuggestions = availableSuggestions.filter(item => 
+              !dashboardItemData.visibleSuggestedItems[roomName].includes(item)
+            );
+            
+            // Add as many as needed to get to 5 (or as many as are available)
+            const neededCount = 5 - dashboardItemData.visibleSuggestedItems[roomName].length;
+            const itemsToAdd = additionalSuggestions.slice(0, neededCount);
+            
+            // Add them to the visible items
+            dashboardItemData.visibleSuggestedItems[roomName] = 
+              dashboardItemData.visibleSuggestedItems[roomName].concat(itemsToAdd);
+          }
+        }
+        
+        // Create a new container
+        const quickAddContainer = document.createElement('div');
+        quickAddContainer.className = 'quick-add-container';
+        
+        // Create buttons for all visible items (max 5)
+        dashboardItemData.visibleSuggestedItems[roomName].forEach(itemName => {
+          const quickAddButton = document.createElement('button');
+          quickAddButton.className = 'quick-add-btn';
+          quickAddButton.textContent = `Add ${itemName.toUpperCase()}`;
+          
+          // Add click handler
+          quickAddButton.addEventListener('click', function() {
+            addSpecificItemToRoom(roomName, itemName);
+          });
+          
+          quickAddContainer.appendChild(quickAddButton);
+        });
+        
+        // Only add the container if it has buttons
+        if (quickAddContainer.children.length > 0) {
+          addMoreRow.appendChild(quickAddContainer);
+        }
       }
 </script> 
