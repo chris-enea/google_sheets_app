@@ -1,5 +1,6 @@
-// Separate function to load folders
-function loadFolders(source = 'sidebar') {
+<script>
+
+  function loadFolders(source = 'sidebar') {
   // Only process sidebar requests - ignore 'main' source
   if (source !== 'sidebar') return;
   
@@ -243,3 +244,4 @@ function loadFolders(source = 'sidebar') {
     })
     .getDashboardData(folderId, projectName);
 }
+</script>

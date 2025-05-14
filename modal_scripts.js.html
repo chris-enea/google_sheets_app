@@ -32,10 +32,20 @@
             stateClass = 'loading-state';
             // Add rotating class for spinner effect if not handled purely by CSS
             container.innerHTML = `
-              <div class="${stateClass}">
-                <i class="material-icons rotating">${iconName}</i>
+              <div class="${stateClass}" style="display: flex; align-items: center; justify-content: center; padding: 20px; text-align: center;">
+                <i class="material-icons rotating" style="animation: spin 2s linear infinite; margin-right: 8px;">${iconName}</i>
                 <span>${message || defaultMessage}</span>
-              </div>`;
+              </div>
+              <style>
+                @keyframes spin {
+                  0% { transform: rotate(0deg); }
+                  100% { transform: rotate(360deg); }
+                }
+                .rotating {
+                  animation: spin 2s linear infinite;
+                }
+              </style>
+            `;
             break;
           case 'error':
             iconName = 'error_outline';
@@ -230,7 +240,20 @@
       function loadBudgetData() {
         const budgetDisplay = document.getElementById('budgetSummaryDisplay');
         if (!budgetDisplay) return;
-        renderUIState(budgetDisplay, 'loading', 'Loading budget data...');
+        
+        // Create a more visible loading animation
+        budgetDisplay.innerHTML = `
+          <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center;">
+            <i class="material-icons" style="font-size: 32px; margin-bottom: 15px; color: #26717D; animation: spin 2s linear infinite;">sync</i>
+            <span>Loading budget data...</span>
+          </div>
+          <style>
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          </style>
+        `;
         
         // Get the sheet ID from the project details modal
         const modal = document.getElementById('projectDetailsModal');
@@ -297,17 +320,22 @@
       }
       
       // Modified function to show room manager in either main content or sidebar
-      function showRoomManager(location = 'main') {
-        let containerId;
-        let loadingMessage = 'Loading rooms...';
-
-        if (location === 'main') {
-          document.getElementById('projectName').innerText = 'Room Manager';
-          containerId = 'fileContent'; 
-        } else if (location === 'sidebar') {
+      function showRoomManager(displayContext = 'main') {
+        // Store the original project name if not already stored
+        const projectNameElement = document.getElementById('projectName');
+        if (projectNameElement && !window.originalProjectName) {
+          window.originalProjectName = projectNameElement.innerText;
+        }
+        
+        // Update the page title
+        if (projectNameElement) {
+          projectNameElement.innerText = 'Room Manager';
+        }
+        
+        if (displayContext === 'sidebar') {
           containerId = 'sidebarRoomManagerContent';
         } else {
-          console.error('showRoomManager: Invalid location provided:', location);
+          console.error('showRoomManager: Invalid location provided:', displayContext);
           // Attempt to show error in a fallback location if main page structure is available
           const fallbackErrorDisplay = document.getElementById('fileContent') || document.body;
           renderUIState(fallbackErrorDisplay, 'error', 'Invalid operation: Cannot determine where to display Room Manager.');
@@ -317,7 +345,7 @@
         console.log('showRoomManager: containerId:', containerId);
 
         // At this point, containerId should be valid for 'main' or 'sidebar'
-        renderUIState(containerId, 'loading', loadingMessage);
+        renderUIState(containerId, 'loading', 'Loading rooms...');
         
         // Check if we need to pass a sheetId (especially for sidebar in project details)
         const modal = document.getElementById('projectDetailsModal');
@@ -602,8 +630,17 @@
 
       // New function to show the item update interface in the dashboard
       function showItemUpdateInDashboard(keepLoadingState = false) {
+        // Store the original project name if not already stored
+        const projectNameElement = document.getElementById('projectName');
+        if (projectNameElement && !window.originalProjectName) {
+          window.originalProjectName = projectNameElement.innerText;
+        }
+        
         // Update the page title
-        document.getElementById('projectName').innerText = 'Manage Items';
+        if (projectNameElement) {
+          projectNameElement.innerText = 'Manage Items';
+        }
+        
         const mainContentContainer = document.getElementById('fileContent');
         
         // Get the sheet ID from the project details modal
@@ -903,8 +940,16 @@
 
       // Function to preview file content in the main area
       function showFilePreview(file) {
+        // Store the original project name if not already stored
+        const projectNameElement = document.getElementById('projectName');
+        if (projectNameElement && !window.originalProjectName) {
+          window.originalProjectName = projectNameElement.innerText;
+        }
+        
         // Update the page title
-        document.getElementById('projectName').innerText = file.name;
+        if (projectNameElement) {
+          projectNameElement.innerText = file.name;
+        }
         
         // Show loading indicator in main content area
         const fileContent = document.getElementById('fileContent');
@@ -1336,14 +1381,38 @@
                 contentElement.classList.add('active');
                 
                 // Load specific content based on tab (ensure these functions exist and are accessible)
-                if (tabName === 'rooms') {
+                if (tabName === 'home') {
+                  if (typeof showWelcomeScreen === 'function') showWelcomeScreen(); else console.error('showWelcomeScreen function not found');
+                } else if (tabName === 'rooms') {
                   if (typeof showRoomManager === 'function') showRoomManager('sidebar'); else console.error('showRoomManager function not found');
                 } else if (tabName === 'folders') {
                   if (typeof loadFolders === 'function') loadFolders('sidebar'); else console.error('loadFolders function not found');
                 } else if (tabName === 'tasks') {
                   if (typeof loadAsanaTasks === 'function') loadAsanaTasks(); else console.error('loadAsanaTasks function not found');
                 } else if (tabName === 'budget') {
-                  if (typeof loadBudgetData === 'function') loadBudgetData();
+                  // Show loading state for budget before fetching
+                  const budgetDisplay = document.getElementById('budgetSummaryDisplay');
+                  if (budgetDisplay) {
+                    // Create a more visible loading animation
+                    budgetDisplay.innerHTML = `
+                      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center;">
+                        <i class="material-icons" style="font-size: 32px; margin-bottom: 15px; color: #26717D; animation: spin 2s linear infinite;">sync</i>
+                        <span>Loading budget data...</span>
+                      </div>
+                      <style>
+                        @keyframes spin {
+                          0% { transform: rotate(0deg); }
+                          100% { transform: rotate(360deg); }
+                        }
+                      </style>
+                    `;
+                  }
+                  
+                  // Small delay to ensure loading state is visible
+                  setTimeout(() => {
+                    if (typeof loadBudgetData === 'function') loadBudgetData();
+                    else console.error('loadBudgetData function not found');
+                  }, 10);
                 } // Add other tab-specific loading functions here if needed
               }
               
@@ -1704,52 +1773,10 @@
         saveButton.appendChild(saveIcon);
         saveButton.appendChild(document.createTextNode('Save All Items'));
         
-        // Create back button for the sticky container
-        const backButton = document.createElement('button');
-        backButton.className = 'btn btn-outline';
-        backButton.style.marginRight = '10px';
-        backButton.addEventListener('click', function() {
-          // First, activate the rooms tab in the sidebar
-          const roomsTab = document.querySelector('.sidebar-tab[data-tab="rooms"]');
-          if (roomsTab) {
-            // Remove active class from all tabs and contents
-            document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.sidebar-content').forEach(c => c.classList.remove('active'));
-            
-            // Add active class to rooms tab
-            roomsTab.classList.add('active');
-            
-            // Show the corresponding content
-            const contentElement = document.getElementById('rooms-content');
-            if (contentElement) {
-              contentElement.classList.add('active');
-            }
-            
-            // Expand the sidebar if it's collapsed
-            const sidebar = document.querySelector('.sidebar');
-            if (sidebar && sidebar.classList.contains('collapsed')) {
-              sidebar.classList.remove('collapsed');
-              const sidebarToggle = document.getElementById('sidebarToggle');
-              if (sidebarToggle) {
-                const toggleIcon = sidebarToggle.querySelector('.material-icons');
-                if (toggleIcon) toggleIcon.textContent = 'chevron_left';
-                sidebarToggle.classList.remove('collapsed');
-              }
-            }
-          }
-          
-          // Then show the room manager in the main content
-          showRoomManager();
-        });
+        // Then show the room manager in the main content
+        showRoomManager();
         
-        const backIcon = document.createElement('i');
-        backIcon.className = 'material-icons';
-        backIcon.textContent = 'arrow_back';
-        backIcon.style.marginRight = '5px';
-        
-        backButton.appendChild(backIcon);
-        backButton.appendChild(document.createTextNode('Back to Rooms'));
-        
+       
         // Create actions container in the sticky header
         const actionsContainer = document.createElement('div');
         actionsContainer.style.display = 'flex';
