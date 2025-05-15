@@ -776,6 +776,7 @@ h2 .material-icons:hover {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  width: 130px;
 }
 
 .room-name {
@@ -1102,7 +1103,7 @@ input[type="text"], input[type="number"] {
 
 .budget-input-container {
   position: relative;
-  width: 110px;
+  width: 130px;
 }
 
 .budget-input {
@@ -2660,7 +2661,7 @@ body.loading-active {
   max-width: 700px !important;
 }
  
-#settingsModal .modal-body {
+#addProjectModal .modal-body {
   padding: 15px;
 }
 
@@ -2686,5 +2687,35 @@ body.loading-active {
   flex-wrap: wrap;
   gap: 8px;
   margin-left: 10px;
+}
+
+#frappeGantt .gantt {
+  /* overflow: visible !important; /* Might be needed if the SVG itself clips sticky elements */
+}
+
+/* Gantt chart sticky header */
+#frappeGantt .gantt-container {
+  overflow-y: auto; /* Ensure this container is scrollable if not already */
+  position: relative; /* Needed for sticky positioning of children if they were HTML */
+}
+
+#frappeGantt .gantt .grid-header {
+  position: -webkit-sticky; /* For Safari */
+  position: sticky;
+  top: 0;
+  z-index: 10; /* Ensure it\'s above other grid elements */
+  /* fill: white; */ /* Or whatever the original background color is, to avoid transparency issues */
+}
+
+#frappeGantt .gantt .date {
+  position: -webkit-sticky; /* For Safari */
+  position: sticky;
+  top: 0;
+  z-index: 11; /* Ensure it\'s above the grid-header background */
+}
+
+/* Adjustments to ensure the main SVG area doesn\'t overlap or get hidden */
+#frappeGantt .gantt {
+  /* overflow: visible !important; /* Might be needed if the SVG itself clips sticky elements */
 }
 </style>

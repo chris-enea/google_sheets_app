@@ -6,17 +6,6 @@
         document.getElementById('asanaPat').value = data.asanaToken || '';
         document.getElementById('sheetId').value = data.sheetId || '';
         document.getElementById('projectColor').value = data.projectColor || '#26717D';
-         // Set header color on open
-        var colorInput = document.getElementById('projectColorInput');
-        var header = document.querySelector('#addProjectModal .modal-header, #addProjectModal h2.modal-header');
-        if (colorInput && header) {
-          header.style.backgroundColor = colorInput.value;
-          header.style.color = '#fff';
-          // Update header color live
-          colorInput.addEventListener('input', function() {
-            header.style.backgroundColor = colorInput.value;
-          });
-        }
       }).getSettings();
     }
     function closeSettingsDialog() {
@@ -82,6 +71,8 @@
     let ganttData = null; // Store the original task data
     let ganttObserver = null; // MutationObserver for detecting chart rendering
     let currentProjectFilter = 'all'; // Track the currently selected project filter
+    let activeGanttScrollHandler = null; // For sticky header JS
+    let ganttStructureObserver = null; // New observer for SVG structure
     
     function setGanttViewMode(mode) {
       ganttViewMode = mode;
@@ -111,31 +102,201 @@
       }
     }
     
-    // Set up observer to detect when Gantt chart has been rendered to the DOM
+    // bringHeaderElementsToFrontV4.2: Corrects internal order within the overlay group.
+    function bringHeaderElementsToFrontV4() { 
+        console.log('[DEBUG] Sticky Gantt (Overlay V4.2): CALLED.');
+        const svg = document.querySelector('#frappeGantt .gantt');
+        if (!svg) {
+            console.warn('[DEBUG] Sticky Gantt (Overlay V4.2): SVG element not found.');
+            return;
+        }
+
+        let headerOverlayGroup = svg.querySelector('#ganttHeaderOverlay');
+        if (!headerOverlayGroup) {
+            console.log('[DEBUG] Sticky Gantt (Overlay V4.2): Creating #ganttHeaderOverlay group.');
+            headerOverlayGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            headerOverlayGroup.setAttribute('id', 'ganttHeaderOverlay');
+            // Add to SVG early so it exists, its final position is set later.
+            svg.appendChild(headerOverlayGroup); 
+        }
+
+        const mainGridGroupForHeaderParts = svg.querySelector('g.grid:not(#ganttHeaderOverlay g.grid)');
+        const dateGroup = svg.querySelector('g.date:not(#ganttHeaderOverlay g.date)');
+
+        // Order within overlay: 1. grid-header (background), 2. Ticks, 3. Date texts
+        if (mainGridGroupForHeaderParts) {
+            const gridHeaderRect = mainGridGroupForHeaderParts.querySelector('rect.grid-header');
+            if (gridHeaderRect && gridHeaderRect.parentNode !== headerOverlayGroup) {
+                 console.log('[DEBUG] Sticky Gantt (Overlay V4.2): Moving rect.grid-header into #ganttHeaderOverlay (first).');
+                 // Ensure it's first if overlay already has children
+                 if (headerOverlayGroup.firstChild) {
+                    headerOverlayGroup.insertBefore(gridHeaderRect, headerOverlayGroup.firstChild);
+                 } else {
+                    headerOverlayGroup.appendChild(gridHeaderRect);
+                 }
+            }
+            const tickPaths = mainGridGroupForHeaderParts.querySelectorAll('path.tick, path.thick');
+            tickPaths.forEach(tick => {
+                if (tick.parentNode !== headerOverlayGroup) {
+                    // console.log('[DEBUG] Sticky Gantt (Overlay V4.2): Moving a tick path into #ganttHeaderOverlay.');
+                    headerOverlayGroup.appendChild(tick); // Ticks after grid-header background
+                }
+            });
+        } else {
+             console.warn('[DEBUG] Sticky Gantt (Overlay V4.2): Main g.grid (for header parts) not found. Some header elements might be missing.');
+        }
+
+        if (dateGroup && dateGroup.parentNode !== headerOverlayGroup) {
+            console.log('[DEBUG] Sticky Gantt (Overlay V4.2): Moving g.date into #ganttHeaderOverlay (last within overlay).');
+            headerOverlayGroup.appendChild(dateGroup); // Date texts last, so they are on top of ticks and grid-header rect
+        }
+        
+        // Order of main groups: .grid, then .bar, then #ganttHeaderOverlay
+        const mainGridForOrder = svg.querySelector('g.grid:not(#ganttHeaderOverlay g.grid)');
+        const barGroup = svg.querySelector('g.bar');
+
+        if (mainGridForOrder) {
+            // console.log('[DEBUG] Sticky Gantt (Overlay V4.2): Ensuring main g.grid is appended (for under-bar rendering).');
+            svg.appendChild(mainGridForOrder); 
+        }
+        if (barGroup) {
+            // console.log('[DEBUG] Sticky Gantt (Overlay V4.2): Ensuring g.bar is appended after main g.grid.');
+            svg.appendChild(barGroup);
+        }
+        // console.log('[DEBUG] Sticky Gantt (Overlay V4.2): Ensuring #ganttHeaderOverlay is last SVG child.');
+        svg.appendChild(headerOverlayGroup);
+    }
+
+    // ensureHeaderOverlayIsLastPersistentV3: Simplified observer, only manages #ganttHeaderOverlay position.
+    function ensureHeaderOverlayIsLastPersistentV3() {
+        const svg = document.querySelector('#frappeGantt .gantt');
+        if (!svg) {
+            console.warn('[Sticky Header Sync V3] Main SVG not found to observe.');
+            return;
+        }
+        if (ganttStructureObserver) {
+            ganttStructureObserver.disconnect(); 
+        }
+        ganttStructureObserver = new MutationObserver((mutationsList, observer) => {
+            const headerOverlayGroup = svg.querySelector('#ganttHeaderOverlay');
+            if (headerOverlayGroup && svg.lastChild !== headerOverlayGroup) {
+                console.log('[Sticky Header Sync V3] #ganttHeaderOverlay is not last child. Re-appending.');
+                // No delay needed here, just fix it.
+                svg.appendChild(headerOverlayGroup);
+            }
+            // We don't disconnect and reconnect here; just let it keep observing.
+            // It only acts if the overlay group is present but not last.
+        });
+        ganttStructureObserver.observe(svg, { childList: true });
+        console.log('[Sticky Header Sync V3] Persistent observer set up for #ganttHeaderOverlay position.');
+        
+        // Initial check/fix after setup, as observer only triggers on *changes*
+        // Use a small delay to ensure it runs after any immediate post-setup DOM settlements
+        setTimeout(() => {
+            const stillSvg = document.querySelector('#frappeGantt .gantt');
+            if (stillSvg) {
+                 const overlay = stillSvg.querySelector('#ganttHeaderOverlay');
+                 if (overlay && stillSvg.lastChild !== overlay) {
+                    console.log('[Sticky Header Sync V3] Initial check: #ganttHeaderOverlay not last. Re-appending.');
+                    stillSvg.appendChild(overlay);
+                 }
+            }
+        }, 50); // Small delay for initial check
+    }
+
+    // REVISED makeGanttHeaderSticky (V4 - selectors find elements in overlay)
+    function makeGanttHeaderSticky() {
+      let scrollContainer = document.getElementById('frappeGantt'); 
+      if (!scrollContainer || (getComputedStyle(scrollContainer).overflowY !== 'auto' && getComputedStyle(scrollContainer).overflowY !== 'scroll')) {
+        // console.warn('Sticky Gantt: #frappeGantt is not primary scroll. Fallback to .gantt-container.');
+        scrollContainer = document.querySelector('#frappeGantt .gantt-container');
+      }
+      if (!scrollContainer) {
+        console.error('Sticky Gantt: No suitable scroll container found.');
+        return;
+      }
+      if (activeGanttScrollHandler) {
+        if (activeGanttScrollHandler.container && typeof activeGanttScrollHandler.container.removeEventListener === 'function') {
+            activeGanttScrollHandler.container.removeEventListener('scroll', activeGanttScrollHandler.handler);
+        }
+        activeGanttScrollHandler = null;
+      }
+      const handleScroll = () => {
+        // Select elements from within the overlay group or the SVG root
+        const currentGridHeader = document.querySelector('#ganttHeaderOverlay rect.grid-header, #frappeGantt .gantt rect.grid-header'); 
+        const currentDateGroup = document.querySelector('#ganttHeaderOverlay g.date, #frappeGantt .gantt g.date');
+        // Also make ticks sticky if they are in the overlay
+        const currentTicks = document.querySelectorAll('#ganttHeaderOverlay path.tick, #ganttHeaderOverlay path.thick');
+
+        if (!currentDateGroup) { // gridHeader is optional if ticks are primary
+          // console.warn('Sticky Gantt: Date group not found for sticky scroll.');
+          return;
+        }
+        const scrollTop = scrollContainer.scrollTop;
+
+        if (currentGridHeader) {
+            currentGridHeader.setAttribute('y', scrollTop);
+        }
+        currentDateGroup.style.transform = `translateY(${scrollTop}px)`;
+        
+        // Apply transform to ticks as well if they are being managed for stickiness
+        currentTicks.forEach(tick => {
+            tick.style.transform = `translateY(${scrollTop}px)`;
+        });
+      };
+      scrollContainer.addEventListener('scroll', handleScroll);
+      activeGanttScrollHandler = { handler: handleScroll, container: scrollContainer }; 
+      requestAnimationFrame(() => { handleScroll(); }); // Initial position update
+      console.log('Sticky Gantt (V4): Header stickiness initialized/re-initialized.');
+    }
+
+    // MODIFIED setupGanttObserver (V2.5 - uses V4 functions)
     function setupGanttObserver() {
-      // Disconnect existing observer if there is one
       if (ganttObserver) {
         ganttObserver.disconnect();
       }
-      
-      // Create new observer
       ganttObserver = new MutationObserver((mutations) => {
-        const ganttContainer = document.querySelector('#frappeGantt .gantt');
-        if (ganttContainer && ganttInstance) {
-          // Chart has been rendered, apply colors
-          console.log('Gantt chart rendered - applying colors');
-          // Stop observing once we've found the chart
-          ganttObserver.disconnect();
-          // Apply colors
+        const ganttSVGRoot = document.querySelector('#frappeGantt .gantt'); 
+        if (ganttSVGRoot && ganttInstance) { 
+          console.log('Gantt chart rendered - initial setup (V2.5).');
+          ganttObserver.disconnect(); 
+
+          if (ganttStructureObserver) ganttStructureObserver.disconnect();
+
           colorizeGanttBars();
+          // Call V4 of makeGanttHeaderSticky
+          makeGanttHeaderSticky(); 
+          
+          setTimeout(() => { 
+            console.log('[Setup V2.5] Post-colorize/sticky: Initializing Overlay V4.');
+            bringHeaderElementsToFrontV4(); 
+            ensureHeaderOverlayIsLastPersistentV3(); // V3 of this is fine, just ensures overlay is last
+          }, 300); 
         }
       });
-      
-      // Start observing
       const frappeGantt = document.getElementById('frappeGantt');
       if (frappeGantt) {
         ganttObserver.observe(frappeGantt, { childList: true, subtree: true });
       }
+    }
+    
+    // MODIFIED updateGanttView (V2.5 - uses V4 functions)
+    function updateGanttView() {
+      if (!ganttInstance) return;
+      ganttInstance.change_view_mode(ganttViewMode);
+      setTimeout(() => {
+        if (ganttStructureObserver) ganttStructureObserver.disconnect();
+
+        colorizeGanttBars();
+        // Call V4 of makeGanttHeaderSticky
+        makeGanttHeaderSticky(); 
+
+        setTimeout(() => { 
+            console.log('[UpdateView V2.5] Post-colorize/sticky: Initializing Overlay V4.');
+            bringHeaderElementsToFrontV4(); 
+            ensureHeaderOverlayIsLastPersistentV3(); // V3 of this is fine
+        }, 300); 
+      }, 450);
     }
     
     function loadFrappeGantt() {
@@ -977,17 +1138,6 @@
         errorElement.textContent = message;
         errorElement.style.display = 'block';
       }
-    }
-    
-    function updateGanttView() {
-      if (!ganttInstance) return;
-      
-      ganttInstance.change_view_mode(ganttViewMode);
-      
-      // Re-apply colors after view mode change
-      setTimeout(() => {
-        colorizeGanttBars();
-      }, 300);
     }
     
     function colorizeGanttBars() {

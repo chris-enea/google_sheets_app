@@ -1412,7 +1412,7 @@ function getRooms() {
           
           if (item) {
             // Create a combined string with type info if available
-            const combined = type ? `${type} - ${item}` : item;
+            const combined = type ? `${type} : ${item}` : item;
             
             // Only add if not already in the set (avoid duplicates)
             if (!uniqueItems.has(combined)) {

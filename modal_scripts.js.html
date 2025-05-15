@@ -1801,7 +1801,7 @@
           if (dashboardItemData.availableItems && Array.isArray(dashboardItemData.availableItems)) {
             dashboardItemData.combinedItems = dashboardItemData.availableItems.map(item => {
               if (typeof item === 'string') return item;
-              return item.type && item.item ? `${item.type} | ${item.item}` : (item.item || '');
+              return item.type && item.item ? `${item.type} : ${item.item}` : (item.item || '');
             });
             console.log('Created combinedItems with', dashboardItemData.combinedItems.length, 'items');
           } else {
@@ -2066,14 +2066,14 @@
           dashboardItemData.visibleSuggestedItems[room] = availableSuggestions.slice(0, 5);
           
           // Create buttons for the visible items (max 5)
-          dashboardItemData.visibleSuggestedItems[room].forEach(itemName => {
+          dashboardItemData.visibleSuggestedItems[room].forEach(itemObj => { // itemObj is now an object {name, type?}
             const quickAddButton = document.createElement('button');
             quickAddButton.className = 'quick-add-btn';
-            quickAddButton.textContent = `Add ${itemName.toUpperCase()}`;
+            quickAddButton.textContent = `Add ${itemObj.name}`;
             
             // Add click handler to add this specific item
             quickAddButton.addEventListener('click', function() {
-              addSpecificItemToRoom(room, itemName);
+              addSpecificItemToRoom(room, itemObj.name, itemObj.type); // Pass name and type
             });
             
             quickAddContainer.appendChild(quickAddButton);
@@ -2471,7 +2471,13 @@
             }
           }
         } else {
-          item[field] = value;
+          // For 'item' and 'type' fields, convert to uppercase
+          if (field === 'item' || field === 'type') {
+            item[field] = value.toUpperCase();
+          } else {
+            // For any other fields (though not expected here for string values other than item/type)
+            item[field] = value;
+          }
         }
         
         console.log('Item after update:', JSON.stringify(item));
@@ -2767,7 +2773,7 @@
         const index = lastActiveInput.getAttribute('data-index');
         
         // Extract item parts (type and name) from combined format
-        const parts = value.split(' - ');
+        const parts = value.split(' : ');
         
         // Update the input field with just the item name
         lastActiveInput.value = parts.length > 1 ? parts[1] : value;
@@ -3084,9 +3090,9 @@
         
         // Update the budget summary content
         budgetSummaryRow.innerHTML = `
-          <div style="margin-right: 70px;">Room Totals:</div>
-          <div style="width: 110px; text-align: right;">$${formatCurrency(roomTotals.lowTotal)}</div>
-          <div style="width: 110px; text-align: right;">$${formatCurrency(roomTotals.highTotal)}</div>
+          <div style="margin-right: 50px;">Room Totals:</div>
+          <div style="width: 130px; text-align: right;">$${formatCurrency(roomTotals.lowTotal)}</div>
+          <div style="width: 130px; text-align: right;">$${formatCurrency(roomTotals.highTotal)}</div>
           <div style="width: 100px;"></div>
         `;
       }
@@ -3116,18 +3122,48 @@
       function getSuggestedItemsForRoom(roomName) {
         const roomLower = roomName.toLowerCase();
         const suggestedItems = {
-          'living room': ['Sofa', 'Coffee Table', 'Side Table', 'Rug', 'TV Console', 'Armchair', 'Floor Lamp'],
-          'dining room': ['Dining Table', 'Dining Chairs', 'Buffet', 'Chandelier', 'Rug', 'Bar Cart'],
-          'kitchen': ['Bar Stools', 'Pendant Lights', 'Kitchen Island', 'Rack', 'Storage Container'],
-          'bedroom': ['Bed', 'Nightstand', 'Dresser', 'Armoire', 'Bench', 'Table Lamp', 'Rug'],
-          'bathroom': ['Mirror', 'Vanity', 'Shower Curtain', 'Bath Mat', 'Storage Cabinet'],
-          'office': ['Desk', 'Office Chair', 'Bookshelf', 'Desk Lamp', 'Filing Cabinet'],
-          'entryway': ['Console Table', 'Mirror', 'Bench', 'Coat Rack', 'Rug'],
-          'hallway': ['Runner Rug', 'Console Table', 'Wall Sconce'],
-          'guest room': ['Bed', 'Nightstand', 'Dresser', 'Mirror', 'Luggage Rack'],
-          'nursery': ['Crib', 'Changing Table', 'Rocking Chair', 'Dresser', 'Rug'],
-          'playroom': ['Storage Unit', 'Play Table', 'Rug', 'Bookshelf', 'Seating'],
-          'mudroom': ['Bench', 'Coat Hooks', 'Storage Baskets', 'Shoe Rack']
+          'living room': [
+            { name: 'Sofa' }, { name: 'Coffee Table' }, { name: 'Side Table' }, { name: 'Rug' }, 
+            { name: 'TV Console' }, { name: 'Armchair' }, { name: 'Floor Lamp', type: 'Lighting' }
+          ],
+          'dining room': [
+            { name: 'Dining Table', type: 'Tables' }, { name: 'Dining Chairs', type: 'FURNITURE - SOFT GOODS' }, { name: 'Buffet', type: 'Furniture - Soft Goods' },
+            { name: 'Chandelier', type: 'Lighting' }, { name: 'Rug', type: 'Decor - Soft Goods' }, { name: 'Framed Art', type: 'Other Decor' }
+          ],
+          'kitchen': [
+            { name: 'Bar Stools' }, { name: 'Pendant Lights', type: 'Lighting' }, { name: 'Kitchen Island' }, 
+            { name: 'Rack' }, { name: 'Storage Container' }
+          ],
+          'bedroom': [
+            { name: 'Bed' }, { name: 'Nightstand' }, { name: 'Dresser' }, { name: 'Armoire' }, 
+            { name: 'Bench' }, { name: 'Table Lamp', type: 'Lighting' }, { name: 'Rug' }
+          ],
+          'bathroom': [
+            { name: 'Mirror' }, { name: 'Vanity' }, { name: 'Shower Curtain' }, { name: 'Bath Mat' }, 
+            { name: 'Storage Cabinet' }
+          ],
+          'office': [
+            { name: 'Desk' }, { name: 'Office Chair' }, { name: 'Bookshelf' }, 
+            { name: 'Desk Lamp', type: 'Lighting' }, { name: 'Filing Cabinet' }
+          ],
+          'entryway': [
+            { name: 'Console Table' }, { name: 'Mirror' }, { name: 'Bench' }, { name: 'Coat Rack' }, { name: 'Rug' }
+          ],
+          'hallway': [
+            { name: 'Runner Rug' }, { name: 'Console Table' }, { name: 'Wall Sconce', type: 'Lighting' }
+          ],
+          'guest room': [
+            { name: 'Bed' }, { name: 'Nightstand' }, { name: 'Dresser' }, { name: 'Mirror' }, { name: 'Luggage Rack' }
+          ],
+          'nursery': [
+            { name: 'Crib' }, { name: 'Changing Table' }, { name: 'Rocking Chair' }, { name: 'Dresser' }, { name: 'Rug' }
+          ],
+          'playroom': [
+            { name: 'Storage Unit' }, { name: 'Play Table' }, { name: 'Rug' }, { name: 'Bookshelf' }, { name: 'Seating' }
+          ],
+          'mudroom': [
+            { name: 'Bench' }, { name: 'Coat Hooks' }, { name: 'Storage Baskets' }, { name: 'Shoe Rack' }
+          ]
         };
         
         // Check for exact room matches first
@@ -3152,12 +3188,12 @@
        * @param {string} itemName - The name of the item to check
        * @returns {boolean} - True if the item already exists
        */
-      function itemExistsInRoom(roomItems, itemName) {
+      function itemExistsInRoom(roomItems, suggestedItemObject) {
         if (!roomItems || !Array.isArray(roomItems)) return false;
         
-        return roomItems.some(item => {
+        return roomItems.some(roomItem => {
           // Case-insensitive comparison
-          return item.item && item.item.toLowerCase() === itemName.toLowerCase();
+          return roomItem.item && roomItem.item.toLowerCase() === suggestedItemObject.name.toLowerCase();
         });
       }
 
@@ -3166,7 +3202,7 @@
        * @param {string} roomName - The name of the room to add the item to
        * @param {string} itemName - The name of the item to add
        */
-      function addSpecificItemToRoom(roomName, itemName) {
+      function addSpecificItemToRoom(roomName, itemName, itemType = '') {
         // Get current room items
         const roomItems = dashboardItemData.itemsByRoom[roomName] || [];
         
@@ -3174,8 +3210,8 @@
         const newItem = {
           id: 'new_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9), // Temporary unique ID
           room: roomName,
-          type: '', // This can be left blank for now or determined based on item name
-          item: itemName,
+          type: itemType ? itemType.toUpperCase() : '', // Convert to uppercase, ensure empty string if no type
+          item: itemName.toUpperCase(),             // Convert item name to uppercase
           quantity: 1,
           lowBudget: null,
           highBudget: null,
@@ -3291,14 +3327,14 @@
         quickAddContainer.className = 'quick-add-container';
         
         // Create buttons for all visible items (max 5)
-        dashboardItemData.visibleSuggestedItems[roomName].forEach(itemName => {
+        dashboardItemData.visibleSuggestedItems[roomName].forEach(itemObj => { // itemObj is now an object {name, type?}
           const quickAddButton = document.createElement('button');
           quickAddButton.className = 'quick-add-btn';
-          quickAddButton.textContent = `Add ${itemName.toUpperCase()}`;
+          quickAddButton.textContent = `Add ${itemObj.name}`;
           
           // Add click handler
           quickAddButton.addEventListener('click', function() {
-            addSpecificItemToRoom(roomName, itemName);
+            addSpecificItemToRoom(roomName, itemObj.name, itemObj.type); // Pass name and type
           });
           
           quickAddContainer.appendChild(quickAddButton);
