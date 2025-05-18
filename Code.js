@@ -6,34 +6,6 @@ function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
-function doGet(e) {
-  const page = e.parameter.page || 'dashboard';
-  const id = e.parameter.id || null;
-  
-  let template;
-  
-  switch (page.toLowerCase()) {
-    case 'project':
-      template = HtmlService.createTemplateFromFile('Project_Details');
-      template.projectId = id;
-      break;
-    case 'gantt':
-      template = HtmlService.createTemplateFromFile('Dashboard');
-      template.mode = 'gantt';
-      template.projectId = id;
-      break;
-    default:
-      template = HtmlService.createTemplateFromFile('Dashboard');
-      template.mode = 'dashboard';
-  }
-  
-  // Return the evaluated template as an HtmlOutput object
-  const output = template.evaluate()
-    .setTitle('Project Management Dashboard')
-  
-  return output;
-}
-
 function getSettings() {
   var props = PropertiesService.getScriptProperties();
   return {

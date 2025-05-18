@@ -370,10 +370,10 @@
 
         renderUIState(targetContainer, 'loading', 'Loading rooms...');
         
-        // Get the sheet ID from the project details modal
-        const modal = document.getElementById('projectDetailsModal');
-        const sheetId = modal ? modal.getAttribute('data-sheet-id') : null;
-        
+        // Get the sheet ID from the script properties
+        const dialog = document.querySelector('.app-container');
+        const sheetId = dialog ? dialog.getAttribute('data-sheet-id') : null;
+
         console.log('showRoomManager: found sheetId:', sheetId);
         
         // Always pass sheetId, as this function is now sidebar-specific
@@ -495,10 +495,10 @@
           showDashboardLoading('Saving selected rooms...');
         } else {
           // Show loading state for the button in sidebar
-          const saveButton = document.querySelector('#sidebarRoomManagerContent .sidebar-action-buttons button'); // More specific selector
+          const saveButton = document.querySelector('#sidebarRoomManagerContent .sidebar-action-buttons button[title="Save"]'); // Target specifically the Save button
           if (saveButton) {
-            const originalButtonHtml = '<i class="material-icons">arrow_forward</i>';
-            const loadingButtonHtml = '<i class="material-icons rotating">sync</i>';
+            const originalButtonHtml = '<i class="material-icons">save</i> Save';
+            const loadingButtonHtml = '<i class="material-icons rotating">sync</i> Saving...';
             _setButtonLoadingState(saveButton, true, loadingButtonHtml, originalButtonHtml);
           }
         }
@@ -510,9 +510,9 @@
               hideDashboardLoading();
             } else {
               // Restore button state in sidebar
-              const saveButton = document.querySelector('#sidebarRoomManagerContent .sidebar-action-buttons button'); // More specific selector
+              const saveButton = document.querySelector('#sidebarRoomManagerContent .sidebar-action-buttons button[title="Save"]'); // Target specifically the Save button
               if (saveButton) {
-                const originalButtonHtml = '<i class="material-icons">arrow_forward</i>';
+                const originalButtonHtml = '<i class="material-icons">save</i> Save';
                 _setButtonLoadingState(saveButton, false, '', originalButtonHtml);
               }
             }
@@ -534,9 +534,9 @@
               hideDashboardLoading();
             } else {
               // Restore button state in sidebar
-              const saveButton = document.querySelector('#sidebarRoomManagerContent .sidebar-action-buttons button'); // More specific selector
+              const saveButton = document.querySelector('#sidebarRoomManagerContent .sidebar-action-buttons button[title="Save"]'); // Target specifically the Save button
               if (saveButton) {
-                const originalButtonHtml = '<i class="material-icons">arrow_forward</i>';
+                const originalButtonHtml = '<i class="material-icons">save</i> Save';
                 _setButtonLoadingState(saveButton, false, '', originalButtonHtml);
               }
             }
@@ -884,14 +884,8 @@
       }
 
       // Load dashboard when page opens
-      document.addEventListener('DOMContentLoaded', function() {
-        loadBudgetData();
-        
-        // Check if we're on a page with the Project Details modal and initialize sidebar if so
-        const projectDetailsModal = document.getElementById('projectDetailsModal');
-        if (projectDetailsModal) {
-          initializeProjectDetailsSidebarInteractions();
-        }
+      document.addEventListener('DOMContentLoaded', function() {     
+        initializeProjectDetailsSidebarInteractions();
       });
 
       // Functions for Project_Details_.html
@@ -1210,19 +1204,20 @@
         });
         
         // Add save button
-        const saveButton = document.createElement('button');
-        saveButton.className = 'btn room-save-btn';
-        saveButton.innerHTML = '<i class="material-icons">save</i> Save Selection';
-        saveButton.onclick = function() {
-          saveRoomsSelection(container);
-        };
+        // const saveButton = document.createElement('button');
+        // saveButton.className = 'btn room-save-btn';
+        // saveButton.innerHTML = '<i class="material-icons">save</i> Save Selection';
+        // saveButton.onclick = function() {
+        //   saveRoomsSelection(container);
+        // };
         
-        container.appendChild(saveButton);
+        //container.appendChild(saveButton);
       }
       
       // Function to save selected rooms
       function saveRoomsSelection(container) {
-        const checkboxes = container.querySelectorAll('input[type="checkbox"]:checked');
+        const containerName = container || document.getElementById('sidebarRoomList');
+        const checkboxes = containerName.querySelectorAll('input[type="checkbox"]:checked');
         const selectedRooms = Array.from(checkboxes).map(cb => cb.getAttribute('data-room'));
         
         if (selectedRooms.length === 0) {
@@ -1230,17 +1225,8 @@
           return;
         }
         
-        // Get sheet ID from modal
-        const modal = document.getElementById('projectDetailsModal');
-        const sheetId = modal ? modal.getAttribute('data-sheet-id') : null;
-        
-        if (!sheetId) {
-          alert('Sheet ID not available');
-          return;
-        }
-        
         // Show loading state
-        const saveBtn = container.querySelector('.room-save-btn');
+        const saveBtn = containerName.querySelector('.room-save-btn');
         if (saveBtn) {
           // Store original HTML, assuming it's <i class="material-icons">save</i> Save Selection
           // This could be made more robust by storing on the element or if it varies.
@@ -1272,7 +1258,7 @@
             
             alert('Error saving rooms: ' + error);
           })
-          .saveSelectedRoomsOnly(selectedRooms, sheetId);
+          .saveSelectedRoomsOnly(selectedRooms);
       }
 
       // Assuming handleBudgetError function exists or will be created:
@@ -1297,7 +1283,7 @@
        */
       function initializeProjectDetailsSidebarInteractions() {
         console.log('Initializing Project Details sidebar interactions...');
-        const modal = document.getElementById('projectDetailsModal');
+        const modal = document.querySelector('.app-container');
         if (!modal) {
           console.error('Project Details Modal not found. Cannot initialize sidebar interactions.');
           return;
@@ -1562,40 +1548,18 @@
           </div>
         `;
         
-        // Get sheet ID from the project details modal
-        const modal = document.getElementById('projectDetailsModal');
-        const sheetId = modal ? modal.getAttribute('data-sheet-id') : null;
-        
-        console.log('loadSidebarRoomManager: found sheetId:', sheetId);
-        
-        // Call server to get rooms data with sheetId if available
-        if (sheetId) {
-            google.script.run
-            .withSuccessHandler(function(result) {
-              console.log('getRoomsForDashboard result with sheetId in loadSidebarRoomManager:', result);
-              renderSidebarRoomManager(result);
-            })
-            .withFailureHandler(function(error) {
-              document.getElementById('sidebarRoomManagerContent').innerHTML = `
-                <div class="error-box" style="margin: 10px;">
-                  <strong>Error:</strong> ${error.error || error}
-                </div>`;
-            })
-            .getRoomsForDashboard(sheetId);
-                } else {
-          // Fallback to no sheetId if not available
-          google.script.run
-            .withSuccessHandler(function(result) {
-              renderSidebarRoomManager(result);
-            })
-            .withFailureHandler(function(error) {
-              document.getElementById('sidebarRoomManagerContent').innerHTML = `
-                <div class="error-box" style="margin: 10px;">
-                  <strong>Error:</strong> ${error.error || error}
-                </div>`;
-            })
-            .getRoomsForDashboard();
-        }
+        // Fallback to no sheetId if not available
+        google.script.run
+          .withSuccessHandler(function(result) {
+            renderSidebarRoomManager(result);
+          })
+          .withFailureHandler(function(error) {
+            document.getElementById('sidebarRoomManagerContent').innerHTML = `
+              <div class="error-box" style="margin: 10px;">
+                <strong>Error:</strong> ${error.error || error}
+              </div>`;
+          })
+          .getRoomsForDashboard();
       }
       
       // Render the room manager UI in the sidebar
@@ -1617,25 +1581,23 @@
         // Reset the content first
         document.getElementById('sidebarRoomManagerContent').innerHTML = `
           <div id="sidebarRoomList" class="room-checklist">
-          </div>
+          </div>`;
+
+          // <div class="add-room-container">
+          //   <div class="add-room-heading" style="font-weight: 500; margin-bottom: 12px; color: #26717D;">Add New Room</div>
+          //   <div style="display: flex; flex-direction: column; gap: 8px;">
+          //     <input type="text" id="newRoomNameSidebar" placeholder="Enter room name" style="width: 100%;">
+          //     <button onclick="addNewRoomFromSidebar()" class="btn" style="align-self: flex-start;">
+          //       <i class="material-icons" style="margin-right: 8px;">add</i> Add Room
+          //     </button>
+          //   </div>
+          // </div>
+          // <div id="sidebarStatusMessage" class="status-message" style="display: none;"></div>
           
-          <div class="add-room-container">
-            <div class="add-room-heading" style="font-weight: 500; margin-bottom: 12px; color: #26717D;">Add New Room</div>
-            <div style="display: flex; flex-direction: column; gap: 8px;">
-              <input type="text" id="newRoomNameSidebar" placeholder="Enter room name" style="width: 100%;">
-              <button onclick="addNewRoomFromSidebar()" class="btn" style="align-self: flex-start;">
-                <i class="material-icons" style="margin-right: 8px;">add</i> Add Room
-              </button>
-            </div>
-          </div>
-          
-          <div id="sidebarStatusMessage" class="status-message" style="display: none;"></div>
-          
-          <div id="roomsSavingOverlay" class="saving-overlay" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255,255,255,0.7); z-index: 100; justify-content: center; align-items: center; flex-direction: column;">
-            <i class="material-icons rotating" style="font-size: 32px; margin-bottom: 16px; color: #26717D;">sync</i>
-            <div style="font-weight: 500;">Saving rooms...</div>
-                      </div>
-                    `;
+          // <div id="roomsSavingOverlay" class="saving-overlay" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255,255,255,0.7); z-index: 100; justify-content: center; align-items: center; flex-direction: column;">
+          //   <i class="material-icons rotating" style="font-size: 32px; margin-bottom: 16px; color: #26717D;">sync</i>
+          //   <div style="font-weight: 500;">Saving rooms...</div>
+          // </div>
         
         // Get the room list container
         const roomListContainer = document.getElementById('sidebarRoomList');
@@ -1665,11 +1627,17 @@
           
           roomListContainer.innerHTML = roomListHtml;
           
-          // Add event listeners to all checkboxes for auto-save
-          const checkboxes = roomListContainer.querySelectorAll('.room-checkbox');
-          checkboxes.forEach(checkbox => {
-            checkbox.addEventListener('change', debouncedAutoSaveRooms);
-          });
+          // Move Save button outside #sidebarRoomList
+          // const saveButton = document.createElement('button');
+          // saveButton.className = 'btn room-save-btn';
+          // saveButton.innerHTML = '<i class="material-icons">save</i> Save Selection';
+          // saveButton.onclick = function() {
+          //   saveRoomsSelection(roomListContainer);
+          // };
+          // // Append the save button as a sibling after #sidebarRoomList
+          // if (roomListContainer.parentNode) {
+          //   roomListContainer.parentNode.insertBefore(saveButton, roomListContainer.nextSibling);
+          // }
         }
       }
       
@@ -1706,14 +1674,12 @@
           .filter(checkbox => checkbox.checked)
           .map(checkbox => checkbox.getAttribute('data-room'));
         
-        // Get sheet ID from modal
-        const modal = document.getElementById('projectDetailsModal');
-        const sheetId = modal ? modal.getAttribute('data-sheet-id') : null;
+        // // Get sheet ID from modal
+        // const modal = document.getElementById('projectDetailsModal');
+        // const sheetId = modal ? modal.getAttribute('data-sheet-id') : null;
         
         // Show saving overlay and disable checkboxes
         showRoomsSavingOverlay(true);
-        
-        console.log('Auto-saving rooms:', { selectedRooms, sheetId });
         
         // Call server to save selected rooms
         google.script.run
@@ -1732,7 +1698,7 @@
             showRoomsSavingOverlay(false);
             showSidebarStatusMessage('Error: ' + error, true);
           })
-          .saveSelectedRoomsOnly(selectedRooms, sheetId);
+          .saveSelectedRoomsOnly(selectedRooms);
       }
       
       // Create a debounced version of autoSaveRooms to prevent saving on every checkbox change

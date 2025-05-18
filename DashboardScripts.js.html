@@ -104,31 +104,28 @@
     
     // bringHeaderElementsToFrontV4.2: Corrects internal order within the overlay group.
     function bringHeaderElementsToFrontV4() { 
-        console.log('[DEBUG] Sticky Gantt (Overlay V4.2): CALLED.');
+        // console.log('[DEBUG] Sticky Gantt (Overlay V4.2): CALLED.');
         const svg = document.querySelector('#frappeGantt .gantt');
         if (!svg) {
-            console.warn('[DEBUG] Sticky Gantt (Overlay V4.2): SVG element not found.');
+            // console.warn('[DEBUG] Sticky Gantt (Overlay V4.2): SVG element not found.');
             return;
         }
 
         let headerOverlayGroup = svg.querySelector('#ganttHeaderOverlay');
         if (!headerOverlayGroup) {
-            console.log('[DEBUG] Sticky Gantt (Overlay V4.2): Creating #ganttHeaderOverlay group.');
+            // console.log('[DEBUG] Sticky Gantt (Overlay V4.2): Creating #ganttHeaderOverlay group.');
             headerOverlayGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
             headerOverlayGroup.setAttribute('id', 'ganttHeaderOverlay');
-            // Add to SVG early so it exists, its final position is set later.
             svg.appendChild(headerOverlayGroup); 
         }
 
         const mainGridGroupForHeaderParts = svg.querySelector('g.grid:not(#ganttHeaderOverlay g.grid)');
         const dateGroup = svg.querySelector('g.date:not(#ganttHeaderOverlay g.date)');
 
-        // Order within overlay: 1. grid-header (background), 2. Ticks, 3. Date texts
         if (mainGridGroupForHeaderParts) {
             const gridHeaderRect = mainGridGroupForHeaderParts.querySelector('rect.grid-header');
             if (gridHeaderRect && gridHeaderRect.parentNode !== headerOverlayGroup) {
-                 console.log('[DEBUG] Sticky Gantt (Overlay V4.2): Moving rect.grid-header into #ganttHeaderOverlay (first).');
-                 // Ensure it's first if overlay already has children
+                 // console.log('[DEBUG] Sticky Gantt (Overlay V4.2): Moving rect.grid-header into #ganttHeaderOverlay (first).');
                  if (headerOverlayGroup.firstChild) {
                     headerOverlayGroup.insertBefore(gridHeaderRect, headerOverlayGroup.firstChild);
                  } else {
@@ -138,32 +135,27 @@
             const tickPaths = mainGridGroupForHeaderParts.querySelectorAll('path.tick, path.thick');
             tickPaths.forEach(tick => {
                 if (tick.parentNode !== headerOverlayGroup) {
-                    // console.log('[DEBUG] Sticky Gantt (Overlay V4.2): Moving a tick path into #ganttHeaderOverlay.');
-                    headerOverlayGroup.appendChild(tick); // Ticks after grid-header background
+                    headerOverlayGroup.appendChild(tick);
                 }
             });
         } else {
-             console.warn('[DEBUG] Sticky Gantt (Overlay V4.2): Main g.grid (for header parts) not found. Some header elements might be missing.');
+             // console.warn('[DEBUG] Sticky Gantt (Overlay V4.2): Main g.grid (for header parts) not found. Some header elements might be missing.');
         }
 
         if (dateGroup && dateGroup.parentNode !== headerOverlayGroup) {
-            console.log('[DEBUG] Sticky Gantt (Overlay V4.2): Moving g.date into #ganttHeaderOverlay (last within overlay).');
-            headerOverlayGroup.appendChild(dateGroup); // Date texts last, so they are on top of ticks and grid-header rect
+            // console.log('[DEBUG] Sticky Gantt (Overlay V4.2): Moving g.date into #ganttHeaderOverlay (last within overlay).');
+            headerOverlayGroup.appendChild(dateGroup); 
         }
         
-        // Order of main groups: .grid, then .bar, then #ganttHeaderOverlay
         const mainGridForOrder = svg.querySelector('g.grid:not(#ganttHeaderOverlay g.grid)');
         const barGroup = svg.querySelector('g.bar');
 
         if (mainGridForOrder) {
-            // console.log('[DEBUG] Sticky Gantt (Overlay V4.2): Ensuring main g.grid is appended (for under-bar rendering).');
             svg.appendChild(mainGridForOrder); 
         }
         if (barGroup) {
-            // console.log('[DEBUG] Sticky Gantt (Overlay V4.2): Ensuring g.bar is appended after main g.grid.');
             svg.appendChild(barGroup);
         }
-        // console.log('[DEBUG] Sticky Gantt (Overlay V4.2): Ensuring #ganttHeaderOverlay is last SVG child.');
         svg.appendChild(headerOverlayGroup);
     }
 
@@ -171,7 +163,7 @@
     function ensureHeaderOverlayIsLastPersistentV3() {
         const svg = document.querySelector('#frappeGantt .gantt');
         if (!svg) {
-            console.warn('[Sticky Header Sync V3] Main SVG not found to observe.');
+            // console.warn('[Sticky Header Sync V3] Main SVG not found to observe.');
             return;
         }
         if (ganttStructureObserver) {
@@ -180,39 +172,33 @@
         ganttStructureObserver = new MutationObserver((mutationsList, observer) => {
             const headerOverlayGroup = svg.querySelector('#ganttHeaderOverlay');
             if (headerOverlayGroup && svg.lastChild !== headerOverlayGroup) {
-                console.log('[Sticky Header Sync V3] #ganttHeaderOverlay is not last child. Re-appending.');
-                // No delay needed here, just fix it.
+                // console.log('[Sticky Header Sync V3] #ganttHeaderOverlay is not last child. Re-appending.');
                 svg.appendChild(headerOverlayGroup);
             }
-            // We don't disconnect and reconnect here; just let it keep observing.
-            // It only acts if the overlay group is present but not last.
         });
         ganttStructureObserver.observe(svg, { childList: true });
-        console.log('[Sticky Header Sync V3] Persistent observer set up for #ganttHeaderOverlay position.');
+        // console.log('[Sticky Header Sync V3] Persistent observer set up for #ganttHeaderOverlay position.');
         
-        // Initial check/fix after setup, as observer only triggers on *changes*
-        // Use a small delay to ensure it runs after any immediate post-setup DOM settlements
         setTimeout(() => {
             const stillSvg = document.querySelector('#frappeGantt .gantt');
             if (stillSvg) {
                  const overlay = stillSvg.querySelector('#ganttHeaderOverlay');
                  if (overlay && stillSvg.lastChild !== overlay) {
-                    console.log('[Sticky Header Sync V3] Initial check: #ganttHeaderOverlay not last. Re-appending.');
+                    // console.log('[Sticky Header Sync V3] Initial check: #ganttHeaderOverlay not last. Re-appending.');
                     stillSvg.appendChild(overlay);
                  }
             }
-        }, 50); // Small delay for initial check
+        }, 50); 
     }
 
     // REVISED makeGanttHeaderSticky (V4 - selectors find elements in overlay)
     function makeGanttHeaderSticky() {
       let scrollContainer = document.getElementById('frappeGantt'); 
       if (!scrollContainer || (getComputedStyle(scrollContainer).overflowY !== 'auto' && getComputedStyle(scrollContainer).overflowY !== 'scroll')) {
-        // console.warn('Sticky Gantt: #frappeGantt is not primary scroll. Fallback to .gantt-container.');
         scrollContainer = document.querySelector('#frappeGantt .gantt-container');
       }
       if (!scrollContainer) {
-        console.error('Sticky Gantt: No suitable scroll container found.');
+        console.error('Sticky Gantt: No suitable scroll container found.'); // KEPT: This is an actual error condition.
         return;
       }
       if (activeGanttScrollHandler) {
@@ -222,14 +208,11 @@
         activeGanttScrollHandler = null;
       }
       const handleScroll = () => {
-        // Select elements from within the overlay group or the SVG root
         const currentGridHeader = document.querySelector('#ganttHeaderOverlay rect.grid-header, #frappeGantt .gantt rect.grid-header'); 
         const currentDateGroup = document.querySelector('#ganttHeaderOverlay g.date, #frappeGantt .gantt g.date');
-        // Also make ticks sticky if they are in the overlay
         const currentTicks = document.querySelectorAll('#ganttHeaderOverlay path.tick, #ganttHeaderOverlay path.thick');
 
-        if (!currentDateGroup) { // gridHeader is optional if ticks are primary
-          // console.warn('Sticky Gantt: Date group not found for sticky scroll.');
+        if (!currentDateGroup) { 
           return;
         }
         const scrollTop = scrollContainer.scrollTop;
@@ -238,16 +221,14 @@
             currentGridHeader.setAttribute('y', scrollTop);
         }
         currentDateGroup.style.transform = `translateY(${scrollTop}px)`;
-        
-        // Apply transform to ticks as well if they are being managed for stickiness
         currentTicks.forEach(tick => {
             tick.style.transform = `translateY(${scrollTop}px)`;
         });
       };
       scrollContainer.addEventListener('scroll', handleScroll);
       activeGanttScrollHandler = { handler: handleScroll, container: scrollContainer }; 
-      requestAnimationFrame(() => { handleScroll(); }); // Initial position update
-      console.log('Sticky Gantt (V4): Header stickiness initialized/re-initialized.');
+      requestAnimationFrame(() => { handleScroll(); }); 
+      // console.log('Sticky Gantt (V4): Header stickiness initialized/re-initialized.');
     }
 
     // MODIFIED setupGanttObserver (V2.5 - uses V4 functions)
@@ -258,19 +239,18 @@
       ganttObserver = new MutationObserver((mutations) => {
         const ganttSVGRoot = document.querySelector('#frappeGantt .gantt'); 
         if (ganttSVGRoot && ganttInstance) { 
-          console.log('Gantt chart rendered - initial setup (V2.5).');
+          // console.log('Gantt chart rendered - initial setup (V2.5).');
           ganttObserver.disconnect(); 
 
           if (ganttStructureObserver) ganttStructureObserver.disconnect();
 
           colorizeGanttBars();
-          // Call V4 of makeGanttHeaderSticky
           makeGanttHeaderSticky(); 
           
           setTimeout(() => { 
-            console.log('[Setup V2.5] Post-colorize/sticky: Initializing Overlay V4.');
+            // console.log('[Setup V2.5] Post-colorize/sticky: Initializing Overlay V4.');
             bringHeaderElementsToFrontV4(); 
-            ensureHeaderOverlayIsLastPersistentV3(); // V3 of this is fine, just ensures overlay is last
+            ensureHeaderOverlayIsLastPersistentV3(); 
           }, 300); 
         }
       });
@@ -288,13 +268,12 @@
         if (ganttStructureObserver) ganttStructureObserver.disconnect();
 
         colorizeGanttBars();
-        // Call V4 of makeGanttHeaderSticky
         makeGanttHeaderSticky(); 
 
         setTimeout(() => { 
-            console.log('[UpdateView V2.5] Post-colorize/sticky: Initializing Overlay V4.');
+            // console.log('[UpdateView V2.5] Post-colorize/sticky: Initializing Overlay V4.');
             bringHeaderElementsToFrontV4(); 
-            ensureHeaderOverlayIsLastPersistentV3(); // V3 of this is fine
+            ensureHeaderOverlayIsLastPersistentV3(); 
         }, 300); 
       }, 450);
     }
@@ -791,249 +770,230 @@
     // The createProjectCard function has been moved to ProjectCard.html
     
     // Handle the Add Project modal
-    function setupAddProjectModal() {
-      const addProjectButton = document.getElementById('addProjectButton');
-      const modal = document.getElementById('addProjectModal');
-      const closeBtn = document.getElementById('closeModal');
-      const cancelBtn = document.getElementById('cancelAddProject');
-      const form = document.getElementById('addProjectForm');
-      const submitBtn = document.getElementById('submitAddProject');
-      const errorMessage = document.getElementById('formErrorMessage');
-      const modalTitle = document.getElementById('modalTitle');
-      const projectIdField = document.getElementById('projectId');
-      const isEditModeField = document.getElementById('isEditMode');
+    // function setupAddProjectModal() {
+    //   const addProjectButton = document.getElementById('addProjectButton');
+    //   const modal = document.getElementById('addProjectModal');
+    //   const closeBtn = document.getElementById('closeModal');
+    //   const cancelBtn = document.getElementById('cancelAddProject');
+    //   const form = document.getElementById('addProjectForm');
+    //   const submitBtn = document.getElementById('submitAddProject');
+    //   const errorMessage = document.getElementById('formErrorMessage');
+    //   const modalTitle = document.getElementById('modalTitle');
+    //   const projectIdField = document.getElementById('projectId');
+    //   const isEditModeField = document.getElementById('isEditMode');
       
-      /**
-       * Populates the add/edit project form with existing project data.
-       * @param {object} project - The project data object.
-       */
-      function _populateProjectForm(project) {
-        document.getElementById('projectNameInput').value = project.name;
-        document.getElementById('projectClient').value = project.client || '';
-        document.getElementById('projectClientEmail').value = project.clientEmail || '';
-        document.getElementById('projectClientAddress').value = project.clientAddress || '';
-        document.getElementById('projectArchitect').value = project.architect || '';
-        document.getElementById('projectArchitectEmail').value = project.architectEmail || '';
-        document.getElementById('projectContractor').value = project.contractor || '';
-        document.getElementById('projectContractorEmail').value = project.contractorEmail || '';
-        document.getElementById('projectStatus').value = project.status || 'Not Started';
-        document.getElementById('asanaProjectId').value = project.asanaProjectId ? project.asanaProjectId.replace(/["']/g, '') : '';
-        document.getElementById('projectSheetId').value = project.sheetId || '';
-        document.getElementById('projectFolderId').value = project.folderId || '';
-        document.getElementById('projectColorInput').value = project.projectColor || '#26717D';
-      }
+    //   /**
+    //    * Populates the add/edit project form with existing project data.
+    //    * @param {object} project - The project data object.
+    //    */
+    //   function _populateProjectForm(project) {
+    //     document.getElementById('projectNameInput').value = project.name;
+    //     document.getElementById('projectClient').value = project.client || '';
+    //     document.getElementById('projectClientEmail').value = project.clientEmail || '';
+    //     document.getElementById('projectClientAddress').value = project.clientAddress || '';
+    //     document.getElementById('projectArchitect').value = project.architect || '';
+    //     document.getElementById('projectArchitectEmail').value = project.architectEmail || '';
+    //     document.getElementById('projectContractor').value = project.contractor || '';
+    //     document.getElementById('projectContractorEmail').value = project.contractorEmail || '';
+    //     document.getElementById('projectStatus').value = project.status || 'Not Started';
+    //     document.getElementById('asanaProjectId').value = project.asanaProjectId ? project.asanaProjectId.replace(/["']/g, '') : '';
+    //     document.getElementById('projectSheetId').value = project.sheetId || '';
+    //     document.getElementById('projectFolderId').value = project.folderId || '';
+    //     document.getElementById('projectColorInput').value = project.projectColor || '#26717D';
+    //   }
 
-      /**
-       * Collects and returns data from the add/edit project form.
-       * @return {object} An object containing the project form data.
-       */
-      function _getProjectFormData() {
-        return {
-          name: document.getElementById('projectNameInput').value.trim(),
-          client: document.getElementById('projectClient').value.trim(),
-          clientEmail: document.getElementById('projectClientEmail').value.trim(),
-          clientAddress: document.getElementById('projectClientAddress').value.trim(),
-          architect: document.getElementById('projectArchitect').value.trim(),
-          architectEmail: document.getElementById('projectArchitectEmail').value.trim(),
-          contractor: document.getElementById('projectContractor').value.trim(),
-          contractorEmail: document.getElementById('projectContractorEmail').value.trim(),
-          status: document.getElementById('projectStatus').value,
-          asanaProjectId: document.getElementById('asanaProjectId').value ? 
-                          document.getElementById('asanaProjectId').value.replace(/["']/g, '').trim() : '',
-          sheetId: document.getElementById('projectSheetId').value.trim() || '',
-          folderId: document.getElementById('projectFolderId').value.trim() || '',
-          projectColor: document.getElementById('projectColorInput').value || '#26717D'
-        };
-      }
+    //   /**
+    //    * Collects and returns data from the add/edit project form.
+    //    * @return {object} An object containing the project form data.
+    //    */
+    //   function _getProjectFormData() {
+    //     return {
+    //       name: document.getElementById('projectNameInput').value.trim(),
+    //       client: document.getElementById('projectClient').value.trim(),
+    //       clientEmail: document.getElementById('projectClientEmail').value.trim(),
+    //       clientAddress: document.getElementById('projectClientAddress').value.trim(),
+    //       architect: document.getElementById('projectArchitect').value.trim(),
+    //       architectEmail: document.getElementById('projectArchitectEmail').value.trim(),
+    //       contractor: document.getElementById('projectContractor').value.trim(),
+    //       contractorEmail: document.getElementById('projectContractorEmail').value.trim(),
+    //       status: document.getElementById('projectStatus').value,
+    //       asanaProjectId: document.getElementById('asanaProjectId').value ? 
+    //                       document.getElementById('asanaProjectId').value.replace(/["']/g, '').trim() : '',
+    //       sheetId: document.getElementById('projectSheetId').value.trim() || '',
+    //       folderId: document.getElementById('projectFolderId').value.trim() || '',
+    //       projectColor: document.getElementById('projectColorInput').value || '#26717D'
+    //     };
+    //   }
 
-      /**
-       * Handles the success response from adding or updating a project.
-       * @param {object} response - The response object from the server.
-       * @param {boolean} isEditMode - True if the operation was an update, false for an add.
-       * @param {HTMLElement} submitBtn - The submit button element.
-       * @param {function} closeModalFn - The function to close the modal.
-       * @param {HTMLElement} errorMessageElement - The error message display element.
-       */
-      function _handleProjectFormSubmitSuccess(response, isEditMode, submitBtn, closeModalFn, errorMessageElement) {
-        submitBtn.disabled = false;
-        submitBtn.textContent = isEditMode ? 'Update Project' : 'Add Project';
-        hideDashboardLoading();
+    //   /**
+    //    * Handles the success response from adding or updating a project.
+    //    * @param {object} response - The response object from the server.
+    //    * @param {boolean} isEditMode - True if the operation was an update, false for an add.
+    //    * @param {HTMLElement} submitBtn - The submit button element.
+    //    * @param {function} closeModalFn - The function to close the modal.
+    //    * @param {HTMLElement} errorMessageElement - The error message display element.
+    //    */
+    //   function _handleProjectFormSubmitSuccess(response, isEditMode, submitBtn, closeModalFn, errorMessageElement) {
+    //     submitBtn.disabled = false;
+    //     submitBtn.textContent = isEditMode ? 'Update Project' : 'Add Project';
+    //     hideDashboardLoading();
 
-        if (!response.success) {
-          errorMessageElement.textContent = response.error;
-          errorMessageElement.style.display = 'block';
-          return;
-        }
+    //     if (!response.success) {
+    //       errorMessageElement.textContent = response.error;
+    //       errorMessageElement.style.display = 'block';
+    //       return;
+    //     }
         
-        closeModalFn();
-        const welcomeMessage = document.querySelector('.welcome-message');
-        if (welcomeMessage) {
-          welcomeMessage.style.display = 'none';
-        }
-        loadProjects(); // Reload projects on success
-      }
+    //     closeModalFn();
+    //     const welcomeMessage = document.querySelector('.welcome-message');
+    //     if (welcomeMessage) {
+    //       welcomeMessage.style.display = 'none';
+    //     }
+    //     loadProjects(); // Reload projects on success
+    //   }
 
-      /**
-       * Handles the failure response from adding or updating a project.
-       * @param {object} error - The error object from the server call.
-       * @param {boolean} isEditMode - True if the operation was an update, false for an add.
-       * @param {HTMLElement} submitBtn - The submit button element.
-       * @param {HTMLElement} errorMessageElement - The error message display element.
-       */
-      function _handleProjectFormSubmitError(error, isEditMode, submitBtn, errorMessageElement) {
-        submitBtn.disabled = false;
-        submitBtn.textContent = isEditMode ? 'Update Project' : 'Add Project';
-        hideDashboardLoading();
-        errorMessageElement.textContent = 'Error ' + (isEditMode ? 'updating' : 'adding') + ' project: ' + (error.message || error.toString());
-        errorMessageElement.style.display = 'block';
-      }
+    //   /**
+    //    * Handles the failure response from adding or updating a project.
+    //    * @param {object} error - The error object from the server call.
+    //    * @param {boolean} isEditMode - True if the operation was an update, false for an add.
+    //    * @param {HTMLElement} submitBtn - The submit button element.
+    //    * @param {HTMLElement} errorMessageElement - The error message display element.
+    //    */
+    //   function _handleProjectFormSubmitError(error, isEditMode, submitBtn, errorMessageElement) {
+    //     submitBtn.disabled = false;
+    //     submitBtn.textContent = isEditMode ? 'Update Project' : 'Add Project';
+    //     hideDashboardLoading();
+    //     errorMessageElement.textContent = 'Error ' + (isEditMode ? 'updating' : 'adding') + ' project: ' + (error.message || error.toString());
+    //     errorMessageElement.style.display = 'block';
+    //   }
 
-      // Open modal for new project
-      addProjectButton.addEventListener('click', function() {
-        // Reset form and set to Add mode
-        form.reset();
-        modalTitle.textContent = 'Add New Project';
-        submitBtn.textContent = 'Add Project';
-        projectIdField.value = '';
-        isEditModeField.value = 'false';
+    //   // Open modal for new project
+    //   addProjectButton.addEventListener('click', function() {
+    //     // Reset form and set to Add mode
+    //     form.reset();
+    //     modalTitle.textContent = 'Add New Project';
+    //     submitBtn.textContent = 'Add Project';
+    //     projectIdField.value = '';
+    //     isEditModeField.value = 'false';
         
-        modal.classList.add('visible');
-      });
+    //     modal.classList.add('visible');
+    //   });
       
-      // Close modal functions
-      function closeModal() {
-        modal.classList.remove('visible');
-        form.reset();
-        errorMessage.style.display = 'none';
+    //   // Close modal functions
+    //   function closeModal() {
+    //     modal.classList.remove('visible');
+    //     form.reset();
+    //     errorMessage.style.display = 'none';
         
-        // Reset any edit buttons that might be in loading state
-        document.querySelectorAll('.edit-project-btn.loading').forEach(button => {
-          button.classList.remove('loading');
-        });
-      }
+    //     // Reset any edit buttons that might be in loading state
+    //     document.querySelectorAll('.edit-project-btn.loading').forEach(button => {
+    //       button.classList.remove('loading');
+    //     });
+    //   }
       
-      closeBtn.addEventListener('click', closeModal);
-      cancelBtn.addEventListener('click', closeModal);
+    //   closeBtn.addEventListener('click', closeModal);
+    //   cancelBtn.addEventListener('click', closeModal);
       
-      // Close when clicking outside the modal
-      modal.addEventListener('click', function(event) {
-        if (event.target === modal) {
-          closeModal();
-        }
-      });
+    //   // Close when clicking outside the modal
+    //   modal.addEventListener('click', function(event) {
+    //     if (event.target === modal) {
+    //       closeModal();
+    //     }
+    //   });
       
-      // Open modal for editing an existing project
-      document.addEventListener('click', function(event) {
-        if (event.target.classList.contains('edit-project-btn') || 
-            (event.target.parentElement && event.target.parentElement.classList.contains('edit-project-btn'))) {
-          // Get the button and project ID
-          const button = event.target.classList.contains('edit-project-btn') ? 
-                         event.target : event.target.parentElement;
-          const projectId = button.getAttribute('data-project-id');
+    //   // Open modal for editing an existing project
+    //   document.addEventListener('click', function(event) {
+    //     if (event.target.classList.contains('edit-project-btn') || 
+    //         (event.target.parentElement && event.target.parentElement.classList.contains('edit-project-btn'))) {
+    //       // Get the button and project ID
+    //       const button = event.target.classList.contains('edit-project-btn') ? 
+    //                      event.target : event.target.parentElement;
+    //       const projectId = button.getAttribute('data-project-id');
           
-          // Show loading state on the button
-          button.classList.add('loading');
+    //       // Show loading state on the button
+    //       button.classList.add('loading');
           
-          // Fetch project data
-          google.script.run
-            .withSuccessHandler(function(response) {
-              // Reset loading state
-              button.classList.remove('loading');
+    //       // Fetch project data
+    //       google.script.run
+    //         .withSuccessHandler(function(response) {
+    //           // Reset loading state
+    //           button.classList.remove('loading');
               
-              if (!response.success) {
-                alert('Error loading project: ' + response.error);
-                return;
-              }
+    //           if (!response.success) {
+    //             alert('Error loading project: ' + response.error);
+    //             return;
+    //           }
               
-              // Fill form with project data
-              _populateProjectForm(response.project);
+    //           // Fill form with project data
+    //           _populateProjectForm(response.project);
               
-              // Set form to Edit mode
-              modalTitle.textContent = 'Edit Project';
-              submitBtn.textContent = 'Update Project';
-              projectIdField.value = projectId;
-              isEditModeField.value = 'true';
+    //           // Set form to Edit mode
+    //           modalTitle.textContent = 'Edit Project';
+    //           submitBtn.textContent = 'Update Project';
+    //           projectIdField.value = projectId;
+    //           isEditModeField.value = 'true';
               
-              // Show modal
-              modal.classList.add('visible');
-            })
-            .withFailureHandler(function(error) {
-              // Reset loading state on error
-              button.classList.remove('loading');
-              alert('Error loading project: ' + error);
-            })
-            .getProjectById(projectId);
-        }
-      });
+    //           // Show modal
+    //           modal.classList.add('visible');
+    //         })
+    //         .withFailureHandler(function(error) {
+    //           // Reset loading state on error
+    //           button.classList.remove('loading');
+    //           alert('Error loading project: ' + error);
+    //         })
+    //         .getProjectById(projectId);
+    //     }
+    //   });
       
-      // Form submission
-      submitBtn.addEventListener('click', function() {
-        const nameInput = document.getElementById('projectNameInput');
+    //   // Form submission
+    //   submitBtn.addEventListener('click', function() {
+    //     const nameInput = document.getElementById('projectNameInput');
         
-        if (!nameInput || !nameInput.value.trim()) {
-          errorMessage.textContent = 'Project name is required';
-          errorMessage.style.display = 'block';
-          return;
-        }
+    //     if (!nameInput || !nameInput.value.trim()) {
+    //       errorMessage.textContent = 'Project name is required';
+    //       errorMessage.style.display = 'block';
+    //       return;
+    //     }
         
-        // Get form data
-        const formData = _getProjectFormData();
+    //     // Get form data
+    //     const formData = _getProjectFormData();
         
-        // Disable submit button and show loading state
-        submitBtn.disabled = true;
-        submitBtn.textContent = isEditModeField.value === 'true' ? 'Updating...' : 'Adding...';
-        errorMessage.style.display = 'none';
+    //     // Disable submit button and show loading state
+    //     submitBtn.disabled = true;
+    //     submitBtn.textContent = isEditModeField.value === 'true' ? 'Updating...' : 'Adding...';
+    //     errorMessage.style.display = 'none';
         
-        // Determine whether to add or update
-        const isEditMode = isEditModeField.value === 'true';
-        const projectId = projectIdField.value;
+    //     // Determine whether to add or update
+    //     const isEditMode = isEditModeField.value === 'true';
+    //     const projectId = projectIdField.value;
         
-        // Show loading overlay
-        showDashboardLoading(isEditMode ? 'Updating project...' : 'Adding project...');
+    //     // Show loading overlay
+    //     showDashboardLoading(isEditMode ? 'Updating project...' : 'Adding project...');
         
-        if (isEditMode) {
-          // Update existing project
-          google.script.run
-            .withSuccessHandler(function(response) {
-              _handleProjectFormSubmitSuccess(response, true, submitBtn, closeModal, errorMessage);
-            })
-            .withFailureHandler(function(error) {
-              _handleProjectFormSubmitError(error, true, submitBtn, errorMessage);
-            })
-            .updateProject(projectId, formData);
-        } else {
-          // Add new project
-          google.script.run
-            .withSuccessHandler(function(response) {
-              _handleProjectFormSubmitSuccess(response, false, submitBtn, closeModal, errorMessage);
-            })
-            .withFailureHandler(function(error) {
-              _handleProjectFormSubmitError(error, false, submitBtn, errorMessage);
-            })
-            .addProject(formData);
-        }
-      });
-    }
+    //     if (isEditMode) {
+    //       // Update existing project
+    //       google.script.run
+    //         .withSuccessHandler(function(response) {
+    //           _handleProjectFormSubmitSuccess(response, true, submitBtn, closeModal, errorMessage);
+    //         })
+    //         .withFailureHandler(function(error) {
+    //           _handleProjectFormSubmitError(error, true, submitBtn, errorMessage);
+    //         })
+    //         .updateProject(projectId, formData);
+    //     } else {
+    //       // Add new project
+    //       google.script.run
+    //         .withSuccessHandler(function(response) {
+    //           _handleProjectFormSubmitSuccess(response, false, submitBtn, closeModal, errorMessage);
+    //         })
+    //         .withFailureHandler(function(error) {
+    //           _handleProjectFormSubmitError(error, false, submitBtn, errorMessage);
+    //         })
+    //         .addProject(formData);
+    //     }
+    //   });
+    // }
     
-    // Initialize when the page loads
-    document.addEventListener('DOMContentLoaded', function() {
-      // Check if we're in Gantt mode
-      const modeElement = document.getElementById('modeHolder');
-      const mode = modeElement ? modeElement.getAttribute('data-mode') : 'dashboard';
-      
-      if (mode === 'gantt') {
-        // Get the project ID for Gantt view
-        const projectIdElement = document.getElementById('projectIdHolder');
-        const projectId = projectIdElement ? projectIdElement.getAttribute('data-project-id') : null;
-        
-        initializeGanttView(projectId);
-      } else {
-        // Regular dashboard initialization
-        loadProjects();
-        setupAddProjectModal();
-      }
-      
-    });
     
     // Render the Gantt chart with the provided tasks
     function renderGanttChart(tasks) {
@@ -1431,4 +1391,280 @@
       }
     });
 
+  /**
+   * Switches between sidebar tabs
+   * @param {string} tabId - The ID of the tab to switch to (without the '-content' suffix)
+   */
+  function switchSidebarTab(tabId) {
+    // Hide all sidebar content sections
+    const contentSections = document.querySelectorAll('.sidebar-content');
+    contentSections.forEach(section => {
+      section.classList.remove('active');
+    });
+    
+    // Remove active class from all tabs
+    const tabs = document.querySelectorAll('.sidebar-tab');
+    tabs.forEach(tab => {
+      tab.classList.remove('active');
+    });
+    
+    // Show the selected content section
+    const selectedContent = document.getElementById(tabId + '-content');
+    if (selectedContent) {
+      selectedContent.classList.add('active');
+    }
+    
+    // Add active class to the selected tab
+    const selectedTab = document.querySelector(`.sidebar-tab[data-tab="${tabId}"]`);
+    if (selectedTab) {
+      selectedTab.classList.add('active');
+    }
+    
+    // Special handling for Room Categories tab
+    if (tabId === 'roomCategories') {
+      loadRoomCategoriesContent();
+    }
+  }
+  
+  // Initialize sidebar tab click handlers
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add click event listeners to all sidebar tabs
+    document.querySelectorAll('.sidebar-tab').forEach(tab => {
+      tab.addEventListener('click', function() {
+        const tabId = this.getAttribute('data-tab');
+        switchSidebarTab(tabId);
+      });
+    });
+  });
+  
+  // Room Categories Functions
+  
+  /**
+   * Navigate from Room Manager to Room Categories.
+   * This saves the selected rooms and then switches to the Room Categories tab.
+   */
+  function navigateToRoomCategories() {
+    // Get selected rooms from the UI
+    const selectedRoomCheckboxes = document.querySelectorAll('#sidebarRoomManagerContent input[type="checkbox"]:checked');
+    
+    // Extract room names from the labels next to the checkboxes
+    const selectedRooms = Array.from(selectedRoomCheckboxes).map(checkbox => {
+      // Find the associated label text which contains the actual room name
+      const label = checkbox.closest('.room-checklist-item').querySelector('.room-checklist-item-label');
+      return label ? label.textContent.trim() : null;
+    }).filter(roomName => roomName); // Filter out any null values
+    
+    if (selectedRooms.length === 0) {
+      alert('Please select at least one room first.');
+      return;
+    }
+    
+    // Show loading state
+    document.getElementById('roomCategoriesContent').innerHTML = `
+      <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading categories...</p>
+      </div>
+    `;
+    
+    // Save the selected rooms
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.success) {
+          // Switch to the Room Categories tab
+          switchSidebarTab('roomCategories');
+          
+          // Load the Room Categories content
+          loadRoomCategoriesContent();
+        } else {
+          alert('Error saving selected rooms: ' + result.error);
+        }
+      })
+      .withFailureHandler(function(error) {
+        alert('Error: ' + error);
+      })
+      .saveSelectedRoomsOnly(selectedRooms);
+  }
+  
+  /**
+   * Load the Room Categories content.
+   * Gets the selected rooms and available types to build the UI.
+   */
+  function loadRoomCategoriesContent() {
+    // Show loading state
+    document.getElementById('roomCategoriesContent').innerHTML = `
+      <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading categories...</p>
+      </div>
+    `;
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.success) {
+          // Check if there are any selected rooms
+          if (!result.selectedRooms || result.selectedRooms.length === 0) {
+            document.getElementById('roomCategoriesContent').innerHTML = `
+              <div class="room-manager-content">
+                <div class="info-message">
+                  <p>No rooms selected. Please select rooms in the Rooms tab first.</p>
+                </div>
+                <button onclick="switchSidebarTab('rooms')" class="btn">
+                  <i class="material-icons">arrow_back</i> Go to Room Selection
+                </button>
+              </div>
+            `;
+            return;
+          }
+          
+          // Build the Room Categories UI
+          buildRoomCategoriesUI(result.selectedRooms, result.availableTypes, result.roomTypes);
+        } else {
+          document.getElementById('roomCategoriesContent').innerHTML = `
+            <div class="error-message">
+              <p>Error loading room categories: ${result.error}</p>
+            </div>
+          `;
+        }
+      })
+      .withFailureHandler(function(error) {
+        document.getElementById('roomCategoriesContent').innerHTML = `
+          <div class="error-message">
+            <p>Error: ${error}</p>
+          </div>
+        `;
+      })
+      .getRoomCategoriesData();
+  }
+  
+  /**
+   * Build the Room Categories UI.
+   * Creates a section for each selected room with checkboxes for each type.
+   * 
+   * @param {Array} selectedRooms - Array of selected room names
+   * @param {Array} availableTypes - Array of available type names
+   * @param {Object} roomTypes - Object with room names as keys and arrays of selected types as values
+   */
+  function buildRoomCategoriesUI(selectedRooms, availableTypes, roomTypes) {
+    if (!selectedRooms || selectedRooms.length === 0) {
+      document.getElementById('roomCategoriesContent').innerHTML = `
+        <div class="info-message">
+          <p>No rooms selected. Please go back and select rooms first.</p>
+        </div>
+        <button onclick="switchSidebarTab('rooms')" class="btn">
+          <i class="material-icons">arrow_back</i> Back to Room Selection
+        </button>
+      `;
+      return;
+    }
+    
+    if (!availableTypes || availableTypes.length === 0) {
+      document.getElementById('roomCategoriesContent').innerHTML = `
+        <div class="info-message">
+          <p>No categories found in the Data sheet. Please add categories to the Type column.</p>
+        </div>
+      `;
+      return;
+    }
+    
+    // Create a container element similar to room manager
+    let html = `
+      <div class="room-manager-content">
+
+        <div class="room-categories-container">
+    `;
+    
+    // For each selected room
+    selectedRooms.forEach(room => {
+      html += `
+        <div class="room-category-section">
+          <div class="room-category-header">${room}</div>
+          <div class="room-category-types">
+      `;
+      
+      // For each available type, create a checkbox
+      availableTypes.forEach(type => {
+        // Check if this type is selected for this room
+        const isChecked = roomTypes && 
+                          roomTypes[room] && 
+                          Array.isArray(roomTypes[room]) && 
+                          roomTypes[room].includes(type);
+        
+        html += `
+          <label class="type-checkbox">
+            <input type="checkbox" 
+                   data-room="${room}" 
+                   data-type="${type}"
+                   ${isChecked ? 'checked' : ''}>
+            <span class="room-checklist-item-label">${type}</span>
+          </label>
+        `;
+      });
+      
+      html += `
+          </div>
+        </div>
+      `;
+    });
+    
+    html += `
+        </div>
+      </div>
+    `;
+    
+    document.getElementById('roomCategoriesContent').innerHTML = html;
+  }
+  
+  /**
+   * Save the Room Categories selections.
+   * Collects all checked checkboxes and organizes them by room.
+   */
+  function saveRoomCategoriesSelections() {
+    // Show loading state
+    const saveButton = document.querySelector('#roomCategories-content .sidebar-action-buttons button');
+    const originalText = saveButton.innerHTML;
+    saveButton.innerHTML = '<i class="material-icons">sync</i> Saving...';
+    saveButton.disabled = true;
+    
+    // Collect all checkbox selections
+    const checkboxes = document.querySelectorAll('#roomCategoriesContent input[type="checkbox"]');
+    const roomTypes = {};
+    
+    checkboxes.forEach(checkbox => {
+      const room = checkbox.getAttribute('data-room');
+      const type = checkbox.getAttribute('data-type');
+      
+      if (checkbox.checked) {
+        if (!roomTypes[room]) {
+          roomTypes[room] = [];
+        }
+        roomTypes[room].push(type);
+      }
+    });
+    
+    // Save the selections
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.success) {
+          // Restore button state
+          saveButton.innerHTML = '<i class="material-icons">check</i> Saved';
+          
+          // Re-enable after a delay
+          setTimeout(() => {
+            saveButton.innerHTML = '<i class="material-icons">save</i> Save';
+            saveButton.disabled = false;
+          }, 2000);
+        } else {
+          alert('Error saving room categories: ' + result.error);
+          saveButton.innerHTML = originalText;
+          saveButton.disabled = false;
+        }
+      })
+      .withFailureHandler(function(error) {
+        alert('Error: ' + error);
+        saveButton.innerHTML = originalText;
+        saveButton.disabled = false;
+      })
+      .saveRoomTypeSelections(roomTypes);
+  }
 </script> 

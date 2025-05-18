@@ -1,4 +1,40 @@
 /**
+ * Adds custom menus to the spreadsheet UI.
+ */
+function onOpen() {
+  try {
+    const ui = SpreadsheetApp.getUi();
+      
+    // Client Dashboard menu
+    ui.createMenu('Dashboard')
+      .addItem('Open Dashboard', 'showProjectDashboard')
+      .addToUi();
+    
+      
+  } catch (error) {
+    Logger.log(`Error in onOpen: ${error.message}`);
+    SpreadsheetApp.getUi().alert(`Configuration Error: ${error.message}`);
+  }
+}
+
+function showProjectDashboard() {
+  // var id = PropertiesService.getScriptProperties().getProperty('CURRENT_PROJECT_ID');
+  // if (!id) {
+  //   SpreadsheetApp.getUi().alert('No project ID found in script properties.');
+  //   return;
+  // }
+  var dataSheetId = PropertiesService.getScriptProperties().getProperty('DATA_SHEET_ID');
+  var template = HtmlService.createTemplateFromFile('Project_Details_');
+  template.dataSheetId = dataSheetId; // Pass to template
+
+  var htmlOutput = template.evaluate()
+    .setWidth(1500)
+    .setHeight(1000);
+
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Project_Details_');
+}
+
+/**
  * Gets dashboard data using script properties
  */
 function getDashboardData(folderId, projectName) {

@@ -10,7 +10,7 @@
  */
 function getRooms() {
     try {
-      const ss = SpreadsheetApp.openById(ScriptProperties.getProperty('SHEET_ID'));
+      const ss = SpreadsheetApp.openById(ScriptProperties.getProperty('DATA_SHEET_ID'));
       const dataSheet = ss.getSheetByName("Data");
       
       if (!dataSheet) {
@@ -103,7 +103,7 @@ function getRooms() {
       }
       
       // Get the Data sheet
-      const ss = SpreadsheetApp.openById(ScriptProperties.getProperty('SHEET_ID'));
+      const ss = SpreadsheetApp.openById(ScriptProperties.getProperty('DATA_SHEET_ID'));
       const dataSheet = ss.getSheetByName("Data");
       
       // Calculate the row to insert at (header row + existing rooms + 1)
@@ -155,9 +155,7 @@ function getRooms() {
   function getSelectedRoomsCore(sheetId) {
     try {
       // Use provided sheetId if available, otherwise fallback to active spreadsheet
-      const ss = sheetId 
-        ? SpreadsheetApp.openById(sheetId) 
-        : SpreadsheetApp.getActiveSpreadsheet();
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
       
       const tempSheet = ss.getSheetByName("_TempSelectedRooms");
       let selectedRooms = [];
@@ -190,7 +188,7 @@ function getRooms() {
    * @param {string} sheetId - Optional spreadsheet ID. If not provided, uses active spreadsheet.
    * @return {Boolean} Success status
    */
-  function saveSelectedRoomsCore(selectedRooms, sheetId) {
+  function saveSelectedRoomsCore(selectedRooms) {
     try {
       if (!selectedRooms || !Array.isArray(selectedRooms)) {
         Logger.log("Invalid rooms data passed to saveSelectedRoomsCore");
@@ -198,9 +196,7 @@ function getRooms() {
       }
       
       // Use provided sheetId if available, otherwise fallback to active spreadsheet
-      const ss = sheetId 
-        ? SpreadsheetApp.openById(sheetId) 
-        : SpreadsheetApp.getActiveSpreadsheet();
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
       
       // Create or get the temporary sheet
       let tempSheet = ss.getSheetByName("_TempSelectedRooms");
@@ -877,9 +873,11 @@ function getRooms() {
       // Use provided sheetId if available, otherwise fallback to active spreadsheet
       const ss = sheetId 
         ? SpreadsheetApp.openById(sheetId) 
-        : SpreadsheetApp.openById(ScriptProperties.getProperty('SHEET_ID'));
+        : SpreadsheetApp.openById(ScriptProperties.getProperty('DATA_SHEET_ID'));
       
       const dataSheet = ss.getSheetByName("Data");
+
+      console.log(dataSheet);
       
       if (!dataSheet) {
         Logger.log("Data sheet not found");
@@ -938,6 +936,8 @@ function getRooms() {
       
       // Get the currently selected rooms from temp sheet using core function
       const selectedRooms = getSelectedRoomsCore(sheetId);
+
+      console.log(selectedRooms);
       
       return {
         success: true,
@@ -961,18 +961,14 @@ function getRooms() {
    * @param {string} sheetId - Optional spreadsheet ID. If not provided, uses active spreadsheet.
    * @return {Object} - Result object with success flag
    */
-  function saveSelectedRoomsOnly(selectedRooms, sheetId = null) {
+  function saveSelectedRoomsOnly(selectedRooms) {
     try {
       if (!selectedRooms || !Array.isArray(selectedRooms)) {
         throw new Error("Selected rooms must be an array");
       }
       
-      // Save to user properties for backward compatibility
-      const userProps = PropertiesService.getUserProperties();
-      userProps.setProperty("selectedRooms", JSON.stringify(selectedRooms));
-      
       // Use the core function to save rooms to the temp sheet
-      const saved = saveSelectedRoomsCore(selectedRooms, sheetId);
+      const saved = saveSelectedRoomsCore(selectedRooms);
       
       if (!saved) {
         return {
@@ -1547,5 +1543,242 @@ function getRooms() {
         success: false,
         error: 'Failed to load project summary: ' + error.toString()
       };
+    }
+  }
+  
+  /**
+   * Fetches all types from the Data sheet.
+   * 
+   * @return {Object} Object containing types data and success status
+   */
+  function getTypes() {
+    try {
+      const ss = SpreadsheetApp.openById(ScriptProperties.getProperty('DATA_SHEET_ID'));
+      const dataSheet = ss.getSheetByName("Data");
+      
+      if (!dataSheet) {
+        return {
+          success: false,
+          error: "Data sheet not found in the spreadsheet"
+        };
+      }
+      
+      // Find the column containing Types
+      const headerRow = dataSheet.getRange(1, 1, 1, dataSheet.getLastColumn()).getValues()[0];
+      const typeColIndex = headerRow.indexOf("Type");
+      
+      if (typeColIndex === -1) {
+        return {
+          success: false,
+          error: "Type header not found in Data sheet"
+        };
+      }
+      
+      // Get the range containing types in the Type column
+      const dataRange = dataSheet.getRange(2, typeColIndex + 1, dataSheet.getLastRow() - 1, 1);
+      const values = dataRange.getValues();
+      
+      // Extract unique types (skip empty cells)
+      const typesSet = new Set();
+      values.forEach(row => {
+        if (row[0] && row[0].trim() !== "") {
+          typesSet.add(row[0]);
+        }
+      });
+      
+          // Convert to array and sort alphabetically
+    const types = Array.from(typesSet).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+    
+    Logger.log(`Found ${types.length} types in the Data sheet (sorted alphabetically)`);
+      return {
+        success: true,
+        types: types
+      };
+      
+    } catch (error) {
+      Logger.log("Error in getTypes: " + error.message);
+      return {
+        success: false,
+        error: "Error retrieving types: " + error.message
+      };
+    }
+  }
+  
+  /**
+   * Get room-type selections from the temporary sheet.
+   * 
+   * @param {string} sheetId - Optional spreadsheet ID
+   * @return {Object} Object containing room-type selections
+   */
+  function getRoomTypeSelectionsCore(sheetId) {
+    try {
+      // Use provided sheetId if available, otherwise fallback to active spreadsheet
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      
+      const tempSheet = ss.getSheetByName("_TempRoomTypes");
+      let roomTypes = {};
+      
+      if (tempSheet) {
+        // Get room-type selections from the temporary sheet (skip header row)
+        const lastRow = tempSheet.getLastRow();
+        if (lastRow > 1) {
+          const dataRange = tempSheet.getRange(2, 1, lastRow - 1, 2);
+          const dataValues = dataRange.getValues();
+          
+          // Organize room-type selections
+          dataValues.forEach(row => {
+            const room = row[0];
+            const type = row[1];
+            
+            if (room && type) {
+              if (!roomTypes[room]) {
+                roomTypes[room] = [];
+              }
+              roomTypes[room].push(type);
+            }
+          });
+          
+          Logger.log(`Found room-type selections for ${Object.keys(roomTypes).length} rooms`);
+        }
+      }
+      
+      return {
+        success: true,
+        roomTypes: roomTypes
+      };
+    } catch (error) {
+      Logger.log("Error in getRoomTypeSelectionsCore: " + error.message);
+      return {
+        success: false,
+        error: "Error retrieving room-type selections: " + error.message
+      };
+    }
+  }
+  
+  /**
+   * Saves room-type selections to the temporary sheet.
+   * 
+   * @param {Object} roomTypes - Object with room names as keys and arrays of types as values
+   * @param {string} sheetId - Optional spreadsheet ID
+   * @return {Object} Success status
+   */
+  function saveRoomTypeSelectionsCore(roomTypes, sheetId) {
+    try {
+      if (!roomTypes || typeof roomTypes !== 'object') {
+        return {
+          success: false,
+          error: "Invalid room-type data"
+        };
+      }
+      
+      // Use provided sheetId if available, otherwise fallback to active spreadsheet
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      
+      // Create or get the temporary sheet
+      let tempSheet = ss.getSheetByName("_TempRoomTypes");
+      if (tempSheet) {
+        // Clear existing content if sheet exists
+        tempSheet.clear();
+      } else {
+        // Create the sheet if it doesn't exist
+        tempSheet = ss.insertSheet("_TempRoomTypes");
+        // Hide the sheet as it's for temporary storage only
+        tempSheet.hideSheet();
+      }
+      
+      // Add header row
+      tempSheet.getRange(1, 1, 1, 2).setValues([["Room", "Type"]]);
+      
+      // Prepare the data to write
+      const flatData = [];
+      Object.keys(roomTypes).forEach(room => {
+        const types = roomTypes[room];
+        if (Array.isArray(types) && types.length > 0) {
+          types.forEach(type => {
+            flatData.push([room, type]);
+          });
+        }
+      });
+      
+      // Write the data to the sheet
+      if (flatData.length > 0) {
+        tempSheet.getRange(2, 1, flatData.length, 2).setValues(flatData);
+      }
+      
+      Logger.log(`Saved ${flatData.length} room-type selections to temporary sheet`);
+      return {
+        success: true
+      };
+    } catch (error) {
+      Logger.log("Error in saveRoomTypeSelectionsCore: " + error.message);
+      return {
+        success: false,
+        error: "Error saving room-type selections: " + error.message
+      };
+    }
+  }
+  
+  /**
+   * Gets room and type data for the Project_Details_ sidebar.
+   * 
+   * @return {Object} Data for rendering room categories section
+   */
+  function getRoomCategoriesData() {
+    try {
+      // Get selected rooms
+      const selectedRooms = getSelectedRoomsCore();
+      
+      // Get available types
+      const typesResult = getTypes();
+      const types = typesResult.success ? typesResult.types : [];
+      
+      // Get existing room-type selections
+      const roomTypeSelectionsResult = getRoomTypeSelectionsCore();
+      const roomTypes = roomTypeSelectionsResult.success ? roomTypeSelectionsResult.roomTypes : {};
+      
+      return {
+        success: true,
+        selectedRooms: selectedRooms,
+        availableTypes: types,
+        roomTypes: roomTypes
+      };
+    } catch (error) {
+      Logger.log("Error in getRoomCategoriesData: " + error.message);
+      return {
+        success: false,
+        error: "Error getting room categories data: " + error.message
+      };
+    }
+  }
+  
+  /**
+   * Saves room-type selections from the Project_Details_ sidebar.
+   * 
+   * @param {Object} roomTypes - Object with room names as keys and arrays of types as values
+   * @return {Object} Success status
+   */
+  function saveRoomTypeSelections(roomTypes) {
+    return saveRoomTypeSelectionsCore(roomTypes);
+  }
+  
+  /**
+   * Get types for a specific room.
+   * Used for filtering available items by type.
+   * 
+   * @param {string} room - Room name
+   * @return {Array} Array of type names for the room
+   */
+  function getTypesForRoom(room) {
+    try {
+      const roomTypesResult = getRoomTypeSelectionsCore();
+      
+      if (!roomTypesResult.success || !roomTypesResult.roomTypes[room]) {
+        return [];
+      }
+      
+      return roomTypesResult.roomTypes[room];
+    } catch (error) {
+      Logger.log("Error in getTypesForRoom: " + error.message);
+      return [];
     }
   } 

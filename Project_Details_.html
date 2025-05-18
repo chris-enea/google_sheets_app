@@ -5,17 +5,13 @@
     <meta charset="utf-8">
     <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;500;700&family=Tenor+Sans&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-
-    <style>
-      /* Apply project color to all sidebar headers */
-      .modal-header {
-        background-color: <?!= project.projectColor || '#26717D' ?> !important;
-        color: #FFFFFF;
-      }
-    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <!-- Frappe Gantt CSS from CDN -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.css">
+    <?!= include('DashboardStyles.css'); ?>
   </head>
   <body>
-    <div class="app-container">
+    <div class="app-container" data-sheet-id="<?= dataSheetId ?>">
       <!-- Sidebar -->
       <div class="sidebar">
         <!-- Sidebar Tabs -->
@@ -39,6 +35,10 @@
           <div class="sidebar-tab" data-tab="rooms" data-tooltip="Rooms">
             <i class="material-icons">meeting_room</i>
             <span>Rooms</span>
+          </div>
+          <div class="sidebar-tab" data-tab="roomCategories" data-tooltip="Room Categories">
+            <i class="material-icons">category</i>
+            <span>Categories</span>
           </div>
         </div>
         
@@ -268,7 +268,7 @@
           <!-- Rooms Content (Room Manager) -->
           <div id="rooms-content" class="sidebar-content">
             <div class="sidebar-header">
-              <span>Manage Rooms</span>
+              <span>Select Rooms</span>
               <!-- Help icon with tooltip -->
               <div class="tooltip">
                 <div class="help-icon-container">
@@ -289,6 +289,46 @@
                   <p>Loading rooms...</p>
                 </div>
               </div>
+            </div>
+            <div class="sidebar-action-buttons">
+              <button onclick="saveRoomsSelection()" class="btn" title="Save">
+                <i class="material-icons">save</i> Save
+              </button>
+              <button onclick="navigateToRoomCategories()" class="btn" title="Continue to Room Categories">
+                Room Categories <i class="material-icons">arrow_forward</i>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Room Categories Content -->
+          <div id="roomCategories-content" class="sidebar-content">
+            <div class="sidebar-header">
+              <span>Room Categories</span>
+              <!-- Help icon with tooltip -->
+              <div class="tooltip">
+                <div class="help-icon-container">
+                  <div class="help-icon">
+                    <i class="material-icons">help</i>
+                  </div>
+                </div>
+                <div class="tooltip-text">
+                  <p>Select which categories apply to each room. These categories will be used to filter items for each room.</p>
+                </div>
+              </div>
+            </div>
+            <div class="sidebar-body">
+              <div id="roomCategoriesContent">
+                <!-- Room categories content will be loaded dynamically -->
+                <div class="loading-state">
+                  <div class="spinner"></div>
+                  <p>Loading categories...</p>
+                </div>
+              </div>
+            </div>
+            <div class="sidebar-action-buttons">
+              <button onclick="saveRoomCategoriesSelections()" class="btn" title="Save">
+                <i class="material-icons">save</i> Save
+              </button>
             </div>
           </div>
           
@@ -385,7 +425,7 @@
       <div class="main-content">
         <div class="content-header">
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2><span id="projectName"><?= project.name ?></span></h2>
+            <h2><span id="projectName">Project Name</span></h2>
             <div>
               <button onclick="showManageItems()" class="btn">
                 <i class="material-icons">inventory_2</i> Manage Budget Items
@@ -406,5 +446,11 @@
         </div>
       </div>
     </div>
+     <!-- Add Frappe Gantt JS from CDN -->
+     <script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
+     <!-- Add Project Card Styles using JavaScript -->
+     <?!= include('DashboardScripts.js'); ?>
+     <?!= include('modal_scripts.js'); ?>
+     <?!= include('folders.js'); ?>
   </body>
 </html>

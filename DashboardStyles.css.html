@@ -218,7 +218,6 @@ body {
 /* Exception for rooms sidebar header */
 #rooms-content .sidebar-header {
   display: block;
-  padding: 16px;
   height: auto;
   min-height: 50px;
   flex-direction: column;
@@ -233,6 +232,9 @@ body {
 /* Add padding to the sidebarRoomManagerContent */
 #sidebarRoomManagerContent {
   padding: 10px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Project details summary styles */
@@ -701,7 +703,7 @@ h2 .material-icons:hover {
   font-family: 'Tenor Sans', sans-serif;
   background-color: #26717D;
   color: #FFFFFF;
-  padding: 8px 16px;
+  padding: 8px 12px;
   border: none;
   border-radius: 4px;
   font-size: 14px;
@@ -931,12 +933,12 @@ input[type="checkbox"]:hover {
 
 /* Room Manager Styles (embedded ItemManager) */
 .room-manager-content {
-  padding: 20px;
+  padding: 0px;
 }
 
 .room-checklist {
   margin-bottom: 20px;
-  max-height: 400px;
+  max-height: 100%;
   overflow-y: auto;
   border: 1px solid rgba(38, 113, 125, 0.2);
   border-radius: 4px;
@@ -2717,5 +2719,85 @@ body.loading-active {
 /* Adjustments to ensure the main SVG area doesn\'t overlap or get hidden */
 #frappeGantt .gantt {
   /* overflow: visible !important; /* Might be needed if the SVG itself clips sticky elements */
+}
+/* Room Categories Styles */
+.room-categories-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 100%;
+  overflow-y: auto;
+}
+
+.room-category-section {
+  margin-bottom: 12px;
+  border: 1px solid rgba(38, 113, 125, 0.2);
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: #F5F3F1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.room-category-header {
+  padding: 10px 15px;
+  background-color: #26717D;
+  color: white;
+  font-family: 'Tenor Sans', sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+}
+
+.room-category-types {
+  padding: 5px 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.type-checkbox {
+  padding: 6px 16px;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s ease;
+  user-select: none;
+  cursor: pointer;
+}
+
+.type-checkbox:hover {
+  background-color: rgba(38, 113, 125, 0.05);
+}
+
+.type-checkbox input[type="checkbox"] {
+  margin-right: 12px;
+}
+
+.room-category-types .type-checkbox input[type="checkbox"] {
+  margin-right: 0;
+}
+
+/* Style for the navigation button in the Room Manager */
+.sidebar-action-buttons {
+  padding: 15px 5px 0 0;
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid #e0e0e0;
+}
+
+/* Error and info messages */
+.error-message, .info-message {
+  padding: 15px;
+  border-radius: 4px;
+  margin: 15px;
+}
+
+.error-message {
+  background-color: #ffebee;
+  color: #c62828;
+  border: 1px solid #ffcdd2;
+}
+
+.info-message {
+  background-color: #e3f2fd;
+  color: #0d47a1;
+  border: 1px solid #bbdefb;
 }
 </style>
