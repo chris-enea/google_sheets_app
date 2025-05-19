@@ -18,6 +18,9 @@ function onOpen() {
       .addItem('3. Select Items', 'showProjectDashboardItems')
       .addToUi();
     
+      ui.createMenu('Sheet Manager')
+      .addItem('Split Items by SPEC/FFE', 'splitItemsByFFE')
+      .addToUi();
       
   } catch (error) {
     Logger.log(`Error in onOpen: ${error.message}`);
