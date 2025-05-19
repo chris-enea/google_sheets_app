@@ -3541,7 +3541,7 @@
           // actionsHeader.textContent = 'Remove Item';
           
           headers.appendChild(checkboxHeader);
-          headers.appendChild(roomHeader);
+          headers.appendChild(roomHeader); // Added new room header
           headers.appendChild(typeHeader);
           headers.appendChild(itemHeader);
           headers.appendChild(quantityHeader);
@@ -3641,19 +3641,25 @@
         
         checkboxContainer.appendChild(checkbox);
         
+        // Room input container (New)
+        const roomInputContainer = document.createElement('div');
+        roomInputContainer.className = 'item-input-container'; // Use same class for styling consistency
+
+        const roomInput = document.createElement('input');
+        roomInput.type = 'text';
+        roomInput.className = 'room-input'; // New class for specific styling if needed
+        roomInput.value = item.room.toUpperCase() || roomName.toUpperCase() || ''; // Populate with item's room or passed roomName
+        roomInput.disabled = true; // Make it disabled
+        roomInput.dataset.field = 'room'; // Add data-field for consistency
+        roomInput.dataset.room = roomName;
+        roomInput.dataset.index = index;
+
+        roomInputContainer.appendChild(roomInput);
+        
         // Type input container
         const typeInputContainer = document.createElement('div');
         typeInputContainer.className = 'item-input-container';
         
-        // Room input
-        const roomInput = document.createElement('input');
-        roomInput.type = 'text';
-        roomInput.className = 'room-input';
-        roomInput.value = item.room || '';
-        roomInput.dataset.field = 'room';
-        roomInput.dataset.room = roomName;
-        roomInput.dataset.index = index;
-
         // Type input
         const typeInput = document.createElement('input');
         typeInput.type = 'text';
@@ -3734,8 +3740,9 @@
         
         // deleteButtonContainer.appendChild(deleteButton);
         
-        // Add all elements to the row in new order: checkbox, type, item, quantity, delete
+        // Add all elements to the row in new order: checkbox, room, type, item, quantity
         row.appendChild(checkboxContainer);
+        row.appendChild(roomInputContainer); // Added new room input container
         row.appendChild(typeInputContainer);
         row.appendChild(itemInputContainer);
         row.appendChild(quantityInput);
@@ -3763,7 +3770,16 @@
         const item = roomItems[idx];
         console.log(`Updating ${field} for item in ${roomName} at index ${idx} to value:`, value);
         
-        if (field === 'quantity') {
+        // Explicitly handle the 'room' field case, though it's disabled
+        if (field === 'room') {
+          // Even though disabled, ensure the underlying data model is not unintentionally changed if an event fires.
+          // The item.room should reflect the correct, original room name.
+          // We also compare against roomName (the original room context for this row) to be safe.
+          if (item.room !== value && roomName !== value) { 
+             console.warn(`Attempted to update disabled 'room' field for item '${item.item}'. Original: '${item.room}', Attempted: '${value}'. Change ignored.`);
+          }
+          // No actual update to item.room should happen here as it's a disabled, display-only field.
+        } else if (field === 'quantity') {
           item[field] = parseInt(value) || 1;
         } else if (field === 'isSelected') {
           item[field] = value; // Boolean for checkbox
@@ -3823,7 +3839,7 @@
             const itemToRemove = roomItems[index];
             const overallIndex = dashboardItemSelectionData.items.findIndex(item => 
               item === itemToRemove || 
-              (item.room === roomName && item.item === itemToRemove.item)
+              (item.room === roomName && item.item === itemToRemove.item && item.type === itemToRemove.type) // More specific match
             );
             
             if (overallIndex !== -1) {
@@ -3888,7 +3904,7 @@
         
         // Get all items that are selected
         const allItems = dashboardItemSelectionData.items || [];
-        const selectedItems = allItems.filter(item => item.isSelected === true);
+        const selectedItems = allItems.filter(item => item.isSelected === true && item.room && item.item && item.item.trim() !== ''); // Ensure room and item are present
         
         console.log('Selected items to save:', selectedItems.length);
         
@@ -4027,7 +4043,14 @@
             // If there are no selected rooms yet, simply show the room manager
             if (currentlySelectedRooms.length === 0) {
               hideDashboardLoading();
-              showRoomManager();
+              // Navigate to Room Categories tab instead of Room Manager
+              if (typeof switchSidebarTab === 'function') {
+                switchSidebarTab('roomCategories');
+              } else {
+                console.warn('switchSidebarTab function not found, cannot navigate to Room Categories.');
+                // Fallback to original behavior if switchSidebarTab is not available
+                showRoomManager(); 
+              }
               return;
             }
             
