@@ -40,6 +40,10 @@
             <i class="material-icons">category</i>
             <span>Categories</span>
           </div>
+          <div class="sidebar-tab" data-tab="items" data-tooltip="Select Items">
+            <i class="material-icons">list_alt</i>
+            <span>Items</span>
+          </div>
         </div>
         
         <!-- Sidebar Content Sections -->
@@ -229,6 +233,54 @@
             </div>
           </div>
           
+          <!-- Room Manager Content (Placeholder, dynamically loaded) -->
+          <div id="rooms-content" class="sidebar-content">
+            <!-- Content for Room Manager, typically loaded by loadSidebarRoomManager -->
+            <div class="sidebar-header">
+              <span>Room Manager</span>
+            </div>
+            <div id="sidebarRoomManagerContent" class="sidebar-body">
+              <!-- Room manager UI will be injected here by loadSidebarRoomManager -->
+              <div class="loading-state">
+                <div class="spinner"></div>
+                <p>Loading room manager...</p>
+              </div>
+            </div>
+            <div class="sidebar-action-buttons">
+                <button id="navigateToCategoriesBtn" onclick="navigateToRoomCategories()" class="btn btn-primary">
+                    <i class="material-icons">arrow_forward</i> Next: Define Categories
+                </button>
+            </div>
+          </div>
+
+          <!-- Room Categories Content (Placeholder, dynamically loaded) -->
+          <div id="roomCategories-content" class="sidebar-content">
+            <!-- Content for Room Categories, loaded by loadRoomCategoriesContent -->
+             <div class="sidebar-header">
+                <span>Room Categories</span>
+            </div>
+            <div id="roomCategoriesContent" class="sidebar-body">
+                <!-- Room categories UI will be injected here -->
+                <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Loading categories...</p>
+                </div>
+            </div>
+            <div class="sidebar-action-buttons">
+                <button id="btn-cat-back" onclick="saveAndNavigateToRooms()" class="btn btn-outline">
+                    <i class="material-icons">arrow_back</i> Back to Rooms
+                </button>
+                <button id="selectItemsBtn" onclick="saveRoomCategoriesSelections()" class="btn btn-primary">
+                    <i class="material-icons">arrow_forward</i> Next: Select Items
+                </button>
+            </div>
+          </div>
+
+          <!-- Items Content (New Empty Pane) -->
+          <div id="items-content" class="sidebar-content">
+            <!-- This pane is intentionally left empty as per requirements -->
+          </div>
+          
           <!-- Tasks Content -->
           <div id="tasks-content" class="sidebar-content">
             <div class="sidebar-header">
@@ -261,81 +313,6 @@
               </label>
               <button onclick="refreshTasks()" class="btn btn-outline" title="Refresh Tasks">
                 <i class="material-icons">sync</i>
-              </button>
-            </div>
-          </div>
-          
-          <!-- Rooms Content (Room Manager) -->
-          <div id="rooms-content" class="sidebar-content">
-            <div class="sidebar-header">
-              <span>Select Rooms</span>
-              <!-- Help icon with tooltip -->
-              <div class="tooltip">
-                <div class="help-icon-container">
-                  <div class="help-icon">
-                    <i class="material-icons">help</i>
-                  </div>
-                </div>
-                <div class="tooltip-text">
-                  <p>Select the rooms you want to add items to. Check the boxes next to room names, or add new rooms using the form below.</p>
-                </div>
-              </div>
-            </div>
-            <!-- Status message for sidebar -->
-            <div id="sidebarStatusMessage" class="status-message" style="display: none;"></div>
-            <div class="sidebar-body">
-              <div id="sidebarRoomManagerContent">
-                <!-- Room content will be loaded dynamically -->
-                <div class="loading-state">
-                  <div class="spinner"></div>
-                  <p>Loading rooms...</p>
-                </div>
-              </div>
-            </div>
-            <div class="sidebar-action-buttons">
-              <button onclick="saveRoomsSelection()" class="btn" title="Save">
-                <i class="material-icons">save</i> Save
-              </button>
-              <button onclick="navigateToRoomCategories()" class="btn" title="Continue to Room Categories">
-                Next <i class="material-icons">arrow_forward</i>
-              </button>
-            </div>
-          </div>
-          
-          <!-- Room Categories Content -->
-          <div id="roomCategories-content" class="sidebar-content">
-            <div class="sidebar-header">
-              <span>Room Categories</span>
-              <!-- Help icon with tooltip -->
-              <div class="tooltip">
-                <div class="help-icon-container">
-                  <div class="help-icon">
-                    <i class="material-icons">help</i>
-                  </div>
-                </div>
-                <div class="tooltip-text">
-                  <p>Select which categories apply to each room. These categories will be used to filter items for each room.</p>
-                </div>
-              </div>
-            </div>
-            <div class="sidebar-body">
-              <div id="roomCategoriesContent">
-                <!-- Room categories content will be loaded dynamically -->
-                <div class="loading-state">
-                  <div class="spinner"></div>
-                  <p>Loading categories...</p>
-                </div>
-              </div>
-            </div>
-            <div class="sidebar-action-buttons">
-              <!-- <button onclick="saveRoomCategoriesSelections()" class="btn" title="Save">
-                <i class="material-icons">arrow_back</i> Select Rooms
-              </button> -->
-              <button id="btn-cat-back" onclick="saveAndNavigateToRooms()" class="btn" title="Save and return to Rooms" disabled>
-                <i class="material-icons">arrow_back</i> Back
-              </button>
-              <button id="selectItemsBtn" title="Select items from categories to add to your project" class="btn" onclick="saveRoomCategoriesSelections()" disabled>
-                Next <i class="material-icons">arrow_forward</i>
               </button>
             </div>
           </div>

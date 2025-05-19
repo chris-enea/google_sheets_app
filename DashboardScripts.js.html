@@ -1420,20 +1420,51 @@
       selectedTab.classList.add('active');
     }
     
+    const sidebarElement = document.querySelector('.sidebar');
+    const sidebarToggleElement = document.getElementById('sidebarToggle');
+    const sidebarToggleIcon = sidebarToggleElement ? sidebarToggleElement.querySelector('.material-icons') : null;
+
     // Special handling for specific tabs
-    if (tabId === 'roomCategories') {
-      loadRoomCategoriesContent();
-    } else if (tabId === 'rooms') {
-      if (typeof window.loadSidebarRoomManager === 'function') {
-        console.log('[DashboardScripts.js] switchSidebarTab: Calling loadSidebarRoomManager() for tab: rooms');
-        window.loadSidebarRoomManager();
+    if (tabId === 'items') {
+      if (typeof showItemSelectionInterface === 'function') {
+        showItemSelectionInterface();
       } else {
-        console.warn('[DashboardScripts.js] switchSidebarTab: loadSidebarRoomManager function not found when trying to load tab: rooms');
-        const contentArea = document.getElementById(tabId + '-content');
-        if (contentArea) {
-          contentArea.innerHTML = '<div class="error-message"><p>Error: Room manager content loader not found. Please define loadSidebarRoomManager.</p></div>';
+        console.warn('[DashboardScripts.js] showItemSelectionInterface function not found.');
+        const itemsContent = document.getElementById('items-content');
+        if (itemsContent) {
+          itemsContent.innerHTML = '<div class="error-message"><p>Error: Item selection interface loader not found.</p></div>';
         }
       }
+      // Collapse the sidebar using the existing 'collapsed' class
+      if (sidebarElement && !sidebarElement.classList.contains('collapsed')) {
+        sidebarElement.classList.add('collapsed');
+        if (sidebarToggleIcon) sidebarToggleIcon.textContent = 'chevron_right';
+        if (sidebarToggleElement) sidebarToggleElement.classList.add('collapsed');
+        console.log('[DashboardScripts.js] Sidebar collapsed for items tab.');
+      }
+    } else {
+      // For all other tabs, ensure the sidebar is expanded
+      if (sidebarElement && sidebarElement.classList.contains('collapsed')) {
+        sidebarElement.classList.remove('collapsed');
+        if (sidebarToggleIcon) sidebarToggleIcon.textContent = 'chevron_left';
+        if (sidebarToggleElement) sidebarToggleElement.classList.remove('collapsed');
+        console.log('[DashboardScripts.js] Sidebar expanded for tab:', tabId);
+      }
+      // Existing tab-specific content loaders
+      if (tabId === 'roomCategories') {
+        loadRoomCategoriesContent();
+      } else if (tabId === 'rooms') {
+        if (typeof window.loadSidebarRoomManager === 'function') {
+          console.log('[DashboardScripts.js] switchSidebarTab: Calling loadSidebarRoomManager() for tab: rooms');
+          window.loadSidebarRoomManager();
+        } else {
+          console.warn('[DashboardScripts.js] switchSidebarTab: loadSidebarRoomManager function not found when trying to load tab: rooms');
+          const contentArea = document.getElementById(tabId + '-content');
+          if (contentArea) {
+            contentArea.innerHTML = '<div class="error-message"><p>Error: Room manager content loader not found. Please define loadSidebarRoomManager.</p></div>';
+          }
+        }
+      } // Add other else if conditions for other tabs if necessary
     }
   }
   
@@ -1678,10 +1709,13 @@
           switchSidebarTab('rooms');
           loadSidebarRoomManager();
         } else {
-          loadRoomCategoriesContent();
-          if (typeof showItemSelectionInterface === 'function') {
-            showItemSelectionInterface();
-          }
+          // OLD BEHAVIOR:
+          // loadRoomCategoriesContent();
+          // if (typeof showItemSelectionInterface === 'function') {
+          //   showItemSelectionInterface();
+          // }
+          // NEW BEHAVIOR: Switch to the items tab
+          switchSidebarTab('items');
         }
       })
       .withFailureHandler(function(error) {

@@ -1414,8 +1414,8 @@
                 } // Add other tab-specific loading functions here if needed
               }
               
-              // If sidebar is collapsed, expand it
-              if (sidebar.classList.contains('collapsed')) {
+              // If sidebar is collapsed, expand it, UNLESS it's the items tab
+              if (sidebar.classList.contains('collapsed') && tabName !== 'items') {
                 sidebar.classList.remove('collapsed');
                 if (sidebarToggle) {
                   const toggleIcon = sidebarToggle.querySelector('.material-icons');
