@@ -295,7 +295,7 @@
                 <i class="material-icons">save</i> Save
               </button>
               <button onclick="navigateToRoomCategories()" class="btn" title="Continue to Room Categories">
-                Room Categories <i class="material-icons">arrow_forward</i>
+                Next <i class="material-icons">arrow_forward</i>
               </button>
             </div>
           </div>
@@ -326,8 +326,14 @@
               </div>
             </div>
             <div class="sidebar-action-buttons">
-              <button onclick="saveRoomCategoriesSelections()" class="btn" title="Save">
-                <i class="material-icons">save</i> Save
+              <!-- <button onclick="saveRoomCategoriesSelections()" class="btn" title="Save">
+                <i class="material-icons">arrow_back</i> Select Rooms
+              </button> -->
+              <button onclick="saveAndNavigateToRooms()" class="btn" title="Save and return to Rooms">
+                <i class="material-icons">arrow_back</i> Back
+              </button>
+              <button id="selectItemsBtn" title="Select items from categories to add to your project" class="btn" onclick="saveRoomCategoriesSelections()">
+                Next <i class="material-icons">arrow_forward</i>
               </button>
             </div>
           </div>
@@ -427,9 +433,9 @@
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <h2><span id="projectName">Project Name</span></h2>
             <div>
-              <button onclick="showManageItems()" class="btn">
+              <!-- <button onclick="showManageItems()" class="btn">
                 <i class="material-icons">inventory_2</i> Manage Budget Items
-              </button>
+              </button> -->
             </div>
           </div>
         </div>

@@ -1618,53 +1618,62 @@
   /**
    * Save the Room Categories selections.
    * Collects all checked checkboxes and organizes them by room.
+   * 
+   * @param {boolean} navigateToRooms - Whether to navigate to the rooms tab after saving
    */
-  function saveRoomCategoriesSelections() {
-    // Show loading state
-    const saveButton = document.querySelector('#roomCategories-content .sidebar-action-buttons button');
-    const originalText = saveButton.innerHTML;
-    saveButton.innerHTML = '<i class="material-icons">sync</i> Saving...';
-    saveButton.disabled = true;
-    
-    // Collect all checkbox selections
+  function saveRoomCategoriesSelections(navigateToRooms = false) {
+    // Disable all sidebar action buttons to prevent double click
+    const actionButtons = document.querySelectorAll('#roomCategories-content .sidebar-action-buttons button');
+    actionButtons.forEach(btn => btn.disabled = true);
+    // Collect all checkbox selections FIRST
     const checkboxes = document.querySelectorAll('#roomCategoriesContent input[type="checkbox"]');
     const roomTypes = {};
-    
     checkboxes.forEach(checkbox => {
       const room = checkbox.getAttribute('data-room');
       const type = checkbox.getAttribute('data-type');
-      
       if (checkbox.checked) {
-        if (!roomTypes[room]) {
-          roomTypes[room] = [];
-        }
+        if (!roomTypes[room]) roomTypes[room] = [];
         roomTypes[room].push(type);
       }
     });
-    
-    // Save the selections
+
+    // THEN show loading state
+    document.getElementById('roomCategoriesContent').innerHTML = `
+      <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Saving categories...</p>
+      </div>
+    `;
+
+    // Continue with the rest of the function...
     google.script.run
       .withSuccessHandler(function(result) {
-        if (result.success) {
-          // Restore button state
-          saveButton.innerHTML = '<i class="material-icons">check</i> Saved';
-          
-          // Re-enable after a delay
-          setTimeout(() => {
-            saveButton.innerHTML = '<i class="material-icons">save</i> Save';
-            saveButton.disabled = false;
-          }, 2000);
+        // Disable all sidebar action buttons to prevent double click
+        const actionButtons = document.querySelectorAll('#roomCategories-content .sidebar-action-buttons button');
+        actionButtons.forEach(btn => btn.disabled = false);
+
+        if (navigateToRooms) {
+          switchSidebarTab('rooms');
+          loadSidebarRoomManager();
         } else {
-          alert('Error saving room categories: ' + result.error);
-          saveButton.innerHTML = originalText;
-          saveButton.disabled = false;
+          loadRoomCategoriesContent();
+          if (typeof showItemSelectionInterface === 'function') {
+            showItemSelectionInterface();
+          }
         }
       })
       .withFailureHandler(function(error) {
-        alert('Error: ' + error);
-        saveButton.innerHTML = originalText;
-        saveButton.disabled = false;
+        document.getElementById('roomCategoriesContent').innerHTML = `
+          <div class="error-message">
+            <p>Error saving categories: ${error}</p>
+          </div>
+        `;
       })
       .saveRoomTypeSelections(roomTypes);
+  }
+
+  // Function to save categories and navigate to rooms
+  function saveAndNavigateToRooms() {
+    saveRoomCategoriesSelections(true);
   }
 </script> 

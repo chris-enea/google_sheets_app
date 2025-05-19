@@ -1781,4 +1781,216 @@ function getRooms() {
       Logger.log("Error in getTypesForRoom: " + error.message);
       return [];
     }
+  }
+  
+  /**
+   * Retrieves item data for the item selection interface based on selected room categories.
+   * This function prepares category-filtered items for the item selection interface.
+   *
+   * @param {string} sheetId - Optional spreadsheet ID. If not provided, uses active spreadsheet.
+   * @param {Array} targetRooms - Optional array of specific rooms to retrieve data for
+   * @return {Object} Object containing item data organized by room and category
+   */
+  function getItemSelectionData(sheetId = null, targetRooms = null) {
+    try {
+      // Use provided sheetId if available, otherwise fallback to active spreadsheet
+      let ss;
+      if (sheetId) {
+        ss = SpreadsheetApp.openById(sheetId);
+      } else {
+        ss = SpreadsheetApp.getActiveSpreadsheet();
+      }
+
+      // Get selected rooms if not provided
+      let selectedRooms = targetRooms;
+      if (!selectedRooms || !Array.isArray(selectedRooms) || selectedRooms.length === 0) {
+        selectedRooms = getSelectedRoomsCore(sheetId);
+      }
+
+      // If no rooms are selected, return empty result
+      if (selectedRooms.length === 0) {
+        return {
+          success: false,
+          error: "No rooms selected. Please select rooms first."
+        };
+      }
+
+      // Get the room-type mappings
+      const roomCategoriesData = getRoomTypeSelectionsCore(sheetId);
+      const roomTypesMap = roomCategoriesData.success ? roomCategoriesData.roomTypes : {};
+      
+      // Get all available types/categories
+      const typesData = getTypes();
+      const availableTypes = typesData.success ? typesData.types : [];
+      
+      // Get all available items from the Data sheet
+      const dataSheet = ss.getSheetByName("Data");
+      if (!dataSheet) {
+        return {
+          success: false,
+          error: "Data sheet not found in the spreadsheet"
+        };
+      }
+      
+      // Get data from the Data sheet
+      const dataRange = dataSheet.getDataRange();
+      const values = dataRange.getValues();
+      
+      // Headers are in the first row
+      const headerRow = values[0];
+      let itemNameColIndex = -1;
+      let itemTypeColIndex = -1;
+      
+      // Find the column indices for "Item-Name" and "Item-Type"
+      for (let j = 0; j < headerRow.length; j++) {
+        if (headerRow[j] === "Item-Name") {
+          itemNameColIndex = j;
+        } else if (headerRow[j] === "Item-Type") {
+          itemTypeColIndex = j;
+        }
+      }
+      
+      if (itemNameColIndex === -1 || itemTypeColIndex === -1) {
+        return {
+          success: false,
+          error: "Required columns 'Item-Name' and 'Item-Type' not found in the Data sheet"
+        };
+      }
+      
+      // Extract items data (skipping the header row)
+      const allItemsWithTypes = [];
+      for (let i = 1; i < values.length; i++) {
+        const row = values[i];
+        const itemName = row[itemNameColIndex];
+        const itemType = row[itemTypeColIndex];
+        
+        // Stop if we hit an empty item name
+        if (!itemName) {
+          break;
+        }
+        
+        allItemsWithTypes.push({
+          type: itemType || '',
+          item: itemName
+        });
+      }
+      
+      // Organize items by type
+      const itemsByType = {};
+      allItemsWithTypes.forEach(item => {
+        const type = item.type.trim().toUpperCase() || 'UNCATEGORIZED';
+        if (!itemsByType[type]) {
+          itemsByType[type] = [];
+        }
+        itemsByType[type].push(item);
+      });
+      
+      // For each selected room, find the assigned types and the corresponding items
+      const itemsByRoom = {};
+      const combinedItems = [];
+      const allItems = [];
+      
+      selectedRooms.forEach(room => {
+        // Get types assigned to this room
+        const roomTypes = roomTypesMap[room] || [];
+        
+        // Initialize items array for this room
+        itemsByRoom[room] = [];
+        
+        // For each type assigned to the room, get items of that type
+        roomTypes.forEach(type => {
+          let itemsOfType = itemsByType[type.toUpperCase()] || [];
+          // Sort items alphabetically by item name (case-insensitive)
+          itemsOfType = itemsOfType.slice().sort((a, b) =>
+            a.item.toLowerCase().localeCompare(b.item.toLowerCase())
+          );
+
+          // Add each item to the room's items
+          itemsOfType.forEach(item => {
+            const itemForRoom = {
+              room: room,
+              type: item.type.toUpperCase(),
+              item: item.item.toUpperCase(),
+              quantity: 1,
+              isSelected: false
+            };
+            
+            itemsByRoom[room].push(itemForRoom);
+            allItems.push(itemForRoom);
+            
+            // Add to combined items for autocomplete
+            const combinedItem = `${item.type} : ${item.item}`;
+            if (!combinedItems.includes(combinedItem)) {
+              combinedItems.push(combinedItem);
+            }
+          });
+        });
+      });
+      
+      Logger.log(`Prepared item selection data with ${allItems.length} items across ${selectedRooms.length} rooms`);
+      
+      return {
+        success: true,
+        items: allItems,
+        itemsByRoom: itemsByRoom,
+        selectedRooms: selectedRooms,
+        combinedItems: combinedItems,
+        availableItems: allItemsWithTypes
+      };
+      
+    } catch (error) {
+      Logger.log("Error in getItemSelectionData: " + error.message);
+      return {
+        success: false,
+        error: "Error retrieving item selection data: " + error.message
+      };
+    }
+  }
+  
+  /**
+   * Saves selected items from the item selection interface to the Items sheet.
+   * This function takes the checked items and adds them to the project's Items sheet.
+   *
+   * @param {Array} items - Array of selected items to save
+   * @param {string} sheetId - Optional spreadsheet ID. If not provided, uses active spreadsheet.
+   * @return {Object} Object containing success status and count of items saved
+   */
+  function saveSelectedItemsToSheet(items, sheetId = null) {
+    try {
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return {
+          success: false,
+          error: "No items provided to save"
+        };
+      }
+      
+      // Validate that each item has the required fields
+      const validItems = items.filter(item => 
+        item && item.room && item.item && item.type !== undefined && item.quantity
+      );
+      
+      if (validItems.length === 0) {
+        return {
+          success: false,
+          error: "No valid items to save"
+        };
+      }
+      
+      // Use saveItemsCore to handle the actual saving logic
+      // We're reusing that function to maintain consistency
+      const saveResult = saveItemsCore(validItems, sheetId);
+      
+      return {
+        success: saveResult.success,
+        error: saveResult.error,
+        itemCount: saveResult.itemCount || validItems.length
+      };
+      
+    } catch (error) {
+      Logger.log("Error in saveSelectedItemsToSheet: " + error.message);
+      return {
+        success: false,
+        error: "Error saving selected items: " + error.message
+      };
+    }
   } 

@@ -29,7 +29,7 @@ body {
 /* Sidebar styles */
 .sidebar {
   width: 30%;
-  max-width: 320px;
+  max-width: 360px;
   min-width: 240px;
   border-right: 1px solid rgba(38, 113, 125, 0.2);
   display: flex;
@@ -933,7 +933,7 @@ input[type="checkbox"]:hover {
 
 /* Room Manager Styles (embedded ItemManager) */
 .room-manager-content {
-  padding: 0px;
+  padding: 10px;
 }
 
 .room-checklist {
@@ -942,7 +942,6 @@ input[type="checkbox"]:hover {
   overflow-y: auto;
   border: 1px solid rgba(38, 113, 125, 0.2);
   border-radius: 4px;
-  padding: 5px 0;
   background-color: #F5F3F1;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
 }
@@ -995,6 +994,15 @@ input[type="checkbox"]:hover {
   gap: 8px;
 }
 
+.checkbox-header {
+  width: 40px;
+}
+
+.checkbox-container {
+  width: 40px;
+  display: flex;
+}
+
 .item-header {
   width: 200px;
   margin-left: 0;
@@ -1026,7 +1034,7 @@ input[type="checkbox"]:hover {
 }
 
 input[type="text"], input[type="number"] {
-  padding: 8px;
+  padding: 6px 8px;
   box-sizing: border-box;
   border: 1px solid #B2C8CB;
   border-radius: 4px;
@@ -1170,11 +1178,16 @@ input[type="text"], input[type="number"] {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
 }
 
+.item-selection-content .room-container {
+  max-width: 500px;
+}
+
 .room-title {
   font-family: 'Tenor Sans', sans-serif;
   font-size: 18px;
   font-weight: 400;
   color: #26717D;
+  margin-bottom: 10px;
 }
 
 .add-more-row {
@@ -1302,7 +1315,6 @@ input[type="text"], input[type="number"] {
 
 /* Room filter styling */
 #filter-container {
-  margin-bottom: 20px;
   display: flex;
   gap: 8px;
   align-items: center;
@@ -1333,20 +1345,14 @@ input[type="text"], input[type="number"] {
 /* Action buttons for folders and tasks */
 .sidebar-action-buttons {
   display: flex;
-  justify-content: flex-end;
-  padding: 8px 12px;
-  border-bottom: 1px solid rgba(38, 113, 125, 0.1);
+  justify-content: space-between;
+  margin-top: auto; /* Push to bottom of flex container */
+  padding: 10px;
+  border-top: 1px solid #e0e0e0;
 }
 
 .sidebar-action-buttons button {
   margin-left: 8px;
-}
-
-/* Move action buttons to bottom */
-.sidebar-action-buttons {
-  border-bottom: none;
-  border-top: 1px solid rgba(38, 113, 125, 0.1);
-  margin-top: auto; /* Push to bottom of flex container */
 }
 
 /* Placeholder content for new tabs */
@@ -2739,22 +2745,22 @@ body.loading-active {
 }
 
 .room-category-header {
-  padding: 10px 15px;
+  padding: 8px 12px;
   background-color: #26717D;
   color: white;
   font-family: 'Tenor Sans', sans-serif;
   font-weight: 400;
   font-size: 16px;
+  margin-bottom: 10px;
 }
 
 .room-category-types {
-  padding: 5px 0;
   display: flex;
   flex-direction: column;
 }
 
 .type-checkbox {
-  padding: 6px 16px;
+  padding: 6px 10px;
   display: flex;
   align-items: center;
   transition: all 0.2s ease;
@@ -2773,15 +2779,6 @@ body.loading-active {
 .room-category-types .type-checkbox input[type="checkbox"] {
   margin-right: 0;
 }
-
-/* Style for the navigation button in the Room Manager */
-.sidebar-action-buttons {
-  padding: 15px 5px 0 0;
-  display: flex;
-  justify-content: flex-end;
-  border-top: 1px solid #e0e0e0;
-}
-
 /* Error and info messages */
 .error-message, .info-message {
   padding: 15px;
@@ -2799,5 +2796,11 @@ body.loading-active {
   background-color: #e3f2fd;
   color: #0d47a1;
   border: 1px solid #bbdefb;
+}
+
+.sidebar-action-buttons button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed !important;
+  pointer-events: none;
 }
 </style>
