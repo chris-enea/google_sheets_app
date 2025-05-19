@@ -1420,9 +1420,20 @@
       selectedTab.classList.add('active');
     }
     
-    // Special handling for Room Categories tab
+    // Special handling for specific tabs
     if (tabId === 'roomCategories') {
       loadRoomCategoriesContent();
+    } else if (tabId === 'rooms') {
+      if (typeof window.loadSidebarRoomManager === 'function') {
+        console.log('[DashboardScripts.js] switchSidebarTab: Calling loadSidebarRoomManager() for tab: rooms');
+        window.loadSidebarRoomManager();
+      } else {
+        console.warn('[DashboardScripts.js] switchSidebarTab: loadSidebarRoomManager function not found when trying to load tab: rooms');
+        const contentArea = document.getElementById(tabId + '-content');
+        if (contentArea) {
+          contentArea.innerHTML = '<div class="error-message"><p>Error: Room manager content loader not found. Please define loadSidebarRoomManager.</p></div>';
+        }
+      }
     }
   }
   
@@ -1506,13 +1517,8 @@
         if (result.success) {
           if (!result.selectedRooms || result.selectedRooms.length === 0) {
             document.getElementById('roomCategoriesContent').innerHTML = `
-              <div class="room-manager-content">
-                <div class="info-message">
-                  <p>No rooms selected. Please select rooms in the Rooms tab first.</p>
-                </div>
-                <button onclick="switchSidebarTab('rooms')" class="btn">
-                  <i class="material-icons">arrow_back</i> Go to Room Selection
-                </button>
+              <div class="room-manager-content" style="padding: 20px; text-align: center;">
+                <p>There are no rooms selected for this project. Choose them <a href="#" onclick="event.preventDefault(); switchSidebarTab('rooms');" style="text-decoration: underline; color: var(--primary-color, #007bff); cursor: pointer;">here</a>.</p>
               </div>
             `;
             // Keep buttons disabled as the main UI isn't loaded
@@ -1692,4 +1698,58 @@
   function saveAndNavigateToRooms() {
     saveRoomCategoriesSelections(true);
   }
-</script> 
+
+  // --- NEW SIMPLIFIED Initial Tab Activation Logic ---
+  document.addEventListener('DOMContentLoaded', function() {
+    // Read the global variable set by Project_Details_.html
+    var tabToOpenOnLoad = window.initialTabIdFromAppsScript;
+
+    console.log('[DashboardScripts.js] DOMContentLoaded: initialTabIdFromAppsScript from window is:', tabToOpenOnLoad);
+
+    if (tabToOpenOnLoad) {
+      if (typeof window.switchSidebarTab === 'function') {
+        console.log('[DashboardScripts.js] Attempting to call switchSidebarTab with ID:', tabToOpenOnLoad);
+        try {
+          window.switchSidebarTab(tabToOpenOnLoad);
+
+          // If the opened tab is the Room Manager, call its specific content loader.
+          // Assuming 'roomManagerView' is the ID passed for the "Rooms" tab, 
+          // and its loader is loadSidebarRoomManager().
+          // Adjust tabToOpenOnLoad === 'yourActualRoomManagerTabId' if different.
+          if (tabToOpenOnLoad === 'roomManagerView' || tabToOpenOnLoad === 'rooms') { 
+            if (typeof window.loadSidebarRoomManager === 'function') {
+              console.log('[DashboardScripts.js] Calling loadSidebarRoomManager() for tab:', tabToOpenOnLoad);
+              window.loadSidebarRoomManager();
+            } else {
+              console.warn('[DashboardScripts.js] loadSidebarRoomManager function not found, content for Room Manager might not load.');
+            }
+          }
+
+          // Verification after a short delay for DOM updates
+          setTimeout(function() {
+            var expectedTabContentId = tabToOpenOnLoad + '-content';
+            var activeContent = document.querySelector('.sidebar-content.active');
+            var activeTabButton = document.querySelector('.sidebar-tab.active');
+
+            if (activeContent && activeContent.id === expectedTabContentId) {
+              console.log('[DashboardScripts.js] VERIFIED: Tab content "' + expectedTabContentId + '" is active.');
+            } else if (activeTabButton && activeTabButton.getAttribute('data-tab') === tabToOpenOnLoad) {
+              console.log('[DashboardScripts.js] VERIFIED: Tab button for "' + tabToOpenOnLoad + '" is active.');
+            } else {
+              console.warn('[DashboardScripts.js] switchSidebarTab was called for "' + tabToOpenOnLoad + '". Tab does not appear active. Check ID (' + tabToOpenOnLoad + ') and switchSidebarTab function.');
+              if (activeContent) console.warn('[DashboardScripts.js] Current active content ID: ' + activeContent.id + ', Expected: ' + expectedTabContentId);
+              if (activeTabButton) console.warn('[DashboardScripts.js] Current active tab button data-tab: ' + activeTabButton.getAttribute('data-tab') + ', Expected: ' + tabToOpenOnLoad);
+            }
+          }, 250); // 250ms delay
+        } catch (e) {
+          console.error('[DashboardScripts.js] Error calling switchSidebarTab:', e);
+        }
+      } else {
+        console.warn('[DashboardScripts.js] switchSidebarTab function is not defined or not globally accessible. Cannot switch to tab:', tabToOpenOnLoad);
+      }
+    } else {
+      console.log('[DashboardScripts.js] No initial tab ID specified by server. Default tab should load as per existing logic (if any).');
+    }
+  });
+  // --- END OF NEW SIMPLIFIED Initial Tab Activation Logic ---
+</script>

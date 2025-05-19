@@ -898,5 +898,5 @@ function saveSelectedItemsWithTemplateCopy(items) {
       error: "Error saving items: " + error.message
     };
   }
-} 
+}
 

@@ -457,6 +457,11 @@
      <!-- Add Frappe Gantt JS from CDN -->
      <script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
      <!-- Add Project Card Styles using JavaScript -->
+     <script type="text/javascript">
+       var initialTabIdFromAppsScript = <?!= initialTabToOpen ? JSON.stringify(initialTabToOpen) : 'null' ?>;
+       // For immediate debugging in the browser console when the dialog opens:
+       console.log('[Project_Details_.html] Embedded initialTabIdFromAppsScript:', initialTabIdFromAppsScript);
+     </script>
      <?!= include('DashboardScripts.js'); ?>
      <?!= include('modal_scripts.js'); ?>
      <?!= include('folders.js'); ?>

@@ -7,7 +7,13 @@ function onOpen() {
       
     // Client Dashboard menu
     ui.createMenu('Setup')
-      .addItem('Open Dashboard', 'showProjectDashboard')
+      // Calls showProjectDashboard to open the default view (e.g., Home)
+      // Pass null or a default tab ID if your Project_Details_ expects one for the main view
+      .addItem('Open Dashboard', 'showProjectDashboardDefault') 
+      // Calls showProjectDashboard with 'roomManagerView' to open the Room Manager tab
+      .addItem('Select Rooms', 'showProjectDashboardRoomManager') 
+      // New menu item
+      .addItem('Select Room Categories', 'showProjectDashboardRoomCategories')
       .addToUi();
     
       
@@ -17,21 +23,44 @@ function onOpen() {
   }
 }
 
-function showProjectDashboard() {
-  // var id = PropertiesService.getScriptProperties().getProperty('CURRENT_PROJECT_ID');
-  // if (!id) {
-  //   SpreadsheetApp.getUi().alert('No project ID found in script properties.');
-  //   return;
-  // }
+// Wrapper function for default dashboard view
+function showProjectDashboardDefault() {
+  // Pass null or your default tab ID, e.g., 'homeView' or 'dashboardHome'
+  // The receiving template needs to handle a null or undefined initialTabToOpen gracefully.
+  showProjectDashboard(null); 
+}
+
+// Wrapper function for Room Manager view
+function showProjectDashboardRoomManager() {
+  showProjectDashboard('rooms'); // MODIFIED: Pass the actual data-tab ID 'rooms'
+}
+
+// New wrapper function for Room Categories view
+function showProjectDashboardRoomCategories() {
+  showProjectDashboard('roomCategories'); 
+}
+
+/**
+ * Shows the Project Details modal, optionally opening to a specific tab.
+ * @param {string} [initialTabId] - Optional ID of the tab to open initially.
+ */
+function showProjectDashboard(initialTabId) {
   var dataSheetId = PropertiesService.getScriptProperties().getProperty('DATA_SHEET_ID');
   var template = HtmlService.createTemplateFromFile('Project_Details_');
   template.dataSheetId = dataSheetId; // Pass to template
+  
+  if (initialTabId) {
+    template.initialTabToOpen = initialTabId;
+  } else {
+    template.initialTabToOpen = null; // Ensure it's explicitly null for the scriptlet
+  }
+  Logger.log('[ui.js] showProjectDashboard - Setting initialTabToOpen to: ' + template.initialTabToOpen);
 
   var htmlOutput = template.evaluate()
     .setWidth(1500)
     .setHeight(1000);
 
-  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Project_Details_');
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Project Details');
 }
 
 /**
