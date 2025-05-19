@@ -1910,7 +1910,7 @@
         actionsContainer.style.display = 'flex';
         actionsContainer.style.gap = '10px';
         actionsContainer.appendChild(saveButton);
-        
+        actionsContainer.appendChild(saveDraftButton);
         // Add filter and actions to sticky container
         stickyContainer.appendChild(filterContainer);
         stickyContainer.appendChild(actionsContainer);
@@ -3357,7 +3357,7 @@
        * and adds checkboxes for selecting items to add to the sheet.
        * @param {Object} data - The data to populate the interface with.
        */
-      function renderItemSelectionInterface(data) {
+      function renderItemSelectionInterface(data, optionalOnSuccessCallback) { // MODIFIED: Add optionalOnSuccessCallback
         
         if (!data.success) {
           document.getElementById('fileContent').innerHTML = `
@@ -3457,25 +3457,52 @@
         
         filterContainer.appendChild(filterLabel);
         filterContainer.appendChild(roomFilter);
-        
-        // Create save button for the sticky container
+
+        // Create "Save Draft" button
+        const saveDraftButton = document.createElement('button');
+        saveDraftButton.className = 'btn btn-secondary'; // Added btn-secondary for different styling, adjust as needed
+        saveDraftButton.id = 'saveDraftButton'; // Added an ID for easier selection if needed
+        saveDraftButton.style.marginLeft = '10px'; // Add some space between buttons
+
+        const draftIcon = document.createElement('i');
+        draftIcon.className = 'material-icons';
+        draftIcon.textContent = 'save'; // Or another suitable icon like 'save_alt'
+        draftIcon.style.marginRight = '5px';
+
+        saveDraftButton.appendChild(draftIcon);
+        saveDraftButton.appendChild(document.createTextNode('Save Draft'));
+
+        // Create generate button for the sticky container
         const saveButton = document.createElement('button');
         saveButton.className = 'btn';
         saveButton.addEventListener('click', saveSelectedItemsFromDashboard);
         
         const saveIcon = document.createElement('i');
         saveIcon.className = 'material-icons';
-        saveIcon.textContent = 'save';
+        saveIcon.textContent = 'add';
         saveIcon.style.marginRight = '5px';
         
         saveButton.appendChild(saveIcon);
-        saveButton.appendChild(document.createTextNode('Save Selected Items'));
+        saveButton.appendChild(document.createTextNode('Create Master Item List'));
+
+        // Event listener for Save Draft button
+        saveDraftButton.addEventListener('click', function() {
+          if (typeof handleSaveDraftItem === 'function') {
+            handleSaveDraftItem();
+            // Optionally, provide user feedback e.g., a toast notification
+            // showToastNotification('Draft saved!'); 
+          } else {
+            console.error('handleSaveDraftItem function is not defined. Make sure DashboardScripts.js.html is loaded and the function is global.');
+            alert('Error: Could not save draft. Function not available.');
+          }
+        });
         
         // Actions container in the sticky header
         const actionsContainer = document.createElement('div');
         actionsContainer.style.display = 'flex';
         actionsContainer.style.gap = '10px';
         actionsContainer.appendChild(saveButton);
+        actionsContainer.appendChild(saveDraftButton); // Add the new Save Draft button here
         
         // Add filter and actions to sticky container
         stickyContainer.appendChild(filterContainer);
@@ -3611,6 +3638,12 @@
         // Update the content area
         document.getElementById('fileContent').innerHTML = '';
         document.getElementById('fileContent').appendChild(container);
+
+        // AFTER all DOM is updated, call the callback
+        if (typeof optionalOnSuccessCallback === 'function') {
+          console.log("[modal_scripts.js] renderItemSelectionInterface: DOM rendering complete. Calling onSuccessCallback.");
+          optionalOnSuccessCallback();
+        }
       }
       
       /**
@@ -3986,7 +4019,7 @@
        * Shows the item selection interface in the dashboard.
        * This interface allows users to select items from category lists to add to the project.
        */
-      function showItemSelectionInterface() {
+      function showItemSelectionInterface(optionalOnSuccessCallback) { // MODIFIED: Add optionalOnSuccessCallback
         // Store the original project name if not already stored
         const projectNameElement = document.getElementById('projectName');
         if (projectNameElement && !window.originalProjectName) {
@@ -4060,8 +4093,8 @@
                 hideDashboardLoading();
                 if (mainContentContainer) {
                     if (result.success) {
-                        // Initialize the interface with room data
-                        renderItemSelectionInterface(result);
+                        // Initialize the interface with room data and pass the callback
+                        renderItemSelectionInterface(result, optionalOnSuccessCallback); // MODIFIED: Pass callback
                     } else {
                         renderUIState(mainContentContainer, 'error', '<strong>Error:</strong> ' + (result.error || 'Failed to load items data'));
                     }

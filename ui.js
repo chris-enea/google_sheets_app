@@ -14,6 +14,8 @@ function onOpen() {
       .addItem('1. Select Rooms', 'showProjectDashboardRoomManager') 
       // New menu item
       .addItem('2. Select Room Categories', 'showProjectDashboardRoomCategories')
+      // New menu item
+      .addItem('3. Select Items', 'showProjectDashboardItems')
       .addToUi();
     
       
@@ -35,10 +37,15 @@ function showProjectDashboardRoomManager() {
   showProjectDashboard('rooms'); // MODIFIED: Pass the actual data-tab ID 'rooms'
 }
 
-// New wrapper function for Room Categories view
-function showProjectDashboardRoomCategories() {
-  showProjectDashboard('roomCategories'); 
-}
+  // New wrapper function for Room Categories view
+  function showProjectDashboardRoomCategories() {
+    showProjectDashboard('roomCategories'); 
+  }
+
+  // New wrapper function for Items view
+  function showProjectDashboardItems() {
+    showProjectDashboard('items'); 
+  }
 
 /**
  * Shows the Project Details modal, optionally opening to a specific tab.

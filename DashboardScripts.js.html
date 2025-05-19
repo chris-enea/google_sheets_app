@@ -1,4 +1,6 @@
 <script>
+    let currentActiveSidebarTabId = null; // Initialize to null or the default tab ID
+
     function openSettingsDialog() {
       document.getElementById('settingsModal').style.display = 'flex';
       document.getElementById('settingsStatus').textContent = '';
@@ -1396,6 +1398,15 @@
    * @param {string} tabId - The ID of the tab to switch to (without the '-content' suffix)
    */
   function switchSidebarTab(tabId) {
+    console.log(`[Tabs] switchSidebarTab: Called. Current active tab: '${currentActiveSidebarTabId}', New tab: '${tabId}'`);
+
+    // If navigating away from the 'items' tab, save the draft.
+    // Ensure currentActiveSidebarTabId is not null and was indeed the items tab.
+    if (currentActiveSidebarTabId === 'items' && tabId !== 'items') {
+      console.log(`[Tabs] switchSidebarTab: Navigating away from '${currentActiveSidebarTabId}' tab to '${tabId}'. Triggering handleSaveDraftItem.`);
+      handleSaveDraftItem();
+    }
+
     // Hide all sidebar content sections
     const contentSections = document.querySelectorAll('.sidebar-content');
     contentSections.forEach(section => {
@@ -1420,6 +1431,10 @@
       selectedTab.classList.add('active');
     }
     
+    // Update the current active tab ID
+    currentActiveSidebarTabId = tabId;
+    console.log("Switched to tab:", currentActiveSidebarTabId);
+
     const sidebarElement = document.querySelector('.sidebar');
     const sidebarToggleElement = document.getElementById('sidebarToggle');
     const sidebarToggleIcon = sidebarToggleElement ? sidebarToggleElement.querySelector('.material-icons') : null;
@@ -1427,15 +1442,18 @@
     // Special handling for specific tabs
     if (tabId === 'items') {
       if (typeof showItemSelectionInterface === 'function') {
-        showItemSelectionInterface();
+        // Pass handleLoadDraftItem as a callback. 
+        // showItemSelectionInterface in modal_scripts.js.html now expects only the callback.
+        showItemSelectionInterface(handleLoadDraftItem); 
       } else {
-        console.warn('[DashboardScripts.js] showItemSelectionInterface function not found.');
+        // showItemSelectionInterface IS NOT a function, so we cannot load items or drafts.
+        console.warn('[DashboardScripts.js] showItemSelectionInterface function not found. Cannot load items or draft.');
         const itemsContent = document.getElementById('items-content');
         if (itemsContent) {
           itemsContent.innerHTML = '<div class="error-message"><p>Error: Item selection interface loader not found.</p></div>';
         }
       }
-      // Collapse the sidebar using the existing 'collapsed' class
+      // Collapse the sidebar using the existing 'collapsed' class (common for 'items' tab)
       if (sidebarElement && !sidebarElement.classList.contains('collapsed')) {
         sidebarElement.classList.add('collapsed');
         if (sidebarToggleIcon) sidebarToggleIcon.textContent = 'chevron_right';
@@ -1786,4 +1804,282 @@
     }
   });
   // --- END OF NEW SIMPLIFIED Initial Tab Activation Logic ---
+
+    // --- Temporary Item Data/Draft Functions ---
+
+    /**
+     * Collects data from the item selection interface.
+     * This interface is rendered by `renderItemSelectionInterface` (in modal_scripts.js.html)
+     * into the #fileContent element.
+     * Assumes item name and type are not edited in this interface, only selection and quantity.
+     * @returns {Array<Object> | null} An array of item objects, or null if no relevant data.
+     */
+    function collectDraftItemSelections() {
+      console.log("[Drafts] collectDraftItemSelections: Collecting based on checkbox and quantity...");
+      const fileContentContainer = document.getElementById('fileContent');
+      if (!fileContentContainer) {
+        console.warn("[Drafts] collectDraftItemSelections: 'fileContent' container not found.");
+        return null;
+      }
+
+      const itemRows = fileContentContainer.querySelectorAll('.item-row');
+      if (itemRows.length === 0) {
+        console.log("[Drafts] collectDraftItemSelections: No item rows found in 'fileContent'.");
+        return null;
+      }
+
+      const draftItems = [];
+      itemRows.forEach(row => {
+        const roomName = row.dataset.room;
+        // const itemIndex = row.dataset.index; // UI index, less reliable for matching
+
+        const checkbox = row.querySelector('.item-checkbox');
+        const typeInput = row.querySelector('.type-input'); // Read its current value for matching
+        const itemInput = row.querySelector('.item-input'); // Read its current value for matching
+        const quantityInput = row.querySelector('.quantity-input');
+
+        // It's crucial that renderItemSelectionInterface consistently renders these values (item, type, room)
+        // or provides a stable data-original-id for robust matching.
+        const currentItemName = itemInput ? itemInput.value : '';
+        const currentItemType = typeInput ? typeInput.value : '';
+        const currentQuantity = quantityInput ? (parseInt(quantityInput.value) || 1) : 1;
+        const isSelected = checkbox ? checkbox.checked : false;
+
+        // Only include items that are selected in the draft for simplicity,
+        // as unselected items with default quantities don't need explicit restoration.
+        if (isSelected) {
+          draftItems.push({
+            room: roomName,
+            type: currentItemType, // Store the type as it appears in the UI for matching
+            item: currentItemName, // Store the item name as it appears for matching
+            quantity: currentQuantity, // Store the quantity
+            isSelected: true
+            // originalId: row.dataset.originalId // IDEAL: if renderItemSelectionInterface adds this
+          });
+        }
+      });
+
+      if (draftItems.length === 0) {
+        console.log("[Drafts] collectDraftItemSelections: No items are currently selected for the draft.");
+        return null; // Return null if nothing is selected, so handleSaveDraftItem clears any old draft.
+      }
+
+      console.log("[Drafts] collectDraftItemSelections: Collected selected items for draft:", JSON.stringify(draftItems));
+      return draftItems;
+    }
+
+    /**
+     * Populates the item selection interface with draft data.
+     * Assumes item name and type are fixed by renderItemSelectionInterface.
+     * Restores isSelected and quantity.
+     * @param {Array<Object>} draftData The array of item data to populate the form with.
+     */
+    function populateItemForm(draftData) {
+      console.log("[Drafts] populateItemForm: Applying draft to selection interface...", JSON.stringify(draftData));
+      if (!draftData || !Array.isArray(draftData) || draftData.length === 0) {
+        console.log("[Drafts] populateItemForm: No draft data to apply.");
+        return;
+      }
+
+      const fileContentContainer = document.getElementById('fileContent');
+      if (!fileContentContainer) {
+        console.warn("[Drafts] populateItemForm: 'fileContent' container not found.");
+        return;
+      }
+
+      const allItemRowsInUI = fileContentContainer.querySelectorAll('.item-row');
+      allItemRowsInUI.forEach(uiRow => {
+        const uiCheckbox = uiRow.querySelector('.item-checkbox');
+        if (uiCheckbox) {
+          const wasChecked = uiCheckbox.checked;
+          uiCheckbox.checked = false;
+          if (wasChecked) { // Only dispatch if the state actually changed
+            uiCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }
+        const uiQuantityInput = uiRow.querySelector('.quantity-input');
+        if (uiQuantityInput) {
+          if (uiQuantityInput.value !== '1') { // Only dispatch if the value actually changed
+             uiQuantityInput.value = '1';
+             uiQuantityInput.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }
+      });
+
+      draftData.forEach(draftItem => {
+        if (!draftItem.isSelected) return; 
+
+        let foundRow = null;
+        const currentDraftRoomUpper = String(draftItem.room || '').toUpperCase();
+        const draftItemNameUpper = String(draftItem.item || '').toUpperCase(); 
+        const draftTypeNameUpper = String(draftItem.type || '').toUpperCase();
+
+        console.log(`[Drafts] populateItemForm: Processing draftItem: Room='${currentDraftRoomUpper}', Type='${draftTypeNameUpper}', Item='${draftItemNameUpper}'`);
+        
+        // Iterate ALL item rows and check room case-insensitively
+        allItemRowsInUI.forEach(row => {
+          const domRowRoomUpper = String(row.dataset.room || '').toUpperCase();
+          
+          // Only proceed if the room matches (case-insensitive)
+          if (currentDraftRoomUpper === domRowRoomUpper) {
+            const currentItemInput = row.querySelector('.item-input');
+            const currentTypeInput = row.querySelector('.type-input');
+            
+            const domItemNameUpper = currentItemInput ? currentItemInput.value.toUpperCase() : ''; 
+            const domTypeNameUpper = currentTypeInput ? currentTypeInput.value.toUpperCase() : ''; 
+
+            console.log(`[Drafts] populateItemForm: Comparing with DOM row: DOM Room='${domRowRoomUpper}', DOM Type='${domTypeNameUpper}', DOM Item='${domItemNameUpper}'`);
+
+            if (domItemNameUpper === draftItemNameUpper && domTypeNameUpper === draftTypeNameUpper) {
+              foundRow = row;
+              return; // Exit this inner forEach once a match is found for the current draftItem
+            }
+          }
+        });
+
+        if (foundRow) {
+          console.log("[Drafts] populateItemForm: Restoring draft state for item:", draftItem.item, "in room:", draftItem.room);
+          const checkbox = foundRow.querySelector('.item-checkbox');
+          const quantityInput = foundRow.querySelector('.quantity-input');
+
+          if (checkbox) {
+            if (!checkbox.checked) { // Only dispatch if the state actually changed
+                checkbox.checked = true; 
+                checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          }
+          if (quantityInput && draftItem.quantity !== undefined) {
+            const currentQuantity = parseInt(quantityInput.value);
+            const draftQuantity = parseInt(draftItem.quantity);
+            if (currentQuantity !== draftQuantity) { // Only dispatch if the value actually changed
+                quantityInput.value = draftItem.quantity;
+                quantityInput.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          }
+        } else {
+          console.warn(`[Drafts] populateItemForm: Could not find matching row in UI for draft item: Room='${currentDraftRoomUpper}', Type='${draftTypeNameUpper}', Item='${draftItemNameUpper}'`);
+        }
+      });
+      console.log("[Drafts] populateItemForm: Finished applying draft data.");
+    }
+
+    /**
+     * Handles saving the current item form data as a draft.
+     */
+    function handleSaveDraftItem() {
+      console.log("[Drafts] handleSaveDraftItem: Initiated.");
+      const draftData = collectDraftItemSelections(); // MODIFIED
+      if (draftData) {
+        console.log("[Drafts] handleSaveDraftItem: Saving draft item data:", JSON.stringify(draftData));
+        google.script.run
+          .withSuccessHandler(function(response) {
+            if (response && response.success) {
+              console.log("[Drafts] Draft saved successfully via server.");
+            } else {
+              console.error("[Drafts] Failed to save draft via server:", response ? response.error : 'Unknown error');
+            }
+          })
+          .withFailureHandler(function(error) {
+            console.error("[Drafts] Error calling server to save draft:", error.message);
+          })
+          .saveTemporaryItemData(draftData);
+      } else {
+        console.log("[Drafts] handleSaveDraftItem: No item data to save as draft. Attempting to clear any existing server draft.");
+        handleClearDraftItem(); 
+      }
+    }
+
+    /**
+     * Handles loading any existing draft item data into the form.
+     */
+    function handleLoadDraftItem() {
+      console.log("Attempting to load draft item data...");
+      // showDashboardLoading("Loading draft..."); // Optional: Show loading indicator
+      google.script.run
+        .withSuccessHandler(function(response) {
+          // hideDashboardLoading(); // Optional: Hide loading indicator
+          if (response && response.success) {
+            if (response.data) {
+              console.log("Draft data found, populating form:", response.data);
+              populateItemForm(response.data);
+              // Optionally, you could ask the user: "We found a saved draft. Restore it?"
+            } else {
+              console.log("No draft data found to load.");
+            }
+          } else {
+            console.error("Failed to load draft data:", response ? response.error : 'Unknown server error');
+          }
+        })
+        .withFailureHandler(function(error) {
+          // hideDashboardLoading(); // Optional: Hide loading indicator
+          console.error("Error loading draft data:", error.message);
+        })
+        .loadTemporaryItemData();
+    }
+
+    /**
+     * Handles clearing the temporary item data from the server.
+     */
+    function handleClearDraftItem() {
+      console.log("Clearing draft item data...");
+      // showDashboardLoading("Clearing draft..."); // Optional: Show loading indicator
+      google.script.run
+        .withSuccessHandler(function(response) {
+          // hideDashboardLoading(); // Optional: Hide loading indicator
+          if (response && response.success) {
+            console.log("Draft cleared successfully.");
+          } else {
+            console.error("Failed to clear draft:", response ? response.error : 'Unknown error');
+          }
+        })
+        .withFailureHandler(function(error) {
+          // hideDashboardLoading(); // Optional: Hide loading indicator
+          console.error("Error clearing draft:", error.message);
+        })
+        .clearTemporaryItemData();
+    }
+
+    // --- Integration Points (TODO: Implement these based on your UI structure) ---
+    // Example: When the relevant page/tab/section for item entry loads:
+    // document.addEventListener('DOMContentLoaded', function() { // Or a more specific event
+    //   if (isItemEntryPageActive()) { // Replace with your condition
+    //     handleLoadDraftItem();
+    //   }
+    // });
+
+    // Example: When navigating away from item entry (e.g., clicking another tab)
+    // const categoryTabButton = document.getElementById('categoryTabButton'); // Replace with your selector
+    // if (categoryTabButton) {
+    //   categoryTabButton.addEventListener('click', function() {
+    //     if (isCurrentlyOnItemEntryTab()) { // Replace with your condition
+    //       handleSaveDraftItem();
+    //     }
+    //   });
+    // }
+    
+    // Example: Before the window unloads (more generic, might catch too much but good fallback)
+    // window.addEventListener('beforeunload', function() {
+    //    if (isCurrentlyOnItemEntryTab() && hasUnsavedItemData()) { // your conditions
+    //        handleSaveDraftItem();
+           // Note: synchronous google.script.run calls are not allowed in beforeunload.
+           // You might need a more sophisticated way or accept that some data might be lost if relying solely on beforeunload for this.
+           // Better to save on explicit navigation actions like tab clicks.
+    //    }
+    // });
+
+
+    // Example: After successfully submitting an item to the Master List:
+    // function onItemSuccessfullyAddedToMasterList() {
+    //   handleClearDraftItem();
+    //   // ... your existing success logic ...
+    // }
+
+    // Example: If you have a "Discard" or "Cancel" button for the item entry:
+    // const discardItemButton = document.getElementById('discardItemEntryButton'); // Replace with your selector
+    // if (discardItemButton) {
+    //   discardItemButton.addEventListener('click', function() {
+    //     clearItemForm(); // Your function to clear the form fields
+    //     handleClearDraftItem();
+    //   });
+    // }
 </script>

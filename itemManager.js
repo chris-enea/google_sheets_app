@@ -2135,4 +2135,128 @@ function getRooms() {
         error: "Error saving selected items: " + error.message
       };
     }
+  }
+  
+  // HELPER FUNCTION FOR TEMPORARY ITEM DATA
+  /**
+   * Gets or creates the temporary sheet for storing incomplete item data.
+   * @return {Sheet | null} The temporary data sheet or null if an error occurs.
+   * @private
+   */
+  function _getTempItemDataSheet() {
+    try {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const sheetName = "_TempItemData";
+      let sheet = ss.getSheetByName(sheetName);
+
+      if (!sheet) {
+        sheet = ss.insertSheet(sheetName);
+        sheet.hideSheet();
+        // Set up headers if needed, e.g., ['Timestamp', 'ItemDataJSON']
+        sheet.getRange(1, 1, 1, 2).setValues([['Timestamp', 'ItemDataJSON']]);
+        Logger.log(`Created and hid temporary sheet: ${sheetName}`);
+      }
+      return sheet;
+    } catch (e) {
+      Logger.log(`Error in _getTempItemDataSheet: ${e.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Saves partially entered item data to a temporary sheet.
+   * For simplicity, this version overwrites any existing temporary data.
+   * A more advanced version could handle multiple drafts or user-specific drafts.
+   * @param {Object} itemData The item data object to save.
+   * @return {Object} Object with success status and optional error message.
+   */
+  function saveTemporaryItemData(itemData) {
+    try {
+      if (!itemData || Object.keys(itemData).length === 0) {
+        return { success: true, message: "No data to save." }; // Not an error, just nothing to do
+      }
+
+      const sheet = _getTempItemDataSheet();
+      if (!sheet) {
+        return { success: false, error: "Could not access temporary data sheet." };
+      }
+
+      // Clear previous data (assuming one draft slot for now, e.g., row 2)
+      // If sheet has more than 1 row (header), clear row 2. Otherwise, it's empty or just header.
+      if (sheet.getLastRow() > 1) {
+          sheet.getRange(2, 1, 1, sheet.getLastColumn()).clearContent();
+      }
+      
+      const jsonData = JSON.stringify(itemData);
+      sheet.getRange(2, 1).setValue(new Date()); // Timestamp
+      sheet.getRange(2, 2).setValue(jsonData);   // Item Data as JSON
+
+      Logger.log("Saved temporary item data.");
+      return { success: true };
+    } catch (e) {
+      Logger.log(`Error in saveTemporaryItemData: ${e.toString()}`);
+      return { success: false, error: e.toString() };
+    }
+  }
+
+  /**
+   * Loads temporarily stored item data.
+   * @return {Object} Object with success status, data (if found), and optional error message.
+   */
+  function loadTemporaryItemData() {
+    try {
+      const sheet = _getTempItemDataSheet();
+      if (!sheet) {
+        // If the sheet doesn't exist, it means no data was ever saved.
+        return { success: true, data: null, message: "Temporary data sheet not found." };
+      }
+
+      // Assuming data is in row 2, column 2
+      if (sheet.getLastRow() < 2) {
+        return { success: true, data: null, message: "No temporary data found." }; // No data rows
+      }
+
+      const jsonData = sheet.getRange(2, 2).getValue();
+
+      if (!jsonData) {
+        return { success: true, data: null, message: "No temporary item data found." };
+      }
+
+      const itemData = JSON.parse(jsonData);
+      Logger.log("Loaded temporary item data.");
+      return { success: true, data: itemData };
+    } catch (e) {
+      Logger.log(`Error in loadTemporaryItemData: ${e.toString()}`);
+      // If there's an error (e.g., parsing), it's better to return null data
+      // than to break the client-side.
+      return { success: false, data: null, error: e.toString() };
+    }
+  }
+
+  /**
+   * Clears any temporarily stored item data.
+   * @return {Object} Object with success status and optional error message.
+   */
+  function clearTemporaryItemData() {
+    try {
+      const sheet = _getTempItemDataSheet(); // This will get or create it.
+      if (!sheet) {
+        // If sheet couldn't be accessed even to clear, log it but don't necessarily fail hard client-side.
+        Logger.log("Could not access temporary data sheet to clear, but proceeding as if cleared.");
+        return { success: true, message: "Temp sheet not accessible, assumed clear." };
+      }
+      
+      // Clear data from row 2 (timestamp and JSON)
+      // Check if there's anything to clear beyond the header
+      if (sheet.getLastRow() > 1) {
+        sheet.getRange(2, 1, 1, sheet.getLastColumn()).clearContent(); // Clear the second row
+        Logger.log("Cleared temporary item data.");
+      } else {
+        Logger.log("No temporary item data to clear.");
+      }
+      return { success: true };
+    } catch (e) {
+      Logger.log(`Error in clearTemporaryItemData: ${e.toString()}`);
+      return { success: false, error: e.toString() };
+    }
   } 
