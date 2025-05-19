@@ -693,5 +693,210 @@ function getProjectDetailsContent(projectId) {
     Logger.log("Error in getProjectDetailsContent: " + error.message);
     return "<div class='error-message'>Error loading project details: " + error.message + "</div>";
   }
+}
+
+/**
+ * Makes a copy of the Master Item List Template, renames it to Master Item List,
+ * and returns the URL to open the new sheet
+ * 
+ * @param {string} sheetId - The ID of the spreadsheet
+ * @return {Object} Object containing success status and URL to the new sheet
+ */
+function openMasterItemListTemplate() {
+  try {
+    // Open the spreadsheet
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const templateSheet = spreadsheet.getSheetByName("Master Item List Template");
+    
+    if (!templateSheet) {
+      return {
+        success: false,
+        error: "Master Item List Template sheet not found"
+      };
+    }
+    
+    // Check if Master Item List already exists
+    let masterSheet = spreadsheet.getSheetByName("Master Item List");
+    
+    // If it exists, return an error instead of deleting
+    if (masterSheet) {
+      return {
+        success: false,
+        error: 'A sheet named "Master Item List" already exists. Please delete or rename it before creating a new one.'
+      };
+    }
+    
+    // Create a copy of the template sheet
+    masterSheet = templateSheet.copyTo(spreadsheet);
+    masterSheet.setName("Master Item List");
+    
+    // Activate the new sheet so it opens first
+    masterSheet.activate();
+    
+    // Create a URL that will open this specific sheet
+    const url = `https://docs.google.com/spreadsheets/d/${spreadsheet.getId()}/edit#gid=${masterSheet.getSheetId()}`;
+    
+    // Return the URL to the client
+    return {
+      success: true,
+      url: url
+    };
+  } catch (error) {
+    Logger.log("Error in openMasterItemListTemplate: " + error.message);
+    return {
+      success: false,
+      error: "Error creating Master Item List sheet: " + error.message
+    };
+  }
+}
+
+/**
+ * Sets the active sheet to "Master Item List" for the user.
+ * Returns success/error.
+ */
+function setActiveMasterItemListSheet() {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName("Master Item List");
+    if (!sheet) {
+      return { success: false, error: 'Sheet "Master Item List" not found.' };
+    }
+    ss.setActiveSheet(sheet);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Creates a copy of Master Item List Template, then saves selected items to the copy.
+ * This keeps the original template clean while providing the filled-in Master Item List.
+ * 
+ * @param {Array} items - Selected items to save
+ * @return {Object} Object containing success status and result information
+ */
+function saveSelectedItemsWithTemplateCopy(items) {
+  try {
+    // Validate input
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return {
+        success: false,
+        error: "No items provided to save"
+      };
+    }
+    
+    // Step 1: Get the active spreadsheet
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    
+    // Step 2: Find the template sheet
+    const templateSheet = spreadsheet.getSheetByName("Master Item List Template");
+    if (!templateSheet) {
+      return {
+        success: false,
+        error: 'Template sheet "Master Item List Template" not found'
+      };
+    }
+    
+    // Step 3: Check if Master Item List already exists
+    let masterSheet = spreadsheet.getSheetByName("Master Item List");
+    
+    // If it exists, return an error
+    if (masterSheet) {
+      return {
+        success: false,
+        error: 'A sheet named "Master Item List" already exists. Please delete or rename it before creating a new one.'
+      };
+    }
+    
+    // Step 4: Create a copy of the template
+    masterSheet = templateSheet.copyTo(spreadsheet);
+    masterSheet.setName("Master Item List");
+    
+    // Step 5: Save items to the new copy
+    const sheet = masterSheet;
+    const existingDataRange = sheet.getDataRange();
+    const existingData = existingDataRange.getValues();
+    
+    // Get header row to find columns
+    const headers = existingData[0];
+    const roomCol = headers.indexOf("ROOM");
+    const typeCol = headers.indexOf("TYPE");
+    const itemCol = headers.indexOf("ITEM");
+    const qtyCol = headers.indexOf("QUANTITY");
+    const lowCol = headers.indexOf("LOW");
+    const lowTotalCol = headers.indexOf("LOW TOTAL");
+    const highCol = headers.indexOf("HIGH");
+    const highTotalCol = headers.indexOf("HIGH TOTAL");
+    const specFfeCol = headers.indexOf("SPEC/FFE");
+    
+    // Check that all required columns exist
+    if (roomCol === -1 || typeCol === -1 || itemCol === -1 || qtyCol === -1 || specFfeCol === -1) {
+      return {
+        success: false,
+        error: "Required columns missing in Master Item List"
+      };
+    }
+    
+    // Create array of new rows to add
+    const newRows = [];
+    
+    // Process each selected item
+    items.forEach((item, idx) => {
+      const newRow = new Array(headers.length).fill("");
+      const rowNum = 2 + idx; // Data starts at row 2
+      newRow[roomCol] = (item.room || '').toUpperCase();
+      newRow[typeCol] = (item.type || '').toUpperCase();
+      newRow[itemCol] = (item.item || '').toUpperCase();
+      newRow[qtyCol] = Math.max(1, parseInt(item.quantity) || 1);
+      // LOW and HIGH as '0', LOW TOTAL and HIGH TOTAL as formulas
+      if (lowCol !== -1) newRow[lowCol] = '0';
+      if (lowTotalCol !== -1) newRow[lowTotalCol] = `=E${rowNum}*D${rowNum}`;
+      if (highCol !== -1) newRow[highCol] = '0';
+      if (highTotalCol !== -1) newRow[highTotalCol] = `=G${rowNum}*D${rowNum}`;
+      if (specFfeCol !== -1) newRow[specFfeCol] = '';
+      newRows.push(newRow);
+    });
+    
+    // If we have new rows to add
+    if (newRows.length > 0) {
+      // Get the row where we should start adding data (after header)
+      const startRow = 2; // 1-based index, row 2 is first row after header
+      // Get the range to insert data
+      const insertRange = sheet.getRange(startRow, 1, newRows.length, headers.length);
+      // Insert data
+      insertRange.setValues(newRows);
+      // Create a SPEC/FFE dropdown validation for the last column
+      if (specFfeCol !== -1) {
+        const specFfeRule = SpreadsheetApp.newDataValidation()
+          .requireValueInList(['SPEC', 'FFE'], true)
+          .build();
+        sheet.getRange(startRow, specFfeCol + 1, newRows.length, 1).setDataValidation(specFfeRule);
+      }
+      // Format quantity column as whole numbers
+      sheet.getRange(startRow, qtyCol + 1, newRows.length, 1).setNumberFormat('0');
+      // Format LOW, LOW TOTAL, HIGH, HIGH TOTAL columns as integers (no decimals)
+      const intCols = [lowCol, lowTotalCol, highCol, highTotalCol].filter(idx => idx !== -1);
+      intCols.forEach(col => {
+        sheet.getRange(startRow, col + 1, newRows.length, 1).setNumberFormat('0');
+      });
+    }
+    
+    // Step 6: Activate the new sheet
+    masterSheet.activate();
+    
+    // Return success
+    return {
+      success: true,
+      itemCount: items.length,
+      message: `Successfully created Master Item List with ${items.length} items`
+    };
+    
+  } catch (error) {
+    Logger.log("Error in saveSelectedItemsWithTemplateCopy: " + error.message);
+    return {
+      success: false,
+      error: "Error saving items: " + error.message
+    };
+  }
 } 
 

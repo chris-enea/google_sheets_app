@@ -1491,7 +1491,9 @@
    * Gets the selected rooms and available types to build the UI.
    */
   function loadRoomCategoriesContent() {
-    // Show loading state
+    // Disable buttons and show loading state
+    document.getElementById('btn-cat-back').disabled = true;
+    document.getElementById('selectItemsBtn').disabled = true;
     document.getElementById('roomCategoriesContent').innerHTML = `
       <div class="loading-state">
         <div class="spinner"></div>
@@ -1502,7 +1504,6 @@
     google.script.run
       .withSuccessHandler(function(result) {
         if (result.success) {
-          // Check if there are any selected rooms
           if (!result.selectedRooms || result.selectedRooms.length === 0) {
             document.getElementById('roomCategoriesContent').innerHTML = `
               <div class="room-manager-content">
@@ -1514,17 +1515,24 @@
                 </button>
               </div>
             `;
+            // Keep buttons disabled as the main UI isn't loaded
+            document.getElementById('btn-cat-back').disabled = true;
+            document.getElementById('selectItemsBtn').disabled = true;
             return;
           }
-          
-          // Build the Room Categories UI
           buildRoomCategoriesUI(result.selectedRooms, result.availableTypes, result.roomTypes);
+          // Enable buttons after successful UI build
+          document.getElementById('btn-cat-back').disabled = false;
+          document.getElementById('selectItemsBtn').disabled = false;
         } else {
           document.getElementById('roomCategoriesContent').innerHTML = `
             <div class="error-message">
               <p>Error loading room categories: ${result.error}</p>
             </div>
           `;
+          // Keep buttons disabled on error
+          document.getElementById('btn-cat-back').disabled = true;
+          document.getElementById('selectItemsBtn').disabled = true;
         }
       })
       .withFailureHandler(function(error) {
@@ -1533,6 +1541,9 @@
             <p>Error: ${error}</p>
           </div>
         `;
+        // Keep buttons disabled on failure
+        document.getElementById('btn-cat-back').disabled = true;
+        document.getElementById('selectItemsBtn').disabled = true;
       })
       .getRoomCategoriesData();
   }
@@ -1555,15 +1566,20 @@
           <i class="material-icons">arrow_back</i> Back to Room Selection
         </button>
       `;
+      // Ensure buttons are disabled if this path is taken directly
+      document.getElementById('btn-cat-back').disabled = true;
+      document.getElementById('selectItemsBtn').disabled = true;
       return;
     }
-    
     if (!availableTypes || availableTypes.length === 0) {
       document.getElementById('roomCategoriesContent').innerHTML = `
         <div class="info-message">
           <p>No categories found in the Data sheet. Please add categories to the Type column.</p>
         </div>
       `;
+      // Keep buttons disabled, allow user to go back or fix data
+      document.getElementById('btn-cat-back').disabled = false; // Allow going back
+      document.getElementById('selectItemsBtn').disabled = true;
       return;
     }
     

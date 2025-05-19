@@ -6,7 +6,7 @@ function onOpen() {
     const ui = SpreadsheetApp.getUi();
       
     // Client Dashboard menu
-    ui.createMenu('Dashboard')
+    ui.createMenu('Setup')
       .addItem('Open Dashboard', 'showProjectDashboard')
       .addToUi();
     

@@ -24,14 +24,14 @@
             <i class="material-icons">event</i>
             <span>Meetings</span>
           </div> -->
-          <div class="sidebar-tab" data-tab="budget" data-tooltip="Budget">
+          <!-- <div class="sidebar-tab" data-tab="budget" data-tooltip="Budget">
             <i class="material-icons">attach_money</i>
             <span>Budget</span>
           </div>
           <div class="sidebar-tab" data-tab="folders" data-tooltip="Folders">
             <i class="material-icons">folder</i>
             <span>Folders</span>
-          </div>
+          </div> -->
           <div class="sidebar-tab" data-tab="rooms" data-tooltip="Rooms">
             <i class="material-icons">meeting_room</i>
             <span>Rooms</span>
@@ -133,7 +133,7 @@
           </div>
           
           <!-- Meetings Content (Placeholder) -->
-          <div id="meetings-content" class="sidebar-content">
+          <div id="meetings-content" class="sidebar-content" style="display: none;">
             <div class="sidebar-header">
               <span>Upcoming Meetings</span>
               <div class="tooltip">
@@ -167,7 +167,7 @@
           </div>
           
           <!-- Budget Content (Placeholder) -->
-          <div id="budget-content" class="sidebar-content">
+          <div id="budget-content" class="sidebar-content" style="display: none;">
             <div class="sidebar-header">
               <span>Budget Overview</span>
               <!-- Help icon with tooltip -->
@@ -281,6 +281,8 @@
                 </div>
               </div>
             </div>
+            <!-- Status message for sidebar -->
+            <div id="sidebarStatusMessage" class="status-message" style="display: none;"></div>
             <div class="sidebar-body">
               <div id="sidebarRoomManagerContent">
                 <!-- Room content will be loaded dynamically -->
@@ -329,10 +331,10 @@
               <!-- <button onclick="saveRoomCategoriesSelections()" class="btn" title="Save">
                 <i class="material-icons">arrow_back</i> Select Rooms
               </button> -->
-              <button onclick="saveAndNavigateToRooms()" class="btn" title="Save and return to Rooms">
+              <button id="btn-cat-back" onclick="saveAndNavigateToRooms()" class="btn" title="Save and return to Rooms" disabled>
                 <i class="material-icons">arrow_back</i> Back
               </button>
-              <button id="selectItemsBtn" title="Select items from categories to add to your project" class="btn" onclick="saveRoomCategoriesSelections()">
+              <button id="selectItemsBtn" title="Select items from categories to add to your project" class="btn" onclick="saveRoomCategoriesSelections()" disabled>
                 Next <i class="material-icons">arrow_forward</i>
               </button>
             </div>

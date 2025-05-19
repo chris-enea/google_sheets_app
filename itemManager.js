@@ -1667,13 +1667,11 @@ function getRooms() {
       if (!roomTypes || typeof roomTypes !== 'object') {
         return {
           success: false,
-          error: "Invalid room-type data"
+          error: "Invalid room-type data: Input was null or not an object."
         };
       }
-      
       // Use provided sheetId if available, otherwise fallback to active spreadsheet
       const ss = SpreadsheetApp.getActiveSpreadsheet();
-      
       // Create or get the temporary sheet
       let tempSheet = ss.getSheetByName("_TempRoomTypes");
       if (tempSheet) {
@@ -1685,29 +1683,41 @@ function getRooms() {
         // Hide the sheet as it's for temporary storage only
         tempSheet.hideSheet();
       }
-      
       // Add header row
       tempSheet.getRange(1, 1, 1, 2).setValues([["Room", "Type"]]);
-      
       // Prepare the data to write
       const flatData = [];
       Object.keys(roomTypes).forEach(room => {
         const types = roomTypes[room];
         if (Array.isArray(types) && types.length > 0) {
           types.forEach(type => {
-            flatData.push([room, type]);
+            if (type && String(type).trim() !== "") { // Ensure type is not null/empty
+              flatData.push([room, String(type).trim()]);
+            }
           });
         }
       });
-      
+      // Check if there is any valid data to save
+      if (flatData.length === 0) {
+        Logger.log("No valid room-type selections to save after processing.");
+        // It might be preferable to still clear the sheet and return success,
+        // or return an error/specific status if no data means an issue.
+        // For now, let's clear and return success as it reflects the (empty) state.
+        // tempSheet.getRange(2, 1, Math.max(1, tempSheet.getLastRow() -1), 2).clearContent(); // Clear if needed
+        return {
+          success: true, // Or false, depending on desired behavior for empty valid save
+          message: "No room-type selections to save.",
+          count: 0
+        };
+      }
       // Write the data to the sheet
       if (flatData.length > 0) {
         tempSheet.getRange(2, 1, flatData.length, 2).setValues(flatData);
       }
-      
       Logger.log(`Saved ${flatData.length} room-type selections to temporary sheet`);
       return {
-        success: true
+        success: true,
+        count: flatData.length
       };
     } catch (error) {
       Logger.log("Error in saveRoomTypeSelectionsCore: " + error.message);
@@ -1976,18 +1986,150 @@ function getRooms() {
         };
       }
       
-      // Use saveItemsCore to handle the actual saving logic
-      // We're reusing that function to maintain consistency
-      const saveResult = saveItemsCore(validItems, sheetId);
+      // Use saveItemsCore to handle saving to the Items sheet
+      // const saveResult = saveItemsCore(validItems, sheetId);
       
+      // Now also save to the Master Item List Template
+      const saveToMasterResult = saveSelectedItemsToMasterTemplate(validItems, sheetId);
+      
+      // If either save operation failed, return an error
+      // if (!saveResult.success) {
+      //   return saveResult;
+      // }
+      
+      if (!saveToMasterResult.success) {
+        return saveToMasterResult;
+      }
+      
+      // Both saves were successful
       return {
-        success: saveResult.success,
-        error: saveResult.error,
-        itemCount: saveResult.itemCount || validItems.length
+        success: true,
+        error: null,
+        itemCount: validItems.length,
+        message: `Successfully saved ${validItems.length} items to Items and Master Item List Template sheets`
       };
       
     } catch (error) {
       Logger.log("Error in saveSelectedItemsToSheet: " + error.message);
+      return {
+        success: false,
+        error: "Error saving selected items: " + error.message
+      };
+    }
+  }
+  
+  /**
+   * Saves selected items from the item selection interface to the Master Item List Template.
+   * This function takes the checked items and adds them to the Master Item List Template sheet
+   * with columns: ROOM, TYPE, ITEM, QUANTITY, LOW, LOW TOTAL, HIGH, HIGH TOTAL, SPEC/FFE
+   *
+   * @param {Array} items - Array of selected items to save
+   * @param {string} sheetId - Optional spreadsheet ID. If not provided, uses active spreadsheet.
+   * @return {Object} Object containing success status and count of items saved
+   */
+  function saveSelectedItemsToMasterTemplate(items, sheetId = null) {
+    try {
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return {
+          success: false,
+          error: "No items provided to save"
+        };
+      }
+      
+      // Validate that each item has the required fields
+      const validItems = items.filter(item => 
+        item && item.room && item.item && item.type !== undefined && item.quantity
+      );
+      
+      if (validItems.length === 0) {
+        return {
+          success: false,
+          error: "No valid items to save"
+        };
+      }
+      
+      // Get reference to spreadsheet using the provided sheetId or fall back to script property
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      
+      // Get or create the Master Item List Template sheet
+      let sheet = ss.getSheetByName("Master Item List Template");
+      if (!sheet) {
+        Logger.log("Creating new Master Item List Template sheet");
+        sheet = ss.insertSheet("Master Item List Template");
+      }
+      
+      // Check if the sheet is empty or needs headers
+      const lastRow = sheet.getLastRow();
+      
+      // Set up headers if sheet is empty
+      if (lastRow === 0) {
+        const headers = [
+          "ROOM", 
+          "TYPE", 
+          "ITEM", 
+          "QUANTITY", 
+          "LOW", 
+          "LOW TOTAL", 
+          "HIGH", 
+          "HIGH TOTAL", 
+          "SPEC/FFE"
+        ];
+        sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+        sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+      }
+      
+      // Create a SPEC/FFE dropdown validation for the last column
+      const specFfeColumn = 9; // Column I
+      const specFfeRule = SpreadsheetApp.newDataValidation()
+        .requireValueInList(['SPEC', 'FFE'], true)
+        .build();
+      
+      // Prepare all data rows at once to minimize service calls
+      const startRow = lastRow > 0 ? lastRow + 1 : 2; // If we have headers, start at row 2, otherwise after the last row
+      const newItems = [];
+      
+      // Process and validate each item
+      validItems.forEach((item, idx) => {
+        // Ensure quantity is at least 1
+        const quantity = Math.max(1, parseInt(item.quantity) || 1);
+        const rowNum = startRow + idx; // The row number in the sheet for this item
+        // Add the row: LOW and HIGH as '0', LOW TOTAL and HIGH TOTAL as formulas
+        newItems.push([
+          item.room.toUpperCase() || '',
+          item.type.toUpperCase() || '',
+          item.item.toUpperCase() || '',
+          quantity,
+          '0', // LOW
+          `=E${rowNum}*D${rowNum}`,
+          '0', // HIGH
+          `=G${rowNum}*D${rowNum}`,
+          '' // Default value for SPEC/FFE
+        ]);
+      });
+      // If we have items to add
+      if (newItems.length > 0) {
+        // Write all data in a single operation
+        const range = sheet.getRange(startRow, 1, newItems.length, 9);
+        range.setValues(newItems);
+        // Apply the data validation to the SPEC/FFE column for all new rows
+        sheet.getRange(startRow, specFfeColumn, newItems.length, 1).setDataValidation(specFfeRule);
+        // Format quantity column as whole numbers
+        sheet.getRange(startRow, 4, newItems.length, 1).setNumberFormat('0');
+        // Format LOW, LOW TOTAL, HIGH, HIGH TOTAL columns as integers (no decimals)
+        const intCols = [5, 6, 7, 8]; // Columns E, F, G, H
+        intCols.forEach(col => {
+          sheet.getRange(startRow, col, newItems.length, 1).setNumberFormat('0');
+        });
+      }
+      
+      Logger.log(`Successfully saved ${validItems.length} items to Master Item List Template sheet`);
+      return {
+        success: true,
+        count: validItems.length
+      };
+      
+    } catch (error) {
+      Logger.log("Error in saveSelectedItemsToMasterTemplate: " + error.message);
       return {
         success: false,
         error: "Error saving selected items: " + error.message

@@ -1075,6 +1075,51 @@
         }
       }
 
+      /**
+       * Shows a status message in the dashboard.
+       * @param {string} message - The message to display
+       * @param {boolean} isError - Whether this is an error message
+       * @param {string} location - Optional location ('main' or 'sidebar')
+       */
+      function showDashboardStatusMessage(message, isError = false, location = 'main') {
+        // For Google Apps Script dialog context, log message and exit early
+        if (typeof google !== 'undefined' && google.script && google.script.host) {
+          // We're in a dialog context, just log the message
+          console.log(`${isError ? 'ERROR' : 'SUCCESS'}: ${message}`);
+          return;
+        }
+        
+        // Hide any existing message after a delay
+        if (window.statusMessageTimeout) {
+          clearTimeout(window.statusMessageTimeout);
+          window.statusMessageTimeout = null;
+        }
+        
+        // Find the appropriate status container based on location
+        const statusContainer = (location === 'sidebar') 
+          ? document.getElementById('sidebarStatusMessage')
+          : document.getElementById('dashboardStatusMessage');
+          
+        if (!statusContainer) {
+          console.error('Status message container not found for location:', location);
+          // Fallback to console.log if container is not found
+          console.log(`${isError ? 'ERROR' : 'SUCCESS'}: ${message}`);
+          return;
+        }
+        
+        // Update message content and style
+        statusContainer.textContent = message;
+        statusContainer.className = 'status-message ' + (isError ? 'error' : 'success');
+        statusContainer.style.display = 'block';
+        
+        // Auto-hide success messages after 5 seconds
+        if (!isError) {
+          window.statusMessageTimeout = setTimeout(() => {
+            statusContainer.style.display = 'none';
+          }, 5000);
+        }
+      }
+
       // Additional functions from scripts.js should be added here
       // ...
       
@@ -3475,7 +3520,10 @@
           checkboxHeader.className = 'column-header checkbox-header';
           checkboxHeader.textContent = 'Add';
           
-          // Switch order: Type first, then Item
+          const roomHeader = document.createElement('div');
+          roomHeader.className = 'column-header room-header';
+          roomHeader.textContent = 'Room';
+
           const typeHeader = document.createElement('div');
           typeHeader.className = 'column-header type-header';
           typeHeader.textContent = 'Type';
@@ -3493,6 +3541,7 @@
           // actionsHeader.textContent = 'Remove Item';
           
           headers.appendChild(checkboxHeader);
+          headers.appendChild(roomHeader);
           headers.appendChild(typeHeader);
           headers.appendChild(itemHeader);
           headers.appendChild(quantityHeader);
@@ -3517,7 +3566,8 @@
           // Add delegated event listeners to itemsContainer
           itemsContainer.addEventListener('change', function(event) {
             const target = event.target;
-            if (target.classList.contains('item-input') ||
+            if (target.classList.contains('room-input') ||
+                target.classList.contains('item-input') ||
                 target.classList.contains('type-input') ||
                 target.classList.contains('quantity-input') ||
                 target.classList.contains('item-checkbox')) {
@@ -3530,9 +3580,12 @@
 
           itemsContainer.addEventListener('input', function(event) {
             const target = event.target;
-            if (target.classList.contains('item-input') ||
-                target.classList.contains('type-input') ||
-                target.classList.contains('quantity-input')) {
+            if (
+              target.classList.contains('room-input') ||
+              target.classList.contains('item-input') ||
+              target.classList.contains('type-input') ||
+              target.classList.contains('quantity-input')
+            ) {
               if (target.dataset.room && target.dataset.index !== undefined && target.dataset.field) {
                 updateItemSelectionData(target.dataset.room, target.dataset.index, target.dataset.field, target.value);
               }
@@ -3592,6 +3645,15 @@
         const typeInputContainer = document.createElement('div');
         typeInputContainer.className = 'item-input-container';
         
+        // Room input
+        const roomInput = document.createElement('input');
+        roomInput.type = 'text';
+        roomInput.className = 'room-input';
+        roomInput.value = item.room || '';
+        roomInput.dataset.field = 'room';
+        roomInput.dataset.room = roomName;
+        roomInput.dataset.index = index;
+
         // Type input
         const typeInput = document.createElement('input');
         typeInput.type = 'text';
@@ -3876,7 +3938,11 @@
             hideDashboardLoading();
             
             if (result.success) {
-              showDashboardStatusMessage(`Successfully added ${result.itemCount} items to sheet`, false);
+              // Show a success message
+              showDashboardStatusMessage(`${result.message || `Successfully created Master Item List with ${result.itemCount} items`}`, false);
+              
+              // Close the dialog - the sheet should already be active since the server function activated it
+              google.script.host.close();
               
               // Mark saved items as no longer selected
               dashboardItemSelectionData.items.forEach(item => {
@@ -3897,7 +3963,7 @@
             hideDashboardLoading();
             showDashboardStatusMessage('Error: ' + (error.message || error), true);
           })
-          .saveSelectedItemsToSheet(sanitizedItems, sheetId);
+          .saveSelectedItemsWithTemplateCopy(sanitizedItems);
       }
 
       /**
