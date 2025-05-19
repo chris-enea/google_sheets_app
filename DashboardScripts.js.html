@@ -1810,19 +1810,19 @@
     /**
      * Collects data from the item selection interface.
      * This interface is rendered by `renderItemSelectionInterface` (in modal_scripts.js.html)
-     * into the #fileContent element.
+     * into the #mainContent element.
      * Assumes item name and type are not edited in this interface, only selection and quantity.
      * @returns {Array<Object> | null} An array of item objects, or null if no relevant data.
      */
     function collectDraftItemSelections() {
       console.log("[Drafts] collectDraftItemSelections: Collecting based on checkbox and quantity...");
-      const fileContentContainer = document.getElementById('fileContent');
-      if (!fileContentContainer) {
+      const mainContentContainer = document.getElementbyID('mainContent');
+      if (!mainContentContainer) {
         console.warn("[Drafts] collectDraftItemSelections: 'fileContent' container not found.");
         return null;
       }
 
-      const itemRows = fileContentContainer.querySelectorAll('.item-row');
+      const itemRows = mainContentContainer.querySelectorAll('.item-row');
       if (itemRows.length === 0) {
         console.log("[Drafts] collectDraftItemSelections: No item rows found in 'fileContent'.");
         return null;
@@ -1881,13 +1881,13 @@
         return;
       }
 
-      const fileContentContainer = document.getElementById('fileContent');
-      if (!fileContentContainer) {
+      const mainContentContainer = document.getElementbyID('mainContent');
+      if (!mainContentContainer) {
         console.warn("[Drafts] populateItemForm: 'fileContent' container not found.");
         return;
       }
 
-      const allItemRowsInUI = fileContentContainer.querySelectorAll('.item-row');
+      const allItemRowsInUI = mainContentContainer.querySelectorAll('.item-row');
       allItemRowsInUI.forEach(uiRow => {
         const uiCheckbox = uiRow.querySelector('.item-checkbox');
         if (uiCheckbox) {

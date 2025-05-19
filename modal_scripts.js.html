@@ -255,7 +255,7 @@
        */
       function showWelcomeScreen() {
         console.log('showWelcomeScreen called - resetting main content');
-        const mainContentContainer = document.getElementById('fileContent');
+        const mainContentContainer = document.getElementbyID('mainContent');
         const projectNameHeader = document.getElementById('projectName');
 
         if (mainContentContainer) {
@@ -549,7 +549,7 @@
       function showManageItems() {
         // Update the page title
         document.getElementById('projectName').innerText = 'Manage Items';
-        const mainContentContainer = document.getElementById('fileContent');
+        const mainContentContainer = document.getElementbyID('mainContent');
         
         // Collapse the sidebar when Manage Items is clicked
         document.querySelector('.sidebar').classList.add('collapsed');
@@ -653,7 +653,7 @@
           projectNameElement.innerText = 'Manage Items';
         }
         
-        const mainContentContainer = document.getElementById('fileContent');
+        const mainContentContainer = document.getElementbyID('mainContent');
         
         // Get the sheet ID from the project details modal
         const dialog = document.querySelector('.app-container');
@@ -964,7 +964,7 @@
         }
         
         // Show loading indicator in main content area
-        const fileContent = document.getElementById('fileContent');
+        const fileContent = document.getElementbyID('mainContent');
         renderUIState(fileContent, 'loading', 'Loading preview...');
         
         // Determine the content type
@@ -1132,7 +1132,7 @@
         if (!sheetId) {
           console.error('Sheet ID not available for project', projectId);
           // Attempt to display error in a general page area if specific containers aren't available
-          const errorDisplayArea = document.getElementById('fileContent') || document.body;
+          const errorDisplayArea = document.getElementbyID('mainContent') || document.body;
           renderUIState(errorDisplayArea, 'error', 'Project spreadsheet ID not available. Unable to load project details.');
           return;
         }
@@ -1791,7 +1791,7 @@
       // Render the item update interface in the dashboard
       function renderItemUpdateInterface(data) {
         if (!data.success) {
-          document.getElementById('fileContent').innerHTML = `
+          document.getElementbyID('mainContent').innerHTML = `
             <div class="error-box" style="margin: 20px;">
               <strong>Error:</strong> ${data.error || 'Failed to load item data'}
             </div>`;
@@ -2106,8 +2106,8 @@
         // }); // [DISABLED: Hide room budget summary in UI, keep for future use]
         
         // Update the content area
-        document.getElementById('fileContent').innerHTML = '';
-        document.getElementById('fileContent').appendChild(container);
+        document.getElementbyID('mainContent').innerHTML = '';
+        document.getElementbyID('mainContent').appendChild(container);
         
         // Add a small delay to ensure all DOM elements are fully rendered before calculating budget summaries
         // setTimeout(() => {
@@ -3360,7 +3360,7 @@
       function renderItemSelectionInterface(data, optionalOnSuccessCallback) { // MODIFIED: Add optionalOnSuccessCallback
         
         if (!data.success) {
-          document.getElementById('fileContent').innerHTML = `
+          document.getElementbyID('mainContent').innerHTML = `
             <div class="error-box" style="margin: 20px;">
               <strong>Error:</strong> ${data.error || 'Failed to load item data'}
             </div>`;
@@ -3636,8 +3636,8 @@
         container.appendChild(roomsFragment); // Append all room containers at once
         
         // Update the content area
-        document.getElementById('fileContent').innerHTML = '';
-        document.getElementById('fileContent').appendChild(container);
+        document.getElementbyID('mainContent').innerHTML = '';
+        document.getElementbyID('mainContent').appendChild(container);
 
         // AFTER all DOM is updated, call the callback
         if (typeof optionalOnSuccessCallback === 'function') {
@@ -4031,7 +4031,7 @@
           projectNameElement.innerText = 'Select Items';
         }
         
-        const mainContentContainer = document.getElementById('fileContent');
+        const mainContentContainer = document.getElementbyID('mainContent');
         
         // Get the sheet ID from the project details modal
         const dialog = document.querySelector('.app-container');

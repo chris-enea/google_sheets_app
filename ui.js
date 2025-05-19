@@ -20,6 +20,7 @@ function onOpen() {
     
       ui.createMenu('Sheet Manager')
       .addItem('Split Items by SPEC/FFE', 'splitItemsByFFE')
+      .addItem('Update Budget from SPEC', 'updateBudgetFromSpecItems')
       .addToUi();
       
   } catch (error) {

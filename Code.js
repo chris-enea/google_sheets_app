@@ -899,4 +899,3 @@ function saveSelectedItemsWithTemplateCopy(items) {
     };
   }
 }
-

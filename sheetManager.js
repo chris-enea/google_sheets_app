@@ -21,6 +21,17 @@ const MASTER_HIGH_TOTAL_HEADER = "HIGH TOTAL";
 // Default column width for new/blank columns in target sheets
 const DEFAULT_TARGET_COL_WIDTH = 100;
 
+// --- Budget Sheet Constants ---
+const BUDGET_SHEET_NAME = "Budget";
+const BUDGET_TYPE_COL_HEADER = "TYPE";
+const BUDGET_TOTAL_LOW_COL_HEADER = "TOTAL LOW";
+const BUDGET_TOTAL_HIGH_COL_HEADER = "TOTAL HIGH";
+const BUDGET_HEADERS = [
+  "CATEGORIES", "TYPE", "SET ALLOWANCE", "LOW",
+  "TOTAL LOW", "HIGH", "TOTAL HIGH", "NOTES"
+];
+const DEFAULT_BUDGET_COL_WIDTH = 100;
+
 /**
  * Main orchestrator function called by the UI menu.
  * It processes items from "Master Item List" and splits them into "FFE" and "Allowances" sheets.
@@ -328,4 +339,162 @@ function _processAndCopyItemsInternal(
   }
 
   SpreadsheetApp.getUi().alert(`"${filterValue}" items processed and copied to sheet "${targetSheetName}" successfully.`);
+} 
+
+/**
+ * Summarizes SPEC items from Master Item List and updates the Budget sheet.
+ * Totals "TOTAL LOW" and "TOTAL HIGH" for each unique ITEM marked as SPEC.
+ * Updates existing items in the Budget sheet or adds new ones.
+ * Preserves CATEGORIES, SET ALLOWANCE, and NOTES columns in the Budget sheet.
+ */
+function updateBudgetFromSpecItems() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+
+  // --- 1. Get Master Sheet Data ---
+  const masterSheet = ss.getSheetByName(MASTER_SHEET_NAME);
+  if (!masterSheet) {
+    ui.alert(`Sheet "${MASTER_SHEET_NAME}" not found.`);
+    return;
+  }
+
+  const masterDataRange = masterSheet.getDataRange();
+  const allMasterValues = masterDataRange.getValues(); // Includes headers
+
+  if (allMasterValues.length <= 1) { // Only headers or empty
+    ui.alert(`Sheet "${MASTER_SHEET_NAME}" has no data to process.`);
+    return;
+  }
+
+  const masterHeaders = allMasterValues[0];
+  const specFfeColIdx = masterHeaders.indexOf(SPEC_FFE_COLUMN_HEADER);
+  const masterTypeColIdx = masterHeaders.indexOf(MASTER_TYPE_COL_NAME);
+  const masterLowTotalColIdx = masterHeaders.indexOf(MASTER_LOW_TOTAL_HEADER);
+  const masterHighTotalColIdx = masterHeaders.indexOf(MASTER_HIGH_TOTAL_HEADER);
+
+  if (specFfeColIdx === -1) {
+    ui.alert(`Column "${SPEC_FFE_COLUMN_HEADER}" not found in "${MASTER_SHEET_NAME}".`);
+    return;
+  }
+  if (masterTypeColIdx === -1) {
+    ui.alert(`Column "${MASTER_TYPE_COL_NAME}" not found in "${MASTER_SHEET_NAME}".`);
+    return;
+  }
+  if (masterLowTotalColIdx === -1) {
+    ui.alert(`Column "${MASTER_LOW_TOTAL_HEADER}" not found in "${MASTER_SHEET_NAME}".`);
+    return;
+  }
+  if (masterHighTotalColIdx === -1) {
+    ui.alert(`Column "${MASTER_HIGH_TOTAL_HEADER}" not found in "${MASTER_SHEET_NAME}".`);
+    return;
+  }
+
+  // --- 2. Aggregate SPEC Data from Master Sheet ---
+  const specTotals = {}; // E.g., {"Type A": { low: 100, high: 200 }}
+
+  for (let i = 1; i < allMasterValues.length; i++) {
+    const masterRow = allMasterValues[i];
+    if (masterRow[specFfeColIdx] && masterRow[specFfeColIdx].toString().trim().toUpperCase() === "SPEC") {
+      const typeName = masterRow[masterTypeColIdx] ? masterRow[masterTypeColIdx].toString().trim() : null;
+      if (!typeName) continue; // Skip if type name is blank
+
+      const lowTotal = parseFloat(masterRow[masterLowTotalColIdx]) || 0;
+      const highTotal = parseFloat(masterRow[masterHighTotalColIdx]) || 0;
+
+      if (!specTotals[typeName]) {
+        specTotals[typeName] = { low: 0, high: 0 };
+      }
+      specTotals[typeName].low += lowTotal;
+      specTotals[typeName].high += highTotal;
+    }
+  }
+
+  if (Object.keys(specTotals).length === 0) {
+    ui.alert(`No "SPEC" items found in "${MASTER_SHEET_NAME}" to update the Budget with.`);
+    return;
+  }
+
+  // --- 3. Prepare and Update Budget Sheet ---
+  let budgetSheet = ss.getSheetByName(BUDGET_SHEET_NAME);
+
+  if (!budgetSheet) {
+    budgetSheet = ss.insertSheet(BUDGET_SHEET_NAME);
+    const headerRange = budgetSheet.getRange(1, 1, 1, BUDGET_HEADERS.length);
+    headerRange.setValues([BUDGET_HEADERS]).setFontWeight("bold");
+    for (let i = 0; i < BUDGET_HEADERS.length; i++) {
+        budgetSheet.setColumnWidth(i + 1, DEFAULT_BUDGET_COL_WIDTH);
+    }
+    // Adjust specific column widths if needed, e.g. for TYPE or NOTES
+    const typeColBudgetIdx = BUDGET_HEADERS.indexOf(BUDGET_TYPE_COL_HEADER);
+    if (typeColBudgetIdx !== -1) budgetSheet.setColumnWidth(typeColBudgetIdx + 1, 200); // Example width
+    const notesColBudgetIdx = BUDGET_HEADERS.indexOf("NOTES");
+    if (notesColBudgetIdx !== -1) budgetSheet.setColumnWidth(notesColBudgetIdx + 1, 300); // Example width
+  }
+
+  const budgetDataRange = budgetSheet.getDataRange();
+  const budgetValues = budgetDataRange.getValues();
+  let budgetSheetHeaders;
+
+  if (budgetValues.length === 0) { // Sheet exists but is completely empty
+    budgetSheet.getRange(1, 1, 1, BUDGET_HEADERS.length).setValues([BUDGET_HEADERS]).setFontWeight("bold");
+     for (let i = 0; i < BUDGET_HEADERS.length; i++) {
+        budgetSheet.setColumnWidth(i + 1, DEFAULT_BUDGET_COL_WIDTH);
+    }
+    budgetSheetHeaders = BUDGET_HEADERS;
+  } else {
+    budgetSheetHeaders = budgetValues[0];
+  }
+  
+  const budgetTypeColIdx = budgetSheetHeaders.indexOf(BUDGET_TYPE_COL_HEADER);
+  const budgetTotalLowColIdx = budgetSheetHeaders.indexOf(BUDGET_TOTAL_LOW_COL_HEADER);
+  const budgetTotalHighColIdx = budgetSheetHeaders.indexOf(BUDGET_TOTAL_HIGH_COL_HEADER);
+
+  if (budgetTypeColIdx === -1) {
+    ui.alert(`Column "${BUDGET_TYPE_COL_HEADER}" not found in "${BUDGET_SHEET_NAME}".`);
+    return;
+  }
+  if (budgetTotalLowColIdx === -1) {
+    ui.alert(`Column "${BUDGET_TOTAL_LOW_COL_HEADER}" not found in "${BUDGET_SHEET_NAME}".`);
+    return;
+  }
+  if (budgetTotalHighColIdx === -1) {
+    ui.alert(`Column "${BUDGET_TOTAL_HIGH_COL_HEADER}" not found in "${BUDGET_SHEET_NAME}".`);
+    return;
+  }
+
+  const typeRowMap = {}; // Map type name to 1-based row index in Budget sheet. Renamed from itemRowMap
+  for (let r = 1; r < budgetValues.length; r++) { // Start from 1 to skip header
+    const typeNameInBudget = budgetValues[r][budgetTypeColIdx];
+    if (typeNameInBudget) {
+      typeRowMap[typeNameInBudget.toString().trim()] = r + 1; // r+1 for 1-based index
+    }
+  }
+
+  const rowsToAdd = [];
+  let updatedCount = 0;
+  let addedCount = 0;
+
+  for (const typeName in specTotals) {
+    const data = specTotals[typeName];
+    if (typeRowMap[typeName]) {
+      const rowToUpdate = typeRowMap[typeName];
+      budgetSheet.getRange(rowToUpdate, budgetTotalLowColIdx + 1).setValue(data.low.toFixed(2));
+      budgetSheet.getRange(rowToUpdate, budgetTotalHighColIdx + 1).setValue(data.high.toFixed(2));
+      updatedCount++;
+    } else {
+      const newRow = new Array(budgetSheetHeaders.length).fill("");
+      newRow[budgetTypeColIdx] = typeName;
+      newRow[budgetTotalLowColIdx] = data.low.toFixed(2);
+      newRow[budgetTotalHighColIdx] = data.high.toFixed(2);
+      rowsToAdd.push(newRow);
+      addedCount++;
+    }
+  }
+
+  if (rowsToAdd.length > 0) {
+    budgetSheet.getRange(budgetSheet.getLastRow() + 1, 1, rowsToAdd.length, budgetSheetHeaders.length)
+               .setValues(rowsToAdd);
+  }
+
+  ui.alert(`Budget sheet updated: ${updatedCount} item(s) updated, ${addedCount} item(s) added.`);
 } 
