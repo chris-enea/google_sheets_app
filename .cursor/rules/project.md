@@ -1,1 +1,0 @@
-I am converting a Google Apps Web App into a Google Sheet App Script. Whenever I ask to refactor or update a section or function keep this in mind and adapt the code accordingly. You may ask qualifying questions if I don't make this clear.
