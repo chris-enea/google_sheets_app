@@ -1,4 +1,41 @@
 <!-- Client-side scripts for modals and UI functionality -->
+<style>
+  /* Styles for aligning Project Name input and Save button */
+  .input-with-button {
+    display: flex;
+    align-items: stretch; /* Makes items same height */
+    gap: 8px; /* Space between input and button */
+  }
+  .input-with-button .sidebar-input {
+    flex-grow: 1; /* Allows input to take available space */
+    box-sizing: border-box;
+    height: auto; /* Reset height if previously set to allow align-items to work */
+    padding-top: 8px; /* Adjust padding to match button */
+    padding-bottom: 8px; /* Adjust padding to match button */
+  }
+  .input-with-button .btn-small {
+    flex-shrink: 0; /* Prevents button from shrinking */
+    box-sizing: border-box;
+    height: auto; /* Reset height */
+    line-height: normal; /* Ensure text is centered if padding is symmetrical */
+  }
+
+  /* Styles for the Selected Rooms list in the Home sidebar */
+  #homeSelectedRoomsListContainer .selected-rooms-list-sidebar {
+    list-style-type: none; /* Remove bullet points */
+    padding-left: 5px; /* Remove default padding */
+    margin-top: 0;
+  }
+  #homeSelectedRoomsListContainer .selected-rooms-list-sidebar li {
+    padding: 4px 0; /* Add some padding for spacing */
+    font-size: 0.95em;
+    color: #333;
+    /* border-bottom: 1px solid #f0f0f0; /* Optional: light separator */
+  }
+  /* #homeSelectedRoomsListContainer .selected-rooms-list-sidebar li:last-child {
+    border-bottom: none;
+  } */
+</style>
 <script>
       // Global variable to track which input has an open dropdown
       let activeAutocompleteInput = null;
@@ -265,7 +302,7 @@
        */
       function showWelcomeScreen() {
         console.log('showWelcomeScreen called - resetting main content');
-        const mainContentContainer = document.getElementbyID('mainContent');
+        const mainContentContainer = document.getElementById('mainContent');
         const projectNameHeader = document.getElementById('projectName');
 
         if (mainContentContainer) {
@@ -285,16 +322,12 @@
           console.error('Main content container (fileContent) not found!');
         }
 
-        // Restore the original project name in the header
-        if (projectNameHeader && typeof window.originalProjectName === 'string' && window.originalProjectName !== '') {
-          projectNameHeader.textContent = window.originalProjectName;
-          console.log('Project name restored to:', window.originalProjectName);
-        } else if (!projectNameHeader) {
-          console.error('Project name header element (projectName) not found!');
+        // Restore the project name in the header, prioritizing window.originalProjectName
+        if (projectNameHeader) {
+            projectNameHeader.textContent = window.originalProjectName || 'Project Dashboard';
+            console.log('showWelcomeScreen restored main header to:', projectNameHeader.textContent);
         } else {
-          console.warn('Original project name (window.originalProjectName) not found, not a string, or is empty. Header not restored.');
-          // As a fallback, if originalProjectName isn't available, we might want to set a default or leave it as is.
-          // For example: projectNameHeader.textContent = 'Project Dashboard';
+          console.error('Project name header element (projectName) not found!');
         }
         
         // Hide any global loading overlays if they were active
@@ -502,7 +535,7 @@
        * Saves selected rooms from the dashboard or sidebar.
        * @param {string} [location='main'] - 'sidebar' or 'main'.
        */
-      function saveRoomsFromDashboard(location = 'main') {
+      function saveRoomsFromDashboard(location = 'main', isAutoSave = false) { // Added isAutoSave parameter
         const capLocation = capitalizeFirstLetter(location);
         const listId = `${location}RoomList`; // e.g., mainRoomList or sidebarRoomList
         
@@ -516,7 +549,10 @@
         const checkboxes = roomListElement.querySelectorAll('input[type="checkbox"]:checked');
         const selectedRooms = Array.from(checkboxes).map(checkbox => checkbox.getAttribute('data-room'));
         
-        if (selectedRooms.length === 0) {
+        console.log(`[saveRoomsFromDashboard - ${location}${isAutoSave ? ' (AutoSave)' : ''}] Attempting to save rooms:`, JSON.stringify(selectedRooms)); // Added detailed log
+
+        // Allow auto-save with empty selection to clear all if needed, but prevent explicit save of no rooms.
+        if (selectedRooms.length === 0 && !isAutoSave && location === 'main') { 
           showDashboardStatusMessage('Please select at least one room to continue', true, location);
           return;
         }
@@ -530,7 +566,7 @@
             originalButtonHtml = saveButton.innerHTML;
             loadingButtonHtml = `<i class="material-icons rotating" style="margin-right: 5px; vertical-align: middle;">sync</i> Saving...`;
             _setButtonLoadingState(saveButton, true, loadingButtonHtml, originalButtonHtml);
-        } else if (location === 'main') {
+        } else if (location === 'main' && !isAutoSave) { // Only show global loading if not auto-save
             // Fallback for main if specific button not found and it's expected to be part of a global loading
             showDashboardLoading('Saving selected rooms...'); 
         } else {
@@ -541,25 +577,40 @@
           .withSuccessHandler(function(result) {
             if (saveButton) {
                 _setButtonLoadingState(saveButton, false, '', originalButtonHtml);
-            } else if (location === 'main') {
+            } else if (location === 'main' && !isAutoSave) { // Only hide global loading if not auto-save
                 hideDashboardLoading(); 
             }
             
             if (result.success) {
-              showDashboardStatusMessage('Rooms saved. Loading item management...', false, location);
-              // Always show item update in main content, regardless of where rooms were saved from.
-              showItemUpdateInDashboard(); 
+              if (isAutoSave) {
+                showDashboardStatusMessage('Room selection updated.', false, location);
+                console.log(`[saveRoomsFromDashboard - ${location} (AutoSave)] Successfully updated rooms. Server confirmation:`, result); // Added log
+              } else {
+                showDashboardStatusMessage('Rooms saved. Loading item management...', false, location);
+                console.log(`[saveRoomsFromDashboard - ${location}] Successfully saved rooms and loading items. Server confirmation:`, result); // Added log
+                // Always show item update in main content, regardless of where rooms were saved from.
+                showItemUpdateInDashboard(); 
               
-              if (location === 'sidebar') {
-                // If rooms were selected/saved from sidebar, collapse it to show main content.
-                const sidebarElement = document.querySelector('.app-container .sidebar');
-                if (sidebarElement) sidebarElement.classList.add('collapsed');
-                 const sidebarToggle = document.getElementById('sidebarToggle');
-                 if(sidebarToggle) {
-                    const toggleIcon = sidebarToggle.querySelector('.material-icons');
-                    if (toggleIcon) toggleIcon.textContent = 'chevron_right';
-                    sidebarToggle.classList.add('collapsed');
-                 }
+                if (location === 'sidebar') {
+                  // If rooms were selected/saved from sidebar, collapse it to show main content.
+                  const sidebarElement = document.querySelector('.app-container .sidebar');
+                  if (sidebarElement) sidebarElement.classList.add('collapsed');
+                   const sidebarToggle = document.getElementById('sidebarToggle');
+                   if(sidebarToggle) {
+                      const toggleIcon = sidebarToggle.querySelector('.material-icons');
+                      if (toggleIcon) toggleIcon.textContent = 'chevron_right';
+                      sidebarToggle.classList.add('collapsed');
+                   }
+                }
+              }
+              // Refresh home sidebar content to show updated selected rooms
+              if (typeof updateHomeSidebarContent === 'function') {
+                // Add a small delay to allow server-side changes to propagate
+                setTimeout(function() {
+                  updateHomeSidebarContent(!isAutoSave); // Pass inverse of isAutoSave for isFullRender
+                }, 300); // 300ms delay
+              } else {
+                console.warn('updateHomeSidebarContent function not found, cannot refresh home tab after saving rooms.');
               }
             } else {
               showDashboardStatusMessage('Error: ' + (result.error || 'Failed to save selected rooms'), true, location);
@@ -568,19 +619,19 @@
           .withFailureHandler(function(error) {
             if (saveButton) {
                 _setButtonLoadingState(saveButton, false, '', originalButtonHtml);
-            } else if (location === 'main') {
+            } else if (location === 'main' && !isAutoSave) { // Only hide global loading if not auto-save
                 hideDashboardLoading(); 
             }
             showDashboardStatusMessage('Error: ' + (error.message || error), true, location);
           })
-          .saveSelectedRoomsOnly(selectedRooms);
+          .saveSelectedRoomsCore(selectedRooms);
       }
       
       // New function to directly show the manage items interface
       function showManageItems() {
         // Update the page title
         document.getElementById('projectName').innerText = 'Manage Items';
-        const mainContentContainer = document.getElementbyID('mainContent');
+        const mainContentContainer = document.getElementById('mainContent');
         
         // Collapse the sidebar when Manage Items is clicked
         document.querySelector('.sidebar').classList.add('collapsed');
@@ -684,7 +735,7 @@
           projectNameElement.innerText = 'Manage Items';
         }
         
-        const mainContentContainer = document.getElementbyID('mainContent');
+        const mainContentContainer = document.getElementById('mainContent');
         
         // Get the sheet ID from the project details modal
         const dialog = document.querySelector('.app-container');
@@ -890,7 +941,7 @@
             hideDashboardLoading();
             
             if (result.success) {
-              showDashboardStatusMessage(`Successfully saved ${result.itemCount} items`, false);
+              showDashboardStatusMessage(`Successfully saved ${result.count} items`, false);
               
               // Update any temporary IDs with permanent ones if provided by server
               if (result.items) {
@@ -911,7 +962,7 @@
             hideDashboardLoading();
             showDashboardStatusMessage('Error: ' + (error.message || error), true);
           })
-          .saveItemsFromDashboard(sanitizedItems, sheetId);
+          .validateItemsDataCore(sanitizedItems, sheetId);
       }
 
       // Load dashboard when page opens
@@ -995,7 +1046,7 @@
         }
         
         // Show loading indicator in main content area
-        const fileContent = document.getElementbyID('mainContent');
+        const fileContent = document.getElementById('mainContent');
         renderUIState(fileContent, 'loading', 'Loading preview...');
         
         // Determine the content type
@@ -1113,13 +1164,8 @@
        * @param {string} location - Optional location ('main' or 'sidebar')
        */
       function showDashboardStatusMessage(message, isError = false, location = 'main') {
-        // For Google Apps Script dialog context, log message and exit early
-        if (typeof google !== 'undefined' && google.script && google.script.host) {
-          // We're in a dialog context, just log the message
-          console.log(`${isError ? 'ERROR' : 'SUCCESS'}: ${message}`);
-          return;
-        }
-        
+        console.log(`[showDashboardStatusMessage] Called with: message="${message}", isError=${isError}, location="${location}"`); // Log parameters
+
         // Hide any existing message after a delay
         if (window.statusMessageTimeout) {
           clearTimeout(window.statusMessageTimeout);
@@ -1127,20 +1173,27 @@
         }
         
         // Find the appropriate status container based on location
-        const statusContainer = (location === 'sidebar') 
-          ? document.getElementById('sidebarStatusMessage')
-          : document.getElementById('dashboardStatusMessage');
+        const containerId = (location === 'sidebar') 
+          ? 'sidebarStatusMessage' 
+          : 'dashboardStatusMessage';
+        console.log(`[showDashboardStatusMessage] Target container ID: "${containerId}"`); // Log target ID
+
+        const statusContainer = document.getElementById(containerId);
           
         if (!statusContainer) {
-          console.error('Status message container not found for location:', location);
+          console.error(`[showDashboardStatusMessage] Status message container NOT FOUND for ID: "${containerId}" (location: "${location}")`); // Log if not found
           // Fallback to console.log if container is not found
           console.log(`${isError ? 'ERROR' : 'SUCCESS'}: ${message}`);
           return;
+        } else {
+          console.log(`[showDashboardStatusMessage] Status message container FOUND for ID: "${containerId}"`, statusContainer); // Log if found
         }
         
         // Update message content and style
         statusContainer.textContent = message;
         statusContainer.className = 'status-message ' + (isError ? 'error' : 'success');
+        
+        console.log(`[showDashboardStatusMessage] About to set display: block for "${containerId}"`); // Log before setting display
         statusContainer.style.display = 'block';
         
         // Auto-hide success messages after 5 seconds
@@ -1163,7 +1216,7 @@
         if (!sheetId) {
           console.error('Sheet ID not available for project', projectId);
           // Attempt to display error in a general page area if specific containers aren't available
-          const errorDisplayArea = document.getElementbyID('mainContent') || document.body;
+          const errorDisplayArea = document.getElementById('mainContent') || document.body;
           renderUIState(errorDisplayArea, 'error', 'Project spreadsheet ID not available. Unable to load project details.');
           return;
         }
@@ -1334,7 +1387,7 @@
             
             alert('Error saving rooms: ' + error);
           })
-          .saveSelectedRoomsOnly(selectedRooms);
+          .saveSelectedRoomsCore(selectedRooms);
       }
 
       // Assuming handleBudgetError function exists or will be created:
@@ -1430,6 +1483,8 @@
                   if (typeof showWelcomeScreen === 'function') showWelcomeScreen(); else console.error('showWelcomeScreen function not found');
                 } else if (tabName === 'rooms') {
                   if (typeof showRoomManager === 'function') showRoomManager('sidebar'); else console.error('showRoomManager function not found');
+                } else if (tabName === 'roomCategories') { // UPDATED LINE
+                  if (typeof showRoomCategoriesMain === 'function') showRoomCategoriesMain(); else console.error('showRoomCategoriesMain function not found for sidebar click'); // UPDATED LINE
                 } else if (tabName === 'folders') {
                   if (typeof loadFolders === 'function') loadFolders('sidebar'); else console.error('loadFolders function not found');
                 } else if (tabName === 'tasks') {
@@ -1472,121 +1527,187 @@
 
       /**
        * Updates the home tab sidebar content with project details
+       * @param {boolean} [isFullRender=true] - Whether to do a full render or just update dynamic parts.
        */
-      function updateHomeSidebarContent() {
+      function updateHomeSidebarContent(isFullRender = true) {
         const dialog = document.querySelector('.app-container');
-        if (!dialog) return;
-
-        // Get project data from the modal's data attribute
-        const projectId = dialog.getAttribute('data-project-id');
-        const sheetId = dialog.getAttribute('data-sheet-id');
-        const projectData = window.currentProject;
-        
-        if (!projectData) {
-          console.error('No project data found for home sidebar content');
-          
-          // Display loading state while we fetch the project data
-          const homeSidebarContent = dialog.querySelector('#home-content .sidebar-body');
-          if (homeSidebarContent) {
-            homeSidebarContent.innerHTML = `
-              <div class="loading-state">
-                <div class="spinner"></div>
-                <p>Loading project information...</p>
-              </div>
-            `;
-          }
-          
-          if (projectId) {
-            // Fetch project data using the project ID
-            google.script.run
-              .withSuccessHandler(function(response) {
-                if (response.success) {
-                  window.currentProject = response.project;
-                  updateHomeSidebarContent(); // Call again after data is loaded
-                } else {
-                  if (homeSidebarContent) {
-                    homeSidebarContent.innerHTML = `
-                      <div class="error-box">
-                        <strong>Error:</strong> ${response.error || 'Failed to load project information'}
-                      </div>
-                    `;
-                  }
-                }
-              })
-              .withFailureHandler(function(error) {
-                if (homeSidebarContent) {
-                  homeSidebarContent.innerHTML = `
-                    <div class="error-box">
-                      <strong>Error:</strong> ${error.message || error.toString() || 'Failed to load project information'}
-                    </div>
-                  `;
-                }
-              })
-              .getProjectById(projectId);
-          }
+        if (!dialog) {
+          console.error('updateHomeSidebarContent: Dialog container not found.');
           return;
         }
 
-        // Get the sidebar content element for the home tab
+        const sheetId = dialog.getAttribute('data-sheet-id'); // Main spreadsheet ID
         const homeSidebarContent = dialog.querySelector('#home-content .sidebar-body');
+
         if (!homeSidebarContent) {
           console.error('Home sidebar content element not found');
           return;
         }
 
-        // Clear any existing content to prevent duplicates
-        homeSidebarContent.innerHTML = '';
-
-        // Create HTML for the project info section
-        const projectInfoHTML = `
-          <div id="projectDetailsSummary" class="project-info-section">
-            <div class="project-info-item">
-              <label>Project Name:</label>
-              <div class="info-value">${projectData.name || 'N/A'}</div>
+        if (isFullRender) {
+          console.log('Rendering simplified home sidebar view (full render).');
+          const homeViewHTML = `
+          <div class="project-info-item">
+            <label for="sidebarProjectNameInput">Project Name:</label>
+            <div class="input-with-button">
+              <input type="text" id="sidebarProjectNameInput" class="sidebar-input" placeholder="Enter project name...">
+              <button id="saveSidebarProjectNameBtn" class="btn btn-small" onclick="saveProjectName()">
+                <i class="material-icons">save</i> Save
+              </button>
             </div>
-            <div class="project-info-item project-address-item">
-              <label>Project Address:</label>
-              <div class="info-value">${projectData.address || 'N/A'}</div>
-            </div>
-            <div class="project-info-item">
-              <label>Client Name:</label>
-              <div class="info-value">${projectData.client || 'N/A'}</div>
-            </div>
-            <div class="project-info-item">
-              <label>Client Email:</label>
-              <div class="info-value">
-                ${projectData.clientEmail ? `<span class="copyable-email" onclick="copyEmailToClipboard('${projectData.clientEmail}', this)" title="Copy to clipboard">${projectData.clientEmail}</span>` : 'N/A'}
-              </div>
-            </div>
-            <div class="project-info-item">
-              <label>Architect Name:</label>
-              <div class="info-value">${projectData.architect || 'N/A'}</div>
-            </div>
-            <div class="project-info-item">
-              <label>Architect Email:</label>
-              <div class="info-value">
-                ${projectData.architectEmail ? `<span class="copyable-email" onclick="copyEmailToClipboard('${projectData.architectEmail}', this)" title="Copy to clipboard">${projectData.architectEmail}</span>` : 'N/A'}
-              </div>
-            </div>
-            <div class="project-info-item">
-              <label>Contractor Name:</label>
-              <div class="info-value">${projectData.contractor || 'N/A'}</div>
-            </div>
-            <div class="project-info-item">
-              <label>Contractor Email:</label>
-              <div class="info-value">
-                ${projectData.contractorEmail ? `<span class="copyable-email" onclick="copyEmailToClipboard('${projectData.contractorEmail}', this)" title="Copy to clipboard">${projectData.contractorEmail}</span>` : 'N/A'}
-              </div>
-            </div>
+            <div id="projectNameStatus" class="status-message mini" style="display:none; margin-top: 5px;"></div>
           </div>
-          <div id="projectSummaryContent" style="margin-top: 20px;">
-            <!-- Original content will be preserved here -->
-            ${homeSidebarContent.querySelector("#projectSummaryContent")?.innerHTML || ''}
+          <div id="homeSelectedRoomsListContainer" style="margin-top: 10px;">
+             <div class="loading-state mini">
+               <div class="spinner small"></div>
+               <p>Loading selected rooms...</p>
+             </div>
           </div>
         `;
+          homeSidebarContent.innerHTML = homeViewHTML;
+          loadProjectName(); // Load project name from ScriptProperties
+        }
 
-        // Update the home sidebar content
-        homeSidebarContent.innerHTML = projectInfoHTML;
+        // This part runs for both full render and partial update
+        const selectedRoomsContainerId = 'homeSelectedRoomsListContainer'; 
+        const selectedRoomsContainer = homeSidebarContent.querySelector('#' + selectedRoomsContainerId);
+
+        if (selectedRoomsContainer) {
+          // For partial render (isFullRender = false), we will not show a loading state here.
+          // renderSelectedRoomsInHomeSidebar will directly update the content.
+          // If isFullRender is true, the loading state is already part of homeViewHTML for the initial load.
+
+          if (sheetId) {
+            google.script.run
+              .withSuccessHandler(renderSelectedRoomsInHomeSidebar) 
+              .withFailureHandler(handleSelectedRoomsError)       
+              .getSelectedRooms(sheetId);
+          } else {
+            // Still use renderUIState for the empty/error case if sheetId is missing.
+            renderUIState(selectedRoomsContainerId, 'empty', 'Sheet ID missing, cannot load rooms.');
+            console.warn('Home sidebar: Main sheet ID not available for fetching selected rooms.');
+          }
+        } else {
+          console.error(`updateHomeSidebarContent: Container #${selectedRoomsContainerId} not found.`);
+        }
+      }
+
+      /**
+       * Loads the project name from ScriptProperties.
+       */
+      function loadProjectName() {
+        const inputField = document.getElementById('sidebarProjectNameInput');
+        const statusDiv = document.getElementById('projectNameStatus');
+        if (!inputField || !statusDiv) {
+            console.error("Project name input or status div not found for loading.");
+            return;
+        }
+        statusDiv.textContent = 'Loading name...';
+        statusDiv.className = 'status-message mini loading';
+        statusDiv.style.display = 'block';
+
+        google.script.run
+            .withSuccessHandler(function(name) {
+                displayProjectName(name);
+                statusDiv.style.display = 'none';
+            })
+            .withFailureHandler(function(error) {
+                handleProjectNameLoadError(error);
+            })
+            .getProjectNameFromProperties(); // You'll need to create this server-side
+      }
+
+      /**
+       * Displays the project name in the input field.
+       * @param {string} name - The project name.
+       */
+      function displayProjectName(name) {
+        const projectNameInput = document.getElementById('sidebarProjectNameInput');
+        if (projectNameInput) {
+          projectNameInput.value = name || '';
+        }
+
+        // Always update window.originalProjectName to the latest valid name or a default
+        window.originalProjectName = name && name.trim() !== '' ? name.trim() : 'Project Dashboard';
+
+        // Update the main header if it's not a specific view title
+        const mainProjectNameHeader = document.getElementById('projectName');
+        if (mainProjectNameHeader) {
+            const currentHeaderText = mainProjectNameHeader.textContent;
+            const specificViewTitles = ['Room Manager', 'Manage Items', 'Select Items']; // Add any other specific view titles here
+            if (!specificViewTitles.includes(currentHeaderText)) {
+                mainProjectNameHeader.textContent = window.originalProjectName;
+                console.log('displayProjectName updated main header to:', window.originalProjectName);
+            }
+        }
+      }
+
+      /**
+       * Handles errors when loading the project name.
+       * @param {object|string} error - The error object or message.
+       */
+      function handleProjectNameLoadError(error) {
+        const statusDiv = document.getElementById('projectNameStatus');
+        if (statusDiv) {
+            statusDiv.textContent = 'Error loading name.';
+            statusDiv.className = 'status-message mini error';
+            statusDiv.style.display = 'block';
+        }
+        console.error('Error loading project name:', error);
+      }
+
+      /**
+       * Saves the project name to ScriptProperties.
+       */
+      function saveProjectName() {
+        const projectNameInput = document.getElementById('sidebarProjectNameInput');
+        const statusDiv = document.getElementById('projectNameStatus');
+        const saveButton = document.getElementById('saveSidebarProjectNameBtn');
+
+        if (!projectNameInput || !statusDiv || !saveButton) {
+            console.error("Project name input, status div, or save button not found.");
+            alert("Error: UI components for saving project name are missing.");
+            return;
+        }
+
+        const newName = projectNameInput.value.trim();
+        if (!newName) {
+          statusDiv.textContent = 'Project name cannot be empty.';
+          statusDiv.className = 'status-message mini error';
+          statusDiv.style.display = 'block';
+          setTimeout(() => { statusDiv.style.display = 'none'; }, 3000);
+          return;
+        }
+
+        const originalButtonHtml = saveButton.innerHTML;
+        saveButton.innerHTML = '<i class="material-icons rotating">sync</i> Saving...';
+        saveButton.disabled = true;
+        statusDiv.textContent = 'Saving...';
+        statusDiv.className = 'status-message mini loading';
+        statusDiv.style.display = 'block';
+
+        google.script.run
+            .withSuccessHandler(function(savedName) {
+                saveButton.innerHTML = originalButtonHtml;
+                saveButton.disabled = false;
+                statusDiv.textContent = 'Project name saved!';
+                statusDiv.className = 'status-message mini success';
+                displayProjectName(savedName); // Update display with the (potentially processed) saved name
+                
+                // Update window.originalProjectName to the new saved name so welcome screen reset is correct
+                window.originalProjectName = savedName || 'Project Dashboard';
+
+                setTimeout(() => { statusDiv.style.display = 'none'; }, 3000);
+            })
+            .withFailureHandler(function(error) {
+                saveButton.innerHTML = originalButtonHtml;
+                saveButton.disabled = false;
+                statusDiv.textContent = 'Error saving name.';
+                statusDiv.className = 'status-message mini error';
+                console.error('Error saving project name:', error);
+                setTimeout(() => { statusDiv.style.display = 'none'; }, 5000);
+            })
+            .saveProjectNameToProperties(newName); // You'll need to create this server-side
       }
 
       /**
@@ -1711,6 +1832,19 @@
             `;
           });
           roomListContainer.innerHTML = roomListHtml;
+
+          // Add debounced auto-save functionality
+          const debouncedSave = debounce(() => {
+            saveRoomsFromDashboard(location, true); // Pass true for isAutoSave
+          }, 750); // 750ms debounce delay
+
+          const checkboxes = roomListContainer.querySelectorAll('.room-checkbox');
+          checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+              console.log(`Checkbox for room '${checkbox.getAttribute('data-room')}' in ${location} changed. Triggering debounced save.`);
+              debouncedSave();
+            });
+          });
         }
         // Note: "Add New Room" and "Save" buttons are explicitly NOT part of this function's direct output as per user instruction.
         // They are expected to be part of the calling page structure or added by other functions if needed for a specific location.
@@ -1735,7 +1869,7 @@
         overlay.style.display = show ? 'flex' : 'none';
         
         // Disable all checkboxes during save
-        const checkboxes = document.querySelectorAll('#sidebarRoomList .room-checkbox');
+        const checkboxes = document.querySelectorAll('#sidebarRoomList .room-checkbox'); // This might need to be generalized if autoSaveRooms is used outside sidebar
         checkboxes.forEach(checkbox => {
           checkbox.disabled = show;
         });
@@ -1769,7 +1903,7 @@
             showRoomsSavingOverlay(false);
             showSidebarStatusMessage('Error: ' + error, true);
           })
-          .saveSelectedRoomsOnly(selectedRooms);
+          .saveSelectedRoomsCore(selectedRooms);
       }
       
       // Create a debounced version of autoSaveRooms to prevent saving on every checkbox change
@@ -2140,8 +2274,8 @@
       //   // }); // [DISABLED: Hide room budget summary in UI, keep for future use]
         
       //   // Update the content area
-      //   document.getElementbyID('mainContent').innerHTML = '';
-      //   document.getElementbyID('mainContent').appendChild(container);
+      //   document.getElementById('mainContent').innerHTML = '';
+      //   document.getElementById('mainContent').appendChild(container);
         
       //   // Add a small delay to ensure all DOM elements are fully rendered before calculating budget summaries
       //   // setTimeout(() => {
@@ -2583,7 +2717,7 @@
             hideDashboardLoading();
             
             if (result.success) {
-              showDashboardStatusMessage(`Successfully saved ${result.itemCount} items`, false);
+              showDashboardStatusMessage(`Successfully saved ${result.count} items`, false);
               
               // Update any temporary IDs with permanent ones if provided by server
               if (result.items) {
@@ -2604,7 +2738,7 @@
             hideDashboardLoading();
             showDashboardStatusMessage('Error: ' + (error.message || error), true);
           })
-          .saveItemsFromDashboard(sanitizedItems, sheetId);
+          .validateItemsDataCore(sanitizedItems, sheetId);
       }
       
       // Helper function to update item IDs after saving
@@ -3394,7 +3528,7 @@
       function renderItemSelectionInterface(data, optionalOnSuccessCallback) { // MODIFIED: Add optionalOnSuccessCallback
         
         if (!data.success) {
-          document.getElementbyID('mainContent').innerHTML = `
+          document.getElementById('mainContent').innerHTML = `
             <div class="error-box" style="margin: 20px;">
               <strong>Error:</strong> ${data.error || 'Failed to load item data'}
             </div>`;
@@ -3670,8 +3804,8 @@
         container.appendChild(roomsFragment); // Append all room containers at once
         
         // Update the content area
-        document.getElementbyID('mainContent').innerHTML = '';
-        document.getElementbyID('mainContent').appendChild(container);
+        document.getElementById('mainContent').innerHTML = '';
+        document.getElementById('mainContent').appendChild(container);
 
         // AFTER all DOM is updated, call the callback
         if (typeof optionalOnSuccessCallback === 'function') {
@@ -4065,7 +4199,7 @@
           projectNameElement.innerText = 'Select Items';
         }
         
-        const mainContentContainer = document.getElementbyID('mainContent');
+        const mainContentContainer = document.getElementById('mainContent');
         
         // Get the sheet ID from the project details modal
         const dialog = document.querySelector('.app-container');
@@ -4155,5 +4289,61 @@
             }
           })
           .getSelectedRooms(sheetId);
+      }
+
+      function renderSelectedRoomsInHomeSidebar(result) {
+        const container = document.querySelector('#home-content .sidebar-body #homeSelectedRoomsListContainer');
+        if (!container) {
+          console.error('renderSelectedRoomsInHomeSidebar: Container #homeSelectedRoomsListContainer not found.');
+          return;
+        }
+
+        if (result && result.success) {
+          const selectedRooms = result.selectedRooms || [];
+          const roomCategories = result.roomCategories || {}; // Expecting { roomName: ['cat1', 'cat2'], ... }
+
+          if (selectedRooms.length > 0) {
+            let listHtml = '<h4 class="selected-room-header">Project Rooms:</h4><ul class="selected-rooms-list-sidebar">';
+            selectedRooms.forEach(room => {
+              listHtml += `<li><i class="material-icons" style="font-size: 1.1em; vertical-align: text-bottom; margin-right: 5px; color: #26717D;">check_circle_outline</i>${escapeHtml(room)}`;
+              
+              // Add bulleted list of categories if they exist for this room
+              if (roomCategories[room] && roomCategories[room].length > 0) {
+                listHtml += '<ul class="category-list-sidebar" style="margin-left: 25px; padding-left: 0; list-style-type: disc;">';
+                roomCategories[room].forEach(category => {
+                  listHtml += `<li style="font-size: 0.9em; color: #555;">${escapeHtml(category)}</li>`;
+                });
+                listHtml += '</ul>';
+              }
+              listHtml += '</li>';
+            });
+            listHtml += '</ul>';
+            container.innerHTML = listHtml;
+          } else {
+            renderUIState(container, 'empty', 'No rooms currently selected.');
+          }
+        } else {
+          const errorMessage = result && result.error ? result.error : 'Failed to load selected rooms.';
+          renderUIState(container, 'error', errorMessage);
+          console.error('renderSelectedRoomsInHomeSidebar: Error -', errorMessage, 'Full result:', result);
+        }
+      }
+
+      function handleSelectedRoomsError(error) {
+        const container = document.querySelector('#home-content .sidebar-body #homeSelectedRoomsListContainer');
+        if (!container) {
+          console.error('handleSelectedRoomsError: Container #homeSelectedRoomsListContainer not found.');
+          return;
+        }
+        let errorMessage = 'Error loading selected rooms.';
+        if (typeof error === 'string') {
+          errorMessage = error;
+        } else if (error && error.message) {
+          errorMessage = error.message;
+        } else if (error && error.details) {
+          errorMessage = error.details;
+        }
+        renderUIState(container, 'error', errorMessage);
+        console.error('handleSelectedRoomsError:', error);
       }
 </script> 

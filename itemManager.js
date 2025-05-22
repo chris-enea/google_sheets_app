@@ -3,28 +3,32 @@
  * Contains all functionality related to managing project items and rooms.
  */
 
-/**
- * Fetches all rooms from the Data sheet.
- * 
- * @return {Object} Object containing rooms data and success status
- */
-function getRooms() {
+
+  
+  /**
+   * Fetches master room data from the Data sheet.
+   * 
+   * @param {string} sheetId - Optional spreadsheet ID. If not provided, uses DATA_SHEET_ID.
+   * @return {Object} Object containing rooms data, header index, and success status
+   */
+  function getMasterRoomData(sheetId = null) {
     try {
-      const ss = SpreadsheetApp.openById(ScriptProperties.getProperty('DATA_SHEET_ID'));
+      const id = sheetId || ScriptProperties.getProperty('DATA_SHEET_ID');
+      const ss = SpreadsheetApp.openById(id);
       const dataSheet = ss.getSheetByName("Data");
-      
+
       if (!dataSheet) {
         return {
           success: false,
+          rooms: [],
+          headerRowIndex: -1,
           error: "Data sheet not found in the spreadsheet"
         };
       }
-      
-      // Get the range containing rooms in column A
+
       const dataRange = dataSheet.getRange("A:A");
       const values = dataRange.getValues();
       
-      // Find the data table - look for header "Room" in column A
       let headerRowIndex = -1;
       for (let i = 0; i < values.length; i++) {
         if (values[i][0] === "Rooms") {
@@ -32,19 +36,19 @@ function getRooms() {
           break;
         }
       }
-      
+
       if (headerRowIndex === -1) {
         return {
           success: false,
-          error: "Room header not found in column A of Data sheet"
+          rooms: [],
+          headerRowIndex: -1,
+          error: "Rooms header not found in column A of Data sheet"
         };
       }
-      
-      // Extract rooms (skipping the header row)
+
       const rooms = [];
       for (let i = headerRowIndex + 1; i < values.length; i++) {
         const roomName = values[i][0];
-        // Stop if we hit an empty cell
         if (!roomName) {
           break;
         }
@@ -57,12 +61,14 @@ function getRooms() {
         rooms: rooms,
         headerRowIndex: headerRowIndex
       };
-      
+
     } catch (error) {
-      Logger.log("Error in getRooms: " + error.message);
+      Logger.log("Error in getMasterRoomData: " + error.message);
       return {
         success: false,
-        error: "Error retrieving rooms: " + error.message
+        rooms: [],
+        headerRowIndex: -1,
+        error: "Error retrieving master room data: " + error.message
       };
     }
   }
@@ -86,7 +92,7 @@ function getRooms() {
       const uppercaseRoomName = roomName.trim().toUpperCase();
       
       // Get current rooms to check for duplicates and find insertion point
-      const roomsResult = getRooms();
+      const roomsResult = getMasterRoomData();
       if (!roomsResult.success) {
         return roomsResult; // Forward the error
       }
@@ -187,12 +193,13 @@ function getRooms() {
    * @param {Array} selectedRooms - Array of room names to save
    * @param {string} sheetId - Optional spreadsheet ID. If not provided, uses active spreadsheet.
    * @return {Boolean} Success status
+   * @return {Object} Object with success status and optional error message
    */
   function saveSelectedRoomsCore(selectedRooms) {
     try {
       if (!selectedRooms || !Array.isArray(selectedRooms)) {
         Logger.log("Invalid rooms data passed to saveSelectedRoomsCore");
-        return false;
+        return { success: false, error: "Invalid rooms data" };
       }
       
       // Use provided sheetId if available, otherwise fallback to active spreadsheet
@@ -219,10 +226,10 @@ function getRooms() {
       });
       
       Logger.log(`Core: Saved ${selectedRooms.length} selected rooms to temporary sheet`);
-      return true;
+      return { success: true };
     } catch (error) {
       Logger.log("Error in saveSelectedRoomsCore: " + error.message);
-      return false;
+      return { success: false, error: "Error saving selected rooms: " + error.message };
     }
   }
   
@@ -458,6 +465,10 @@ function getRooms() {
       // Use the core function to get the rooms
       const selectedRooms = getSelectedRoomsCore(sheetId);
       
+      // Get room-category selections
+      const roomTypeSelectionsResult = getRoomTypeSelectionsCore(sheetId); // Pass sheetId if necessary
+      const roomCategories = roomTypeSelectionsResult.success ? roomTypeSelectionsResult.roomTypes : {};
+
       // Check for any previously saved item selections
       // Use provided sheetId if available, otherwise fallback to active spreadsheet
       const ss = sheetId 
@@ -485,6 +496,7 @@ function getRooms() {
       return {
         success: true,
         selectedRooms: selectedRooms,
+        roomCategories: roomCategories, // Added roomCategories
         savedSelections: savedSelections
       };
       
@@ -493,191 +505,6 @@ function getRooms() {
       return {
         success: false,
         error: "Error retrieving selected rooms: " + error.message
-      };
-    }
-  }
-  
-  /**
-   * Saves items for each room to the spreadsheet.
-   * 
-   * @param {Object} roomItems - Object with room names as keys and arrays of items as values
-   * @return {Object} Object containing success status
-   */
-  function saveRoomItems(roomItems) {
-    try {
-      if (!roomItems || typeof roomItems !== 'object') {
-        return {
-          success: false,
-          error: "Invalid room items data"
-        };
-      }
-      
-      const ss = SpreadsheetApp.getActiveSpreadsheet();
-      
-      // Create or get the RoomItems sheet
-      let roomItemsSheet = ss.getSheetByName("RoomItems");
-      if (!roomItemsSheet) {
-        // Create the sheet if it doesn't exist
-        roomItemsSheet = ss.insertSheet("RoomItems");
-        
-        // Add headers
-        roomItemsSheet.getRange(1, 1, 1, 2).setValues([["Room", "Item"]]);
-        roomItemsSheet.getRange(1, 1, 1, 2).setFontWeight("bold");
-      } else {
-        // Clear existing room-item mappings if sheet exists (except the header)
-        const lastRow = Math.max(roomItemsSheet.getLastRow(), 1);
-        if (lastRow > 1) {
-          roomItemsSheet.getRange(2, 1, lastRow - 1, 2).clearContent();
-        }
-      }
-      
-      // Prepare data to write - flatten the room-items structure
-      const flatData = [];
-      let totalItems = 0;
-      
-      Object.keys(roomItems).forEach(room => {
-        const items = roomItems[room];
-        if (Array.isArray(items) && items.length > 0) {
-          items.forEach(item => {
-            // Check if item is an object with 'item' property or a simple string
-            const itemValue = typeof item === 'object' && item !== null ? item.item : item;
-            
-            if (itemValue && typeof itemValue === 'string' && itemValue.trim() !== '') {
-              flatData.push([room, itemValue.trim()]);
-              totalItems++;
-            }
-          });
-        }
-      });
-      
-      // Write the data to the sheet
-      if (flatData.length > 0) {
-        roomItemsSheet.getRange(2, 1, flatData.length, 2).setValues(flatData);
-      }
-      
-      // Keep the temporary sheet for reuse instead of deleting it
-      
-      Logger.log(`Saved ${totalItems} items for ${Object.keys(roomItems).length} rooms`);
-      return {
-        success: true,
-        itemCount: totalItems,
-        roomCount: Object.keys(roomItems).length
-      };
-      
-    } catch (error) {
-      Logger.log("Error in saveRoomItems: " + error.message);
-      return {
-        success: false,
-        error: "Error saving room items: " + error.message
-      };
-    }
-  }
-  
-  /**
-   * Saves items data to the Items sheet
-   * Optimized for batch operations
-   * 
-   * @param {Array} items - Array of item objects
-   * @param {string} sheetId - Optional spreadsheet ID. If not provided, uses SHEET_ID from ScriptProperties.
-   * @return {Object} Result object with success status and count
-   */
-  function saveItemsToSheet(items, sheetId = null) {
-    try {
-      // Validate input
-      if (!items || !Array.isArray(items) || items.length === 0) {
-        Logger.log("No valid items to save");
-        return { success: false, error: "No valid items to save" };
-      }
-      
-      Logger.log(`Saving ${items.length} items to the sheet`);
-      
-      // Get reference to spreadsheet using the provided sheetId or fall back to script property
-      const ss = SpreadsheetApp.openById(sheetId);
-      
-      // Get or create the Items sheet
-      let sheet = ss.getSheetByName("Items");
-      if (!sheet) {
-        Logger.log("Creating new Items sheet");
-        sheet = ss.insertSheet("Items");
-      }
-      
-      // Clear existing content but keep the sheet
-      sheet.clear();
-      
-      // Set up headers
-      const headers = [
-        "ROOM", 
-        "TYPE", 
-        "ITEM", 
-        "QUANTITY", 
-        "LOW BUDGET", 
-        "LOW BUDGET TOTAL", 
-        "HIGH BUDGET", 
-        "HIGH BUDGET TOTAL"
-      ];
-      
-      // Prepare all data rows at once to minimize service calls
-      const rows = [headers];
-      
-      // Process and validate each item
-      items.forEach(item => {
-        // Ensure quantity is at least 1
-        const quantity = Math.max(1, parseInt(item.quantity) || 1);
-        
-        // Handle null/undefined/empty budget values
-        const lowBudget = (item.lowBudget !== null && item.lowBudget !== undefined && item.lowBudget !== '') 
-          ? parseFloat(item.lowBudget) || 0 
-          : '';
-        
-        const highBudget = (item.highBudget !== null && item.highBudget !== undefined && item.highBudget !== '') 
-          ? parseFloat(item.highBudget) || 0
-          : '';
-        
-        // Calculate totals only if budget values exist
-        const lowBudgetTotal = lowBudget !== '' ? lowBudget * quantity : '';
-        const highBudgetTotal = highBudget !== '' ? highBudget * quantity : '';
-        
-        // Add the row
-        rows.push([
-          item.room || '',
-          item.type || '',
-          item.item || '',
-          quantity,
-          lowBudget,
-          lowBudgetTotal,
-          highBudget,
-          highBudgetTotal
-      ]);
-      });
-      
-      // Write all data in a single operation
-      const range = sheet.getRange(1, 1, rows.length, headers.length);
-      range.setValues(rows);
-        
-        // Format number columns
-      if (rows.length > 1) {
-        // Format quantity column as whole numbers
-        sheet.getRange(2, 4, rows.length - 1, 1).setNumberFormat('0');
-        
-        // Format budget columns as currency
-        const budgetCols = [5, 6, 7, 8]; // Columns E, F, G, H
-        budgetCols.forEach(col => {
-          sheet.getRange(2, col, rows.length - 1, 1).setNumberFormat('$#,##0.00');
-        });
-      }
-      
-      Logger.log(`Successfully saved ${items.length} items to Items sheet`);
-      return {
-        success: true,
-        count: items.length
-      };
-      
-    } catch (e) {
-      const errorMsg = `Error saving items to sheet: ${e.toString()}`;
-      Logger.log(errorMsg);
-      return {
-        success: false,
-        error: errorMsg
       };
     }
   }
@@ -712,8 +539,8 @@ function getRooms() {
       Logger.log("Error in showItemUpdate: " + error.message);
       SpreadsheetApp.getUi().alert("Error showing item update dialog: " + error.message);
     }
-      }
-      
+  }
+  
   /**
    * Helper function to ensure rooms are saved to the temp sheet.
    * This is important so getSelectedRooms and getItemsData can access them.
@@ -932,7 +759,14 @@ function getRooms() {
       // Get all room names
       let dataSheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
         
-      const rooms = getRoomNamesFromSheet(dataSheetId);
+      const masterRoomResult = getMasterRoomData(dataSheetId); // Changed from getRoomNamesFromSheet
+      let rooms = [];
+      if (masterRoomResult.success) {
+        rooms = masterRoomResult.rooms;
+      } else {
+        // Log the error or handle it as needed if master rooms can't be fetched
+        Logger.log("Error fetching master rooms for dashboard: " + (masterRoomResult.error || 'Unknown error'));
+      }
       
       // Get the currently selected rooms from temp sheet using core function
       const selectedRooms = getSelectedRoomsCore(sheetId);
@@ -946,44 +780,6 @@ function getRooms() {
       };
     } catch (e) {
       Logger.log("Error in getRoomsForDashboard:", e);
-      return {
-        success: false,
-        error: e.toString()
-      };
-    }
-  }
-  
-  /**
-   * Saves selected rooms without immediately showing ItemUpdate dialog
-   * This is useful for the dashboard integration
-   * 
-   * @param {Array} selectedRooms - The array of selected room names
-   * @param {string} sheetId - Optional spreadsheet ID. If not provided, uses active spreadsheet.
-   * @return {Object} - Result object with success flag
-   */
-  function saveSelectedRoomsOnly(selectedRooms) {
-    try {
-      if (!selectedRooms || !Array.isArray(selectedRooms)) {
-        throw new Error("Selected rooms must be an array");
-      }
-      
-      // Use the core function to save rooms to the temp sheet
-      const saved = saveSelectedRoomsCore(selectedRooms);
-      
-      if (!saved) {
-        return {
-          success: false,
-          error: "Failed to save selected rooms"
-        };
-      }
-      
-      // Return success
-      return {
-        success: true,
-        selectedRooms: selectedRooms
-      };
-    } catch (e) {
-      Logger.log("Error saving selected rooms:", e);
       return {
         success: false,
         error: e.toString()
@@ -1223,50 +1019,6 @@ function getRooms() {
   }
   
   /**
-   * Core function to save items to spreadsheet.
-   * Performs validation and processes items before saving.
-   * Used by both dashboard and dialog interfaces.
-   * 
-   * @param {Array} items - Array of item objects to save
-   * @param {string} sheetId - Optional spreadsheet ID. If not provided, uses SHEET_ID from ScriptProperties.
-   * @return {Object} Result of the save operation
-   */
-  function saveItemsCore(items, sheetId = null) {
-    try {
-      Logger.log(`saveItemsCore called with ${items ? items.length : 0} items`);
-      
-      // Validate items first
-      const validationResult = validateItemsDataCore(items);
-      if (!validationResult.success) {
-        Logger.log(`Validation failed: ${validationResult.error}`);
-        return validationResult; // Return validation errors
-      }
-      
-      // Use validated items for saving
-      const validatedItems = validationResult.items;
-      Logger.log(`Validation passed, proceeding to save ${validatedItems.length} items`);
-      
-      // Save to spreadsheet using the existing function
-      const saveResult = saveItemsToSheet(validatedItems, sheetId);
-      
-      if (!saveResult.success) {
-        Logger.log(`Failed to save items: ${saveResult.error}`);
-      } else {
-        Logger.log(`Successfully saved ${saveResult.count} items to sheet`);
-      }
-      
-      return saveResult;
-      
-    } catch (error) {
-      Logger.log("Error in saveItemsCore: " + error.message);
-      return {
-        success: false,
-        error: "Error saving items: " + error.message
-      };
-    }
-  }
-  
-  /**
    * Core function to prepare item data for UI display.
    * This combines functionality from getItemsData with additional processing.
    * Used by both dashboard and dialog interfaces.
@@ -1346,42 +1098,6 @@ function getRooms() {
         error: "Error preparing dashboard content: " + error.message
       };
     }
-  }
-  
-  /**
-   * Saves items data from dashboard or dialog UI.
-   * Wrapper around saveItemsCore for consistent saving from any UI.
-   * 
-   * @param {Array} items - Array of item objects with room, type, item, quantity, lowBudget, etc.
-   * @param {string} sheetId - Optional spreadsheet ID. If not provided, uses SHEET_ID from ScriptProperties.
-   * @return {Object} Object containing success status
-   */
-  function saveItemsFromUI(items, sheetId = null) {
-    try {
-      // Use the core function to save items
-      const result = saveItemsCore(items, sheetId);
-      
-      if (!result.success) {
-        return result; // Forward the error
-      }
-      
-      return {
-        success: true,
-        message: `Successfully saved ${result.count} items.`,
-        itemCount: result.count
-      };
-    } catch (error) {
-      Logger.log("Error in saveItemsFromUI: " + error.message);
-      return {
-        success: false,
-        error: "Error saving items: " + error.message
-      };
-    }
-  }
-  
-  // Function alias for backward compatibility
-  function saveItemsFromDashboard(items, sheetId = null) {
-    return saveItemsFromUI(items, sheetId);
   }
   
   /**
@@ -1662,7 +1378,7 @@ function getRooms() {
    * @param {string} sheetId - Optional spreadsheet ID
    * @return {Object} Success status
    */
-  function saveRoomTypeSelectionsCore(roomTypes, sheetId) {
+  function saveRoomTypeSelections(roomTypes, sheetId) {
     try {
       if (!roomTypes || typeof roomTypes !== 'object') {
         return {
@@ -1720,7 +1436,7 @@ function getRooms() {
         count: flatData.length
       };
     } catch (error) {
-      Logger.log("Error in saveRoomTypeSelectionsCore: " + error.message);
+      Logger.log("Error in saveRoomTypeSelections: " + error.message);
       return {
         success: false,
         error: "Error saving room-type selections: " + error.message
@@ -1759,16 +1475,6 @@ function getRooms() {
         error: "Error getting room categories data: " + error.message
       };
     }
-  }
-  
-  /**
-   * Saves room-type selections from the Project_Details_ sidebar.
-   * 
-   * @param {Object} roomTypes - Object with room names as keys and arrays of types as values
-   * @return {Object} Success status
-   */
-  function saveRoomTypeSelections(roomTypes) {
-    return saveRoomTypeSelectionsCore(roomTypes);
   }
   
   /**
@@ -1958,67 +1664,6 @@ function getRooms() {
   }
   
   /**
-   * Saves selected items from the item selection interface to the Items sheet.
-   * This function takes the checked items and adds them to the project's Items sheet.
-   *
-   * @param {Array} items - Array of selected items to save
-   * @param {string} sheetId - Optional spreadsheet ID. If not provided, uses active spreadsheet.
-   * @return {Object} Object containing success status and count of items saved
-   */
-  function saveSelectedItemsToSheet(items, sheetId = null) {
-    try {
-      if (!items || !Array.isArray(items) || items.length === 0) {
-        return {
-          success: false,
-          error: "No items provided to save"
-        };
-      }
-      
-      // Validate that each item has the required fields
-      const validItems = items.filter(item => 
-        item && item.room && item.item && item.type !== undefined && item.quantity
-      );
-      
-      if (validItems.length === 0) {
-        return {
-          success: false,
-          error: "No valid items to save"
-        };
-      }
-      
-      // Use saveItemsCore to handle saving to the Items sheet
-      // const saveResult = saveItemsCore(validItems, sheetId);
-      
-      // Now also save to the Master Item List Template
-      const saveToMasterResult = saveSelectedItemsToMasterTemplate(validItems, sheetId);
-      
-      // If either save operation failed, return an error
-      // if (!saveResult.success) {
-      //   return saveResult;
-      // }
-      
-      if (!saveToMasterResult.success) {
-        return saveToMasterResult;
-      }
-      
-      // Both saves were successful
-      return {
-        success: true,
-        error: null,
-        itemCount: validItems.length,
-        message: `Successfully saved ${validItems.length} items to Items and Master Item List Template sheets`
-      };
-      
-    } catch (error) {
-      Logger.log("Error in saveSelectedItemsToSheet: " + error.message);
-      return {
-        success: false,
-        error: "Error saving selected items: " + error.message
-      };
-    }
-  }
-  
-  /**
    * Saves selected items from the item selection interface to the Master Item List Template.
    * This function takes the checked items and adds them to the Master Item List Template sheet
    * with columns: ROOM, TYPE, ITEM, QUANTITY, LOW, LOW TOTAL, HIGH, HIGH TOTAL, SPEC/FFE
@@ -2029,19 +1674,17 @@ function getRooms() {
    */
   function saveSelectedItemsToMasterTemplate(items, sheetId = null) {
     try {
-      if (!items || !Array.isArray(items) || items.length === 0) {
-        return {
-          success: false,
-          error: "No items provided to save"
-        };
+      // First, validate the items
+      const validationResult = validateItemsDataCore(items);
+      if (!validationResult.success) {
+        Logger.log("Validation failed in saveSelectedItemsToMasterTemplate: " + (validationResult.error || 'Unknown validation error'));
+        return validationResult; // Return validation errors
       }
-      
-      // Validate that each item has the required fields
-      const validItems = items.filter(item => 
-        item && item.room && item.item && item.type !== undefined && item.quantity
-      );
-      
-      if (validItems.length === 0) {
+
+      // Use validated items for saving
+      const validItems = validationResult.items;
+
+      if (!validItems || !Array.isArray(validItems) || validItems.length === 0) {
         return {
           success: false,
           error: "No valid items to save"
@@ -2259,4 +1902,4 @@ function getRooms() {
       Logger.log(`Error in clearTemporaryItemData: ${e.toString()}`);
       return { success: false, error: e.toString() };
     }
-  } 
+  }

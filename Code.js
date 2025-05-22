@@ -24,6 +24,40 @@ function saveSettings(asanaToken, sheetId, projectColor) {
 }
 
 /**
+ * Retrieves the project name from ScriptProperties.
+ * @return {string} The project name or an empty string if not set.
+ */
+function getProjectNameFromProperties() {
+  try {
+    const scriptProps = PropertiesService.getScriptProperties();
+    const projectName = scriptProps.getProperty('PROJECT_NAME');
+    return projectName || ''; // Return empty string if not set
+  } catch (e) {
+    Logger.log('Error getting project name from properties: ' + e.toString());
+    throw 'Error retrieving project name.'; 
+  }
+}
+
+/**
+ * Saves the project name to ScriptProperties.
+ * @param {string} projectName - The project name to save.
+ * @return {string} The saved project name.
+ */
+function saveProjectNameToProperties(projectName) {
+  try {
+    if (!projectName || typeof projectName !== 'string' || projectName.trim() === '') {
+      throw 'Project name cannot be empty.';
+    }
+    const scriptProps = PropertiesService.getScriptProperties();
+    scriptProps.setProperty('PROJECT_NAME', projectName.trim());
+    return projectName.trim(); // Return the saved name for confirmation
+  } catch (e) {
+    Logger.log('Error saving project name to properties: ' + e.toString());
+    throw 'Error saving project name: ' + e.toString(); 
+  }
+}
+
+/**
  * Fetches tasks from multiple Asana projects for Gantt chart display.
  * Only includes tasks with both start_on and due_on.
  * Groups by project and section, combining all into a single task list.

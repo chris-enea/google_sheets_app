@@ -1543,7 +1543,7 @@
       .withFailureHandler(function(error) {
         alert('Error: ' + error);
       })
-      .saveSelectedRoomsOnly(selectedRooms);
+      .saveSelectedRoomsCore(selectedRooms);
   }
   
   /**
@@ -1554,22 +1554,20 @@
     // Disable buttons and show loading state
     document.getElementById('btn-cat-back').disabled = true;
     document.getElementById('selectItemsBtn').disabled = true;
-    document.getElementById('roomCategoriesContent').innerHTML = `
-      <div class="loading-state">
-        <div class="spinner"></div>
-        <p>Loading categories...</p>
-      </div>
-    `;
+    document.getElementById('roomCategoriesContent').innerHTML = 
+      '<div class="loading-state">' +
+      '  <div class="spinner"></div>' +
+      '  <p>Loading categories...</p>' +
+      '</div>';
     
     google.script.run
       .withSuccessHandler(function(result) {
         if (result.success) {
           if (!result.selectedRooms || result.selectedRooms.length === 0) {
-            document.getElementById('roomCategoriesContent').innerHTML = `
-              <div class="room-manager-content" style="padding: 20px; text-align: center;">
-                <p>There are no rooms selected for this project. Choose them <a href="#" onclick="event.preventDefault(); switchSidebarTab('rooms');" style="text-decoration: underline; color: var(--primary-color, #007bff); cursor: pointer;">here</a>.</p>
-              </div>
-            `;
+            document.getElementById('roomCategoriesContent').innerHTML = 
+              '<div class="room-manager-content" style="padding: 20px; text-align: center;">' +
+              '  <p>There are no rooms selected for this project. Choose them <a href="#" onclick="event.preventDefault(); switchSidebarTab(\'rooms\');" style="text-decoration: underline; color: var(--primary-color, #007bff); cursor: pointer;">here</a>.</p>' +
+              '</div>';
             // Keep buttons disabled as the main UI isn't loaded
             document.getElementById('btn-cat-back').disabled = true;
             document.getElementById('selectItemsBtn').disabled = true;
@@ -1580,22 +1578,20 @@
           document.getElementById('btn-cat-back').disabled = false;
           document.getElementById('selectItemsBtn').disabled = false;
         } else {
-          document.getElementById('roomCategoriesContent').innerHTML = `
-            <div class="error-message">
-              <p>Error loading room categories: ${result.error}</p>
-            </div>
-          `;
+          document.getElementById('roomCategoriesContent').innerHTML = 
+            '<div class="error-message">' +
+            '  <p>Error loading room categories: ' + result.error + '</p>' +
+            '</div>';
           // Keep buttons disabled on error
           document.getElementById('btn-cat-back').disabled = true;
           document.getElementById('selectItemsBtn').disabled = true;
         }
       })
       .withFailureHandler(function(error) {
-        document.getElementById('roomCategoriesContent').innerHTML = `
-          <div class="error-message">
-            <p>Error: ${error}</p>
-          </div>
-        `;
+        document.getElementById('roomCategoriesContent').innerHTML = 
+          '<div class="error-message">' +
+          '  <p>Error: ' + error + '</p>' +
+          '</div>';
         // Keep buttons disabled on failure
         document.getElementById('btn-cat-back').disabled = true;
         document.getElementById('selectItemsBtn').disabled = true;
@@ -2082,4 +2078,314 @@
     //     handleClearDraftItem();
     //   });
     // }
+
+    // MODIFIED setupGanttObserver (V2.5 - uses V4 functions)
+    function setupGanttObserver() {
+      if (ganttObserver) {
+        ganttObserver.disconnect();
+      }
+      ganttObserver = new MutationObserver((mutations) => {
+        const ganttSVGRoot = document.querySelector('#frappeGantt .gantt'); 
+        if (ganttSVGRoot && ganttInstance) { 
+          // console.log('Gantt chart rendered - initial setup (V2.5).');
+          ganttObserver.disconnect(); 
+
+          if (ganttStructureObserver) ganttStructureObserver.disconnect();
+
+          colorizeGanttBars();
+          makeGanttHeaderSticky(); 
+          
+          setTimeout(() => { 
+            // console.log('[Setup V2.5] Post-colorize/sticky: Initializing Overlay V4.');
+            bringHeaderElementsToFrontV4(); 
+            ensureHeaderOverlayIsLastPersistentV3(); 
+          }, 300); 
+        }
+      });
+      const frappeGantt = document.getElementById('frappeGantt');
+      if (frappeGantt) {
+        ganttObserver.observe(frappeGantt, { childList: true, subtree: true });
+      }
+    }
+    
+    // MODIFIED updateGanttView (V2.5 - uses V4 functions)
+    function updateGanttView() {
+      if (!ganttInstance) return;
+      ganttInstance.change_view_mode(ganttViewMode);
+      setTimeout(() => {
+        if (ganttStructureObserver) ganttStructureObserver.disconnect();
+
+        colorizeGanttBars();
+        makeGanttHeaderSticky(); 
+
+        setTimeout(() => { 
+            // console.log('[UpdateView V2.5] Post-colorize/sticky: Initializing Overlay V4.');
+            bringHeaderElementsToFrontV4(); 
+            ensureHeaderOverlayIsLastPersistentV3(); 
+        }, 300); 
+      }, 450);
+    }
+    
+    // NEW function to show Room Categories in the main content area
+    /**
+     * Shows the Room Categories management interface in the main content area.
+     * Fetches selected rooms and master categories, then renders the UI.
+     */
+    function showRoomCategoriesMain() {
+      console.log('showRoomCategoriesMain called');
+      const mainContentContainer = document.getElementById('mainContent');
+      const projectNameHeader = document.getElementById('projectName');
+
+      if (projectNameHeader) {
+        if (!window.originalProjectName) {
+          window.originalProjectName = projectNameHeader.innerText;
+        }
+        projectNameHeader.innerText = 'Set Categories';
+      }
+
+      if (!mainContentContainer) {
+        console.error('showRoomCategoriesMain: Main content container (mainContent) not found!');
+        alert('Critical Error: UI container for Room Categories is missing.');
+        return;
+      }
+
+      renderUIState(mainContentContainer, 'loading', 'Loading room categories...');
+
+      // Call the single comprehensive function to get all category-related data
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result && result.success) {
+            if (!result.selectedRooms || result.selectedRooms.length === 0) {
+              renderUIState(mainContentContainer, 'empty', 'No rooms selected for the project. Please select rooms first in the "Select Rooms" section.');
+              return;
+            }
+            // Pass the data to the rendering function
+            // Ensure the data structure matches what renderRoomCategoriesUI expects:
+            // { selectedRooms: array, masterCategories: array, assignedCategoriesByRoom: object }
+            renderRoomCategoriesUI({
+              selectedRooms: result.selectedRooms,
+              masterCategories: result.availableTypes || [], // Corresponds to masterCategories
+              assignedCategoriesByRoom: result.roomTypes || {} // Corresponds to assignedCategoriesByRoom
+            }, 'mainContent', 'main');
+          } else {
+            const errorMsg = (result && result.error) ? result.error : 'Failed to load category data.';
+            renderUIState(mainContentContainer, 'error', errorMsg);
+          }
+        })
+        .withFailureHandler(function(err) {
+          renderUIState(mainContentContainer, 'error', 'Error loading category data: ' + (err.message || err));
+        })
+        .getRoomCategoriesData(); // Use the existing function that fetches all required data
+    }
+
+
+    /**
+     * Renders the UI for assigning/managing categories for rooms.
+     * @param {object} data - Object containing selectedRooms, masterCategories, and assignedCategoriesByRoom.
+     * @param {string} targetContainerId - The ID of the HTML element to render the UI into.
+     * @param {string} location - 'sidebar' or 'main', to control UI elements/behavior.
+     */
+    function renderRoomCategoriesUI(data, targetContainerId, location = 'main') { // Default location to main, and simplify
+      console.log(`renderRoomCategoriesUI called for ${location}. Target ID: ${targetContainerId}. Data:`, data);
+      const container = document.getElementById(targetContainerId);
+
+      if (!container) {
+        console.error(`renderRoomCategoriesUI: Target container '${targetContainerId}' not found.`);
+        return;
+      }
+
+      // This function now ONLY handles the 'main' location.
+      if (location !== 'main') {
+        console.warn(`renderRoomCategoriesUI was called with location = '${location}'. It is now dedicated to 'main' location. Call buildRoomCategoriesUI for sidebar.`);
+        // Optionally, call buildRoomCategoriesUI here if an old call path still exists, or just return.
+        // For safety, let's clear the container if it was for sidebar and an old call reached here.
+        if (targetContainerId === 'roomCategoriesContent') container.innerHTML = '<p>Please use main interface for categories.</p>';
+        return;
+      }
+
+      if (!data || !data.selectedRooms || !data.masterCategories || !data.assignedCategoriesByRoom) {
+        renderUIState(container, 'error', 'Incomplete data for rendering room categories.');
+        console.error('renderRoomCategoriesUI: Missing critical data components.', data);
+        return;
+      }
+
+      const { selectedRooms, masterCategories, assignedCategoriesByRoom } = data;
+
+      if (selectedRooms.length === 0) {
+        renderUIState(container, 'empty', 'No rooms selected for this project. Please go to "Select Rooms" to add rooms.');
+        return;
+      }
+      
+      if (masterCategories.length === 0) {
+        renderUIState(container, 'empty', 'No master categories found. Please add categories in the master data sheet or via admin settings.');
+        // Potentially add a link or instruction for admins if relevant.
+        return;
+      }
+
+      let html = '';
+
+      // Main location specific UI (with room tabs)
+      html += `
+        <div class="category-management-container main-content-area">
+          <p class="instructions">Select a room, then check the categories you want to assign to it. Changes are saved automatically.</p>
+          <div class="room-tabs-container horizontal-tabs">
+      `;
+      data.selectedRooms.forEach((room, index) => {
+        html += `<button class="tab-button room-tab-btn ${index === 0 ? 'active' : ''}" onclick="switchCategoryRoomTab(this, '${escapeHtml(room)}', 'main')">${escapeHtml(room)}</button>`;
+      });
+      html += `</div>`; // close room-tabs-container
+
+      html += `<div id="mainCategorySelectionContent" class="category-selection-content tab-content-container">`; // ID is now specific to main
+
+      data.selectedRooms.forEach((room, roomIndex) => {
+        const isActiveRoom = roomIndex === 0;
+        const roomDisplayStyle = !isActiveRoom ? 'display: none;' : '';
+
+        html += `<div id="mainRoomCategories_${escapeHtml(room.replace(/\s+/g, '_'))}" class="main-category-assignment-section tab-content-panel" style="${roomDisplayStyle}" data-room-name="${escapeHtml(room)}">`;
+        
+        html += `<ul class="category-checkbox-list checkbox-list-styled">`;
+        data.masterCategories.forEach(category => {
+          const categoryId = `main_${escapeHtml(room.replace(/\s+/g, '_'))}_cat_${escapeHtml(category.replace(/\s+/g, '_'))}`;
+          const isChecked = (data.assignedCategoriesByRoom[room] && data.assignedCategoriesByRoom[room].includes(category));
+          html += `
+            <li class="checkbox-item">
+              <input type="checkbox" class="styled-checkbox" id="${categoryId}" data-room="${escapeHtml(room)}" data-category="${escapeHtml(category)}" 
+                     onchange="handleCategorySelectionChange(this, 'main')" ${isChecked ? 'checked' : ''}>
+              <label for="${categoryId}" class="checkbox-label">${escapeHtml(category)}</label>
+            </li>`;
+        });
+        html += `</ul>`;
+        html += `</div>`; // close main-category-assignment-section
+      });
+
+      html += `</div>`; // close category-selection-content
+      
+      html += `
+        </div>`; // close category-management-container
+      html += `
+        <div class="main-content-actions content-footer-actions" style="padding: 15px 0; text-align: right; border-top: 1px solid #eee; margin-top: 20px;">
+          <button class="btn btn-primary" onclick="navigateToItemSelection()">
+              <i class="material-icons">arrow_forward</i> Next: Select Items
+          </button>
+        </div>
+      `;
+
+      renderUIState(container, 'success'); // Clear loading/error
+      container.innerHTML = html;
+
+      // If in 'main' and there are rooms, ensure the first tab's content is active.
+      if (location === 'main' && selectedRooms.length > 0) {
+        const firstRoomId = `mainRoomCategories_${escapeHtml(selectedRooms[0].replace(/\s+/g, '_'))}`;
+        const firstRoomSection = document.getElementById(firstRoomId);
+        if (firstRoomSection) {
+          firstRoomSection.style.display = 'block';
+        }
+      }
+    }
+
+    /**
+     * Handles switching visibility of category lists when a room tab is clicked in 'main' view.
+     * @param {HTMLElement} tabElement - The clicked tab button.
+     * @param {string} roomName - The name of the room to show categories for.
+     * @param {string} location - Expected to be 'main'.
+     */
+    function switchCategoryRoomTab(tabElement, roomName, location) {
+      if (location !== 'main') return; // Only for main view
+
+      // Deactivate all tabs
+      const tabs = tabElement.parentElement.querySelectorAll('.room-tab-btn');
+      tabs.forEach(tab => tab.classList.remove('active'));
+
+      // Activate clicked tab
+      tabElement.classList.add('active');
+
+      // Hide all room-category sections
+      const sections = document.querySelectorAll('.main-category-assignment-section'); // Updated class selector
+      sections.forEach(section => section.style.display = 'none');
+      
+      // Show selected room's category section
+      const sectionToShowId = `mainRoomCategories_${escapeHtml(roomName.replace(/\s+/g, '_'))}`; // Updated ID prefix
+      const sectionToShow = document.getElementById(sectionToShowId);
+      if (sectionToShow) {
+        sectionToShow.style.display = 'block';
+      } else {
+        console.error(`switchCategoryRoomTab: Section with ID ${sectionToShowId} not found.`);
+      }
+    }
+
+
+    /**
+     * Handles the change event of a category selection checkbox.
+     * @param {HTMLInputElement} checkbox - The checkbox element that changed.
+     * @param {string} location - 'sidebar' or 'main'.
+     */
+    function handleCategorySelectionChange(checkbox, location = 'main') { // Default location to main
+      const roomName = checkbox.dataset.room;
+      const categoryName = checkbox.dataset.category;
+      const isSelected = checkbox.checked;
+
+      console.log(`Category selection changed in ${location}: Room '${roomName}', Category '${categoryName}', Selected: ${isSelected}`);
+      showDashboardStatusMessage('Saving category changes for ' + roomName + '...', false, location); // Corrected line
+
+
+      const dialog = document.querySelector('.app-container');
+      const sheetId = dialog ? dialog.getAttribute('data-sheet-id') : null;
+
+      if (!sheetId) {
+        showDashboardStatusMessage('Error: Sheet ID not found. Cannot save category changes.', true, location);
+        checkbox.checked = !isSelected; // Revert UI change
+        return;
+      }
+      
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result && result.success) {
+            showDashboardStatusMessage('Category \'' + categoryName + '\' ' + (isSelected ? 'assigned to' : 'unassigned from') + ' ' + roomName + '.', false, location); // Corrected line
+            // Potentially update a global state if needed, or re-fetch if complex dependencies.
+            // For now, optimistic update is fine.
+          } else {
+            showDashboardStatusMessage('Error updating category for ' + roomName + ': ' + (result.error || 'Unknown error'), true, location); // Corrected line
+            checkbox.checked = !isSelected; // Revert UI on failure
+          }
+        })
+        .withFailureHandler(function(err) {
+          showDashboardStatusMessage('Error saving category change: ' + (err.message || err), true, location); // Corrected line
+          checkbox.checked = !isSelected; // Revert UI on failure
+        })
+        .updateRoomCategoryAssignment(sheetId, roomName, categoryName, isSelected);
+    }
+
+    function navigateToItemSelection() {
+        // This function will be called by the "Next: Select Items" button
+        // It should switch the sidebar to the "Items" tab and load the item selection interface.
+        console.log("navigateToItemSelection called");
+        // First, ensure the sidebar "Items" tab becomes active.
+        // We can reuse or adapt logic from initializeProjectDetailsSidebarInteractions if a direct tab switch function isn't available.
+        
+        // Simulate clicking the "Items" tab
+        const itemsTab = document.querySelector('.sidebar-tab[data-tab="items"]');
+        if (itemsTab) {
+            // Deactivate current active tab
+            const currentActiveTab = document.querySelector('.sidebar-tab.active');
+            if (currentActiveTab) currentActiveTab.classList.remove('active');
+            const currentActiveContent = document.querySelector('.sidebar-content.active');
+             if (currentActiveContent) currentActiveContent.classList.remove('active');
+
+            // Activate Items tab and its (empty) content pane
+            itemsTab.classList.add('active');
+            const itemsContentPane = document.getElementById('items-content'); // The empty pane
+            if (itemsContentPane) itemsContentPane.classList.add('active');
+
+            // Now, call the function to load the item selection interface into the main content.
+            if (typeof showItemSelectionInterface === 'function') {
+                showItemSelectionInterface();
+            } else {
+                console.error('showItemSelectionInterface function not found. Cannot navigate to item selection.');
+                alert('Error: Item selection functionality is not available.');
+            }
+        } else {
+            console.error('Items tab not found in sidebar.');
+        }
+    }
+
 </script>

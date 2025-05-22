@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Always review @prd.md before implementing a new feature. If the PRD document does not include information needed, ask for clarification. If a new feature is being added, update the PRD [prd.md](mdc:prd.md) with the information to maintain a complete project document.

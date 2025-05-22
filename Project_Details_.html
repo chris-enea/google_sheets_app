@@ -12,6 +12,9 @@
   </head>
   <body>
     <div class="app-container" data-sheet-id="<?= dataSheetId ?>">
+      <!-- Global status message container for dashboard/main content messages -->
+      <div id="dashboardStatusMessage" class="status-message" style="display: none;"></div>
+      
       <!-- Sidebar -->
       <div class="sidebar">
         <!-- Sidebar Tabs -->
@@ -248,7 +251,7 @@
             </div>
             <!-- Add New Room section for sidebar -->
             <div class="add-room-section-sidebar" style="padding: 10px; border-top: 1px solid #eee;">
-              <h4 style="margin-top: 0; margin-bottom: 8px; font-size: 1em;">Add New Room</h4>
+              <h4 class="selected-room-header">Add New Room</h4>
               <input type="text" id="newRoomNameSidebar" placeholder="Enter room name" class="form-control" style="margin-bottom: 8px;">
               <button id="addRoomButtonSidebar" onclick="addNewRoom('sidebar')" class="btn btn-secondary btn-small">
                 <i class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">add</i> Add Room
@@ -423,6 +426,9 @@
               <button id="selectRoomsBtn" onclick="showRoomManager('main')" class="btn">
                 <i class="material-icons" style="margin-right: 4px;">meeting_room</i> Select Rooms
               </button>
+              <button id="setCategoriesBtn" onclick="showRoomCategoriesMain()" class="btn" style="margin-left: 10px;">
+                <i class="material-icons" style="margin-right: 4px;">category</i> Set Categories
+              </button>
               <!-- <button onclick="showManageItems()" class="btn">
                 <i class="material-icons">inventory_2</i> Manage Budget Items
               </button> -->
@@ -446,7 +452,7 @@
      <script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
      <!-- Add Project Card Styles using JavaScript -->
      <script type="text/javascript">
-       var initialTabIdFromAppsScript = <?!= Utilities.jsonStringify(initialTabToOpen || null) ?>;
+       var initialTabIdFromAppsScript = "<?!= Utilities.jsonStringify(initialTabToOpen || null) ?>";
        // For immediate debugging in the browser console when the dialog opens:
        console.log('[Project_Details_.html] Embedded initialTabIdFromAppsScript:', initialTabIdFromAppsScript);
      </script>
