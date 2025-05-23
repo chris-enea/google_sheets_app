@@ -1379,8 +1379,21 @@
     document.addEventListener('click', function(event) {
       if (event.target.classList.contains('close-modal')) {
         const modal = document.getElementById('projectDetailsModal');
-        modal.style.display = 'none';
-        document.body.classList.remove('modal-open');
+        if (modal) { // Ensure modal exists
+          // Check if item selection is active before closing
+          const itemSelectionContent = document.querySelector('#mainContent .item-selection-content');
+          const selectItemsBtnActive = document.getElementById('selectItemsBtn')?.classList.contains('btn-active');
+          if (itemSelectionContent && selectItemsBtnActive) {
+            if (typeof handleSaveDraftItem === 'function') {
+              console.log("[DashboardScripts.js] Modal close (X button click): Item selection active. Saving draft.");
+              handleSaveDraftItem();
+            } else {
+              console.warn("[DashboardScripts.js] Modal close (X button click): handleSaveDraftItem not found.");
+            }
+          }
+          modal.style.display = 'none';
+          document.body.classList.remove('modal-open');
+        }
       }
     });
     
@@ -1388,6 +1401,17 @@
     window.addEventListener('click', function(event) {
       const modal = document.getElementById('projectDetailsModal');
       if (event.target === modal) {
+        // Check if item selection is active before closing
+        const itemSelectionContent = document.querySelector('#mainContent .item-selection-content');
+        const selectItemsBtnActive = document.getElementById('selectItemsBtn')?.classList.contains('btn-active');
+        if (itemSelectionContent && selectItemsBtnActive) {
+          if (typeof handleSaveDraftItem === 'function') {
+            console.log("[DashboardScripts.js] Modal close (click outside): Item selection active. Saving draft.");
+            handleSaveDraftItem();
+          } else {
+            console.warn("[DashboardScripts.js] Modal close (click outside): handleSaveDraftItem not found.");
+          }
+        }
         modal.style.display = 'none';
         document.body.classList.remove('modal-open');
       }
@@ -1409,27 +1433,27 @@
 
     // Hide all sidebar content sections
     const contentSections = document.querySelectorAll('.sidebar-content');
-    contentSections.forEach(section => {
-      section.classList.remove('active');
-    });
+    // contentSections.forEach(section => {
+    //   section.classList.remove('active');
+    // });
     
     // Remove active class from all tabs
     const tabs = document.querySelectorAll('.sidebar-tab');
-    tabs.forEach(tab => {
-      tab.classList.remove('active');
-    });
+    // tabs.forEach(tab => {
+    //   tab.classList.remove('active');
+    // });
     
     // Show the selected content section
     const selectedContent = document.getElementById(tabId + '-content');
-    if (selectedContent) {
-      selectedContent.classList.add('active');
-    }
+    // if (selectedContent) {
+    //   selectedContent.classList.add('active');
+    // }
     
     // Add active class to the selected tab
     const selectedTab = document.querySelector(`.sidebar-tab[data-tab="${tabId}"]`);
-    if (selectedTab) {
-      selectedTab.classList.add('active');
-    }
+    // if (selectedTab) {
+    //   selectedTab.classList.add('active');
+    // }
     
     // Update the current active tab ID
     currentActiveSidebarTabId = tabId;
@@ -1470,11 +1494,11 @@
       }
       // Existing tab-specific content loaders
       if (tabId === 'roomCategories') {
-        loadRoomCategoriesContent();
+        showRoomCategoriesMain();
       } else if (tabId === 'rooms') {
-        if (typeof window.loadSidebarRoomManager === 'function') {
-          console.log('[DashboardScripts.js] switchSidebarTab: Calling loadSidebarRoomManager() for tab: rooms');
-          window.loadSidebarRoomManager();
+        if (typeof window.showRoomManager === 'function') {
+          console.log('[DashboardScripts.js] switchSidebarTab: Calling showRoomManager() for tab: rooms');
+          window.showRoomManager('main');
         } else {
           console.warn('[DashboardScripts.js] switchSidebarTab: loadSidebarRoomManager function not found when trying to load tab: rooms');
           const contentArea = document.getElementById(tabId + '-content');
@@ -1495,6 +1519,50 @@
         switchSidebarTab(tabId);
       });
     });
+
+    // Add beforeunload listener to save drafts if item selection is active
+    window.addEventListener('beforeunload', function(event) {
+      const itemSelectionContent = document.querySelector('#mainContent .item-selection-content');
+      const selectItemsBtnActive = document.getElementById('selectItemsBtn')?.classList.contains('btn-active');
+
+      if (itemSelectionContent && selectItemsBtnActive) {
+        console.log("[DashboardScripts.js] beforeunload: Item selection active. Attempting to save draft.");
+        // Note: Direct call to google.script.run in beforeunload might be unreliable or blocked by browsers.
+        // The handleSaveDraftItem function itself makes the server call.
+        // Depending on browser behavior, this might not complete successfully if the page unloads too quickly.
+        if (typeof handleSaveDraftItem === 'function') {
+          handleSaveDraftItem();
+          // For critical data, consider prompting the user: "You have unsaved changes. Are you sure you want to leave?"
+          // event.preventDefault(); // This would show a generic browser prompt
+          // event.returnValue = ''; // Necessary for some older browsers
+        } else {
+          console.warn("[DashboardScripts.js] beforeunload: handleSaveDraftItem function not found.");
+        }
+      }
+    });
+
+    // Original modal close button handler (if one exists and needs modification)
+    // Assuming the close button has class 'close-modal' and is within 'projectDetailsModal'
+    // const projectModal = document.getElementById('projectDetailsModal');  // REMOVE THIS BLOCK START
+    // if (projectModal) {
+    //     const closeButton = projectModal.querySelector('.close-modal'); // Adjust selector if needed
+    //     if (closeButton) {
+    //         closeButton.addEventListener('click', function() {
+    //             const itemSelectionContent = document.querySelector('#mainContent .item-selection-content');
+    //             const selectItemsBtnActive = document.getElementById('selectItemsBtn')?.classList.contains('btn-active');
+    //             if (itemSelectionContent && selectItemsBtnActive) {
+    //                 if (typeof handleSaveDraftItem === 'function') {
+    //                     console.log("[DashboardScripts.js] Modal close (button click): Item selection active. Saving draft.");
+    //                     handleSaveDraftItem();
+    //                 } else {
+    //                     console.warn("[DashboardScripts.js] Modal close (button click): handleSaveDraftItem not found.");
+    //                 }
+    //             }
+    //             // The original event listener for closing modal will still fire and hide it.
+    //             // No need to call modal.style.display = 'none' here again if it's already handled.
+    //         });
+    //     }
+    // } // REMOVE THIS BLOCK END
   });
   
   // Room Categories Functions
@@ -1812,7 +1880,7 @@
      */
     function collectDraftItemSelections() {
       console.log("[Drafts] collectDraftItemSelections: Collecting based on checkbox and quantity...");
-      const mainContentContainer = document.getElementbyID('mainContent');
+      const mainContentContainer = document.getElementById('mainContent');
       if (!mainContentContainer) {
         console.warn("[Drafts] collectDraftItemSelections: 'fileContent' container not found.");
         return null;
@@ -1877,28 +1945,24 @@
         return;
       }
 
-      const mainContentContainer = document.getElementbyID('mainContent');
+      const mainContentContainer = document.getElementById('mainContent');
       if (!mainContentContainer) {
-        console.warn("[Drafts] populateItemForm: 'fileContent' container not found.");
+        console.warn("[Drafts] populateItemForm: 'mainContent' container not found."); // Corrected 'fileContent' to 'mainContent'
         return;
       }
 
       const allItemRowsInUI = mainContentContainer.querySelectorAll('.item-row');
+      // Reset all UI rows to default state first
       allItemRowsInUI.forEach(uiRow => {
         const uiCheckbox = uiRow.querySelector('.item-checkbox');
-        if (uiCheckbox) {
-          const wasChecked = uiCheckbox.checked;
+        if (uiCheckbox && uiCheckbox.checked) {
           uiCheckbox.checked = false;
-          if (wasChecked) { // Only dispatch if the state actually changed
-            uiCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
-          }
+          uiCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
         }
         const uiQuantityInput = uiRow.querySelector('.quantity-input');
-        if (uiQuantityInput) {
-          if (uiQuantityInput.value !== '1') { // Only dispatch if the value actually changed
-             uiQuantityInput.value = '1';
-             uiQuantityInput.dispatchEvent(new Event('change', { bubbles: true }));
-          }
+        if (uiQuantityInput && uiQuantityInput.value !== '1') {
+           uiQuantityInput.value = '1';
+           uiQuantityInput.dispatchEvent(new Event('change', { bubbles: true }));
         }
       });
 
@@ -1906,32 +1970,44 @@
         if (!draftItem.isSelected) return; 
 
         let foundRow = null;
-        const currentDraftRoomUpper = String(draftItem.room || '').toUpperCase();
+        const draftRoomUpper = String(draftItem.room || '').toUpperCase();
         const draftItemNameUpper = String(draftItem.item || '').toUpperCase(); 
         const draftTypeNameUpper = String(draftItem.type || '').toUpperCase();
 
-        console.log(`[Drafts] populateItemForm: Processing draftItem: Room='${currentDraftRoomUpper}', Type='${draftTypeNameUpper}', Item='${draftItemNameUpper}'`);
+        console.log(`[Drafts] populateItemForm: Processing draftItem: Room='${draftRoomUpper}', Type='${draftTypeNameUpper}', Item='${draftItemNameUpper}'`);
         
-        // Iterate ALL item rows and check room case-insensitively
-        allItemRowsInUI.forEach(row => {
+        for (const row of allItemRowsInUI) {
           const domRowRoomUpper = String(row.dataset.room || '').toUpperCase();
           
-          // Only proceed if the room matches (case-insensitive)
-          if (currentDraftRoomUpper === domRowRoomUpper) {
-            const currentItemInput = row.querySelector('.item-input');
-            const currentTypeInput = row.querySelector('.type-input');
-            
-            const domItemNameUpper = currentItemInput ? currentItemInput.value.toUpperCase() : ''; 
-            const domTypeNameUpper = currentTypeInput ? currentTypeInput.value.toUpperCase() : ''; 
+          // Match by data-room (already done)
+          if (draftRoomUpper === domRowRoomUpper) {
+            // IDEALLY, renderItemSelectionInterface adds data-item-name and data-item-type to the row.
+            // If not, this relies on input fields which is less robust.
+            const domItemNameAttr = row.dataset.itemName; // Preferred: Use data attribute
+            const domTypeNameAttr = row.dataset.itemType; // Preferred: Use data attribute
 
-            console.log(`[Drafts] populateItemForm: Comparing with DOM row: DOM Room='${domRowRoomUpper}', DOM Type='${domTypeNameUpper}', DOM Item='${domItemNameUpper}'`);
+            let domItemNameValueUpper, domTypeNameValueUpper;
 
-            if (domItemNameUpper === draftItemNameUpper && domTypeNameUpper === draftTypeNameUpper) {
+            if (domItemNameAttr !== undefined && domTypeNameAttr !== undefined) {
+              // Match using data attributes if available
+              domItemNameValueUpper = String(domItemNameAttr || '').toUpperCase();
+              domTypeNameValueUpper = String(domTypeNameAttr || '').toUpperCase();
+              console.log(`[Drafts] populateItemForm: Comparing with DOM row (DATASET): DOM Room='${domRowRoomUpper}', DOM Type='${domTypeNameValueUpper}', DOM Item='${domItemNameValueUpper}'`);
+            } else {
+              // Fallback: Match using input field values if data attributes are not present
+              const currentItemInput = row.querySelector('.item-input');
+              const currentTypeInput = row.querySelector('.type-input');
+              domItemNameValueUpper = currentItemInput ? String(currentItemInput.value || '').toUpperCase() : ''; 
+              domTypeNameValueUpper = currentTypeInput ? String(currentTypeInput.value || '').toUpperCase() : ''; 
+              console.log(`[Drafts] populateItemForm: Comparing with DOM row (INPUT VAL): DOM Room='${domRowRoomUpper}', DOM Type='${domTypeNameValueUpper}', DOM Item='${domItemNameValueUpper}'`);
+            }
+
+            if (domItemNameValueUpper === draftItemNameUpper && domTypeNameValueUpper === draftTypeNameUpper) {
               foundRow = row;
-              return; // Exit this inner forEach once a match is found for the current draftItem
+              break; 
             }
           }
-        });
+        }
 
         if (foundRow) {
           console.log("[Drafts] populateItemForm: Restoring draft state for item:", draftItem.item, "in room:", draftItem.room);
@@ -1939,7 +2015,7 @@
           const quantityInput = foundRow.querySelector('.quantity-input');
 
           if (checkbox) {
-            if (!checkbox.checked) { // Only dispatch if the state actually changed
+            if (!checkbox.checked) {
                 checkbox.checked = true; 
                 checkbox.dispatchEvent(new Event('change', { bubbles: true }));
             }
@@ -1947,13 +2023,13 @@
           if (quantityInput && draftItem.quantity !== undefined) {
             const currentQuantity = parseInt(quantityInput.value);
             const draftQuantity = parseInt(draftItem.quantity);
-            if (currentQuantity !== draftQuantity) { // Only dispatch if the value actually changed
+            if (currentQuantity !== draftQuantity) {
                 quantityInput.value = draftItem.quantity;
                 quantityInput.dispatchEvent(new Event('change', { bubbles: true }));
             }
           }
         } else {
-          console.warn(`[Drafts] populateItemForm: Could not find matching row in UI for draft item: Room='${currentDraftRoomUpper}', Type='${draftTypeNameUpper}', Item='${draftItemNameUpper}'`);
+          console.warn(`[Drafts] populateItemForm: Could not find matching row in UI for draft item: Room='${draftRoomUpper}', Type='${draftTypeNameUpper}', Item='${draftItemNameUpper}'`);
         }
       });
       console.log("[Drafts] populateItemForm: Finished applying draft data.");
@@ -1964,6 +2040,16 @@
      */
     function handleSaveDraftItem() {
       console.log("[Drafts] handleSaveDraftItem: Initiated.");
+
+      // Check if the item selection interface is actually active/visible
+      const itemSelectionContent = document.querySelector('#mainContent .item-selection-content');
+      const selectItemsBtnActive = document.getElementById('selectItemsBtn')?.classList.contains('btn-active');
+
+      if (!itemSelectionContent || !selectItemsBtnActive) {
+        console.log("[Drafts] handleSaveDraftItem: Item selection interface not active. Aborting draft save.");
+        return; // Exit if item selection UI is not active
+      }
+
       const draftData = collectDraftItemSelections(); // MODIFIED
       if (draftData) {
         console.log("[Drafts] handleSaveDraftItem: Saving draft item data:", JSON.stringify(draftData));
@@ -1971,12 +2057,25 @@
           .withSuccessHandler(function(response) {
             if (response && response.success) {
               console.log("[Drafts] Draft saved successfully via server.");
+              if (typeof showDashboardStatusMessage === 'function') {
+                showDashboardStatusMessage("Draft saved successfully!", false, 'main'); // Show success message
+              } else {
+                console.warn("[Drafts] showDashboardStatusMessage function not found. Cannot display draft saved message.");
+              }
             } else {
               console.error("[Drafts] Failed to save draft via server:", response ? response.error : 'Unknown error');
+              if (typeof showDashboardStatusMessage === 'function') {
+                showDashboardStatusMessage("Error saving draft. See console for details.", true, 'main'); // Show error message
+              } else {
+                console.warn("[Drafts] showDashboardStatusMessage function not found. Cannot display draft error message.");
+              }
             }
           })
           .withFailureHandler(function(error) {
             console.error("[Drafts] Error calling server to save draft:", error.message);
+            if (typeof showDashboardStatusMessage === 'function') {
+              showDashboardStatusMessage("Error saving draft: " + error.message, true, 'main'); // Show error message
+            }
           })
           .saveTemporaryItemData(draftData);
       } else {
@@ -2142,6 +2241,7 @@
         }
         projectNameHeader.innerText = 'Set Categories';
       }
+      setActiveMainContentButton('setCategoriesBtn'); // Added this line
 
       if (!mainContentContainer) {
         console.error('showRoomCategoriesMain: Main content container (mainContent) not found!');
@@ -2262,13 +2362,6 @@
       
       html += `
         </div>`; // close category-management-container
-      html += `
-        <div class="main-content-actions content-footer-actions" style="padding: 15px 0; text-align: right; border-top: 1px solid #eee; margin-top: 20px;">
-          <button class="btn btn-primary" onclick="navigateToItemSelection()">
-              <i class="material-icons">arrow_forward</i> Next: Select Items
-          </button>
-        </div>
-      `;
 
       renderUIState(container, 'success'); // Clear loading/error
       container.innerHTML = html;
@@ -2343,6 +2436,17 @@
             showDashboardStatusMessage('Category \'' + categoryName + '\' ' + (isSelected ? 'assigned to' : 'unassigned from') + ' ' + roomName + '.', false, location); // Corrected line
             // Potentially update a global state if needed, or re-fetch if complex dependencies.
             // For now, optimistic update is fine.
+
+            // Refresh home sidebar content after successful category change
+            if (typeof updateHomeSidebarContent === 'function') {
+              // Add a small delay to allow server-side changes to propagate
+              setTimeout(function() {
+                console.log('Refreshing home sidebar after category assignment change for room: ' + roomName);
+                updateHomeSidebarContent(true); // Assuming true triggers a full refresh
+              }, 300); // 300ms delay
+            } else {
+              console.warn('updateHomeSidebarContent function not found. Home sidebar will not be refreshed automatically.');
+            }
           } else {
             showDashboardStatusMessage('Error updating category for ' + roomName + ': ' + (result.error || 'Unknown error'), true, location); // Corrected line
             checkbox.checked = !isSelected; // Revert UI on failure
@@ -2355,36 +2459,16 @@
         .updateRoomCategoryAssignment(sheetId, roomName, categoryName, isSelected);
     }
 
-    function navigateToItemSelection() {
-        // This function will be called by the "Next: Select Items" button
-        // It should switch the sidebar to the "Items" tab and load the item selection interface.
+    function loadItemSelection() {
+        // This function is called by the "Next: Select Items" button.
+        // It directly shows the item selection interface and ensures drafts are loaded.
         console.log("navigateToItemSelection called");
-        // First, ensure the sidebar "Items" tab becomes active.
-        // We can reuse or adapt logic from initializeProjectDetailsSidebarInteractions if a direct tab switch function isn't available.
-        
-        // Simulate clicking the "Items" tab
-        const itemsTab = document.querySelector('.sidebar-tab[data-tab="items"]');
-        if (itemsTab) {
-            // Deactivate current active tab
-            const currentActiveTab = document.querySelector('.sidebar-tab.active');
-            if (currentActiveTab) currentActiveTab.classList.remove('active');
-            const currentActiveContent = document.querySelector('.sidebar-content.active');
-             if (currentActiveContent) currentActiveContent.classList.remove('active');
-
-            // Activate Items tab and its (empty) content pane
-            itemsTab.classList.add('active');
-            const itemsContentPane = document.getElementById('items-content'); // The empty pane
-            if (itemsContentPane) itemsContentPane.classList.add('active');
-
-            // Now, call the function to load the item selection interface into the main content.
-            if (typeof showItemSelectionInterface === 'function') {
-                showItemSelectionInterface();
-            } else {
-                console.error('showItemSelectionInterface function not found. Cannot navigate to item selection.');
-                alert('Error: Item selection functionality is not available.');
-            }
+        if (typeof showItemSelectionInterface === 'function') {
+            showItemSelectionInterface(handleLoadDraftItem); // Directly call with the draft loading callback
         } else {
-            console.error('Items tab not found in sidebar.');
+            console.error('showItemSelectionInterface function not found. Cannot navigate to item selection.');
+            // Consider providing user feedback here, e.g., via an alert or a message in the UI.
+            alert('Error: Item selection functionality is currently unavailable.');
         }
     }
 

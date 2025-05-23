@@ -6,16 +6,16 @@ function onOpen() {
     const ui = SpreadsheetApp.getUi();
       
     // Client Dashboard menu
-    ui.createMenu('Setup Sheet')
+    ui.createMenu('Project Manager')
       // Calls showProjectDashboard to open the default view (e.g., Home)
       // Pass null or a default tab ID if your Project_Details_ expects one for the main view
       .addItem('Open Dashboard', 'showProjectDashboardDefault') 
       // Calls showProjectDashboard with 'roomManagerView' to open the Room Manager tab
-      .addItem('1. Select Rooms', 'showProjectDashboardRoomManager') 
+      // .addItem('1. Select Rooms', 'showProjectDashboardRoomManager') 
       // New menu item
-      .addItem('2. Select Room Categories', 'showProjectDashboardRoomCategories')
+      // .addItem('2. Select Room Categories', 'showProjectDashboardRoomCategories')
       // New menu item
-      .addItem('3. Select Items', 'showProjectDashboardItems')
+      // .addItem('3. Select Items', 'showProjectDashboardItems')
       .addToUi();
     
       ui.createMenu('Sheet Manager')

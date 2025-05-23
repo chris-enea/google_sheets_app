@@ -278,12 +278,12 @@
                 </div>
             </div>
             <div class="sidebar-action-buttons">
-                <button id="btn-cat-back" onclick="saveAndNavigateToRooms()" class="btn btn-outline">
+                <!-- <button id="btn-cat-back" onclick="saveAndNavigateToRooms()" class="btn btn-outline">
                     <i class="material-icons">arrow_back</i> Back to Rooms
                 </button>
-                <button id="selectItemsBtn" onclick="saveRoomCategoriesSelections()" class="btn btn-primary">
+                <button id="btn-cat-fwd" onclick="saveRoomCategoriesSelections()" class="btn btn-primary">
                     <i class="material-icons">arrow_forward</i> Next: Select Items
-                </button>
+                </button> -->
             </div>
           </div>
 
@@ -419,7 +419,7 @@
       
       <!-- Main Content -->
       <div class="main-content">
-        <div class="content-header">
+        <div class="content-header" id="mainContentHeader">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <h2><span id="projectName">Project Name</span></h2>
             <div>
@@ -428,6 +428,9 @@
               </button>
               <button id="setCategoriesBtn" onclick="showRoomCategoriesMain()" class="btn" style="margin-left: 10px;">
                 <i class="material-icons" style="margin-right: 4px;">category</i> Set Categories
+              </button>
+              <button id="selectItemsBtn" onclick="loadItemSelection()" class="btn" style="margin-left: 10px;">
+                <i class="material-icons" style="margin-right: 4px;">list_alt</i> Select Items
               </button>
               <!-- <button onclick="showManageItems()" class="btn">
                 <i class="material-icons">inventory_2</i> Manage Budget Items
@@ -452,7 +455,7 @@
      <script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
      <!-- Add Project Card Styles using JavaScript -->
      <script type="text/javascript">
-       var initialTabIdFromAppsScript = "<?!= Utilities.jsonStringify(initialTabToOpen || null) ?>";
+       var initialTabIdFromAppsScript = <?!= Utilities.jsonStringify(initialTabToOpen || null) ?>;
        // For immediate debugging in the browser console when the dialog opens:
        console.log('[Project_Details_.html] Embedded initialTabIdFromAppsScript:', initialTabIdFromAppsScript);
      </script>

@@ -1352,7 +1352,7 @@ input[type="text"], input[type="number"] {
 }
 
 .status-message.error {
-  background-color: rgba(123, 118, 59, 0.1);
+  background-color: rgba(227, 227, 223, .9);
   color: #7B763B;
   border: 1px solid rgba(123, 118, 59, 0.2);
   display: block;
@@ -2964,4 +2964,43 @@ body.loading-active {
   margin-right: 5px;
   font-size: 1.1em;
 }
+
+ /* Styles for aligning Project Name input and Save button */
+ .input-with-button {
+    display: flex;
+    align-items: stretch; /* Makes items same height */
+    gap: 8px; /* Space between input and button */
+  }
+  .input-with-button .sidebar-input {
+    flex-grow: 1; /* Allows input to take available space */
+    box-sizing: border-box;
+    height: auto; /* Reset height if previously set to allow align-items to work */
+    padding-top: 8px; /* Adjust padding to match button */
+    padding-bottom: 8px; /* Adjust padding to match button */
+  }
+  .input-with-button .btn-small {
+    flex-shrink: 0; /* Prevents button from shrinking */
+    box-sizing: border-box;
+    height: auto; /* Reset height */
+    line-height: normal; /* Ensure text is centered if padding is symmetrical */
+  }
+
+  /* Styles for the Selected Rooms list in the Home sidebar */
+  #homeSelectedRoomsListContainer .selected-rooms-list-sidebar {
+    list-style-type: none; /* Remove bullet points */
+    padding-left: 5px; /* Remove default padding */
+    margin-top: 0;
+  }
+  #homeSelectedRoomsListContainer .selected-rooms-list-sidebar li {
+    padding: 4px 0; /* Add some padding for spacing */
+    font-size: 0.95em;
+    color: #333;
+    /* border-bottom: 1px solid #f0f0f0; /* Optional: light separator */
+  }
+
+  /* Ensure specificity if other styles are overriding */
+  #mainContentHeader .btn.btn-active {
+    background-color: #744082 !important; /* A darker shade */
+    color: #ffffff !important;
+  }
 </style>

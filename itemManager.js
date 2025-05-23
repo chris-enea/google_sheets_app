@@ -1445,7 +1445,7 @@
   }
   
   /**
-   * Gets room and type data for the Project_Details_ sidebar.
+   * Retrieves room and type data for the Project_Details_ sidebar.
    * 
    * @return {Object} Data for rendering room categories section
    */
@@ -1477,6 +1477,98 @@
     }
   }
   
+  /**
+   * Updates a single room-category assignment in the _TempRoomTypes sheet.
+   * This function now reads and writes data in a flat row-based format,
+   * consistent with getRoomTypeSelectionsCore and saveRoomTypeSelections.
+   *
+   * @param {string} sheetId The ID of the spreadsheet.
+   * @param {string} roomName The name of the room.
+   * @param {string} categoryName The name of the category.
+   * @param {boolean} isSelected True if the category should be assigned, false to unassign.
+   * @return {Object} Object with success status and optional error message.
+   */
+  function updateRoomCategoryAssignment(sheetId, roomName, categoryName, isSelected) {
+    try {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      let tempSheet = ss.getSheetByName("_TempRoomTypes");
+
+      if (!tempSheet) {
+        tempSheet = ss.insertSheet("_TempRoomTypes");
+        tempSheet.hideSheet();
+        tempSheet.getRange(1, 1, 1, 2).setValues([["Room", "Type"]]); // Add header
+      }
+
+      // 1. Read existing flat data and reconstruct roomTypes object
+      const roomTypes = {};
+      const lastRow = tempSheet.getLastRow();
+      if (lastRow > 1) { // Check if there's data beyond the header
+        const dataRange = tempSheet.getRange(2, 1, lastRow - 1, 2);
+        const values = dataRange.getValues();
+        values.forEach(row => {
+          const rName = row[0];
+          const cName = row[1];
+          if (rName && cName) {
+            if (!roomTypes[rName]) {
+              roomTypes[rName] = [];
+            }
+            if (!roomTypes[rName].includes(cName)) { // Ensure no duplicates if sheet had them
+                roomTypes[rName].push(cName);
+            }
+          }
+        });
+      }
+
+      // 2. Modify the in-memory roomTypes object
+      if (!roomTypes[roomName]) {
+        roomTypes[roomName] = [];
+      }
+      const categoryIndex = roomTypes[roomName].indexOf(categoryName);
+
+      if (isSelected) {
+        if (categoryIndex === -1) {
+          roomTypes[roomName].push(categoryName);
+        }
+      } else {
+        if (categoryIndex > -1) {
+          roomTypes[roomName].splice(categoryIndex, 1);
+        }
+      }
+      
+      // If a room has no categories after modification, remove the room key
+      if (roomTypes[roomName] && roomTypes[roomName].length === 0) {
+          delete roomTypes[roomName];
+      }
+
+      // 3. Clear existing data rows (below header)
+      if (lastRow > 1) {
+        tempSheet.getRange(2, 1, lastRow - 1, 2).clearContent();
+      }
+
+      // 4. Write the updated roomTypes object back as flat rows
+      const flatData = [];
+      Object.keys(roomTypes).forEach(rName => {
+        const categories = roomTypes[rName];
+        if (Array.isArray(categories)) {
+          categories.forEach(cName => {
+            flatData.push([rName, cName]);
+          });
+        }
+      });
+
+      if (flatData.length > 0) {
+        tempSheet.getRange(2, 1, flatData.length, 2).setValues(flatData);
+      }
+      
+      Logger.log(`Updated room-category assignment for Room: ${roomName}, Category: ${categoryName}, Selected: ${isSelected}. Wrote ${flatData.length} rows.`);
+      return { success: true };
+
+    } catch (error) {
+      Logger.log("Error in updateRoomCategoryAssignment: " + error.message + " (Room: " + roomName + ", Category: " + categoryName + ", Selected: " + isSelected + ")");
+      return { success: false, error: "Error updating room category assignment: " + error.message };
+    }
+  }
+
   /**
    * Get types for a specific room.
    * Used for filtering available items by type.
