@@ -599,6 +599,8 @@
         // Update the page title
         document.getElementById('projectName').innerText = 'Manage Items';
         const mainContentContainer = document.getElementById('mainContent');
+
+        setActiveMainContentButton('manageItemsBtn'); // Added this line
         
         // Collapse the sidebar when Manage Items is clicked
         document.querySelector('.sidebar').classList.add('collapsed');
@@ -857,70 +859,81 @@
 
       // Save all items data to the server
       function saveAllItemsFromDashboard() {
-        console.log('Starting save process for all items');
-        console.log('Total items in dashboardItemData:', dashboardItemData.items.length);
-        console.log('Room counts:', Object.keys(dashboardItemData.itemsByRoom).map(room => 
-          `${room}: ${dashboardItemData.itemsByRoom[room].length}`
-        ));
+        console.log('Starting save process for all items - ensuring active sheet is used.');
+        // console.log('Total items in dashboardItemData:', dashboardItemData.items.length);
         
-        // Get sheetId from the modal if available
-        const dialog = document.querySelector('.app-container');
-        const sheetId = dialog ? dialog.getAttribute('data-sheet-id') : null;
-        console.log('saveAllItemsFromDashboard: found sheetId:', sheetId);
+        // const dialog = document.querySelector('.app-container'); // This sheetId is for the data sheet, not Master Item List
+        // const sheetId = dialog ? dialog.getAttribute('data-sheet-id') : null; // We will pass null to use active sheet
         
         showDashboardLoading('Saving items...');
         
-        // Verify data integrity first and prepare items
-        const allItems = _getAndPrepareDashboardItems(dashboardItemData);
+        const itemsFromUIData = dashboardItemData.items ? [...dashboardItemData.items] : [];
+        console.log('Items collected from dashboardItemData.items for saving:', itemsFromUIData.length);
         
-        // Filter out items that don't have valid data
-        const itemsToSave = _filterValidItemsToSave(allItems);
-        
-        console.log('Valid items to save:', itemsToSave.length);
-        
-        if (itemsToSave.length === 0) {
+        if (itemsFromUIData.length === 0) {
           hideDashboardLoading();
-          showDashboardStatusMessage('No valid items to save. Please add items with names before saving.', true);
-          return;
+          showDashboardStatusMessage('No items to save.', false);
+          // To clear the sheet, an empty array is sent, so we can proceed.
         }
-        
-        // Make sure all budget values are properly formatted
-        const sanitizedItems = itemsToSave.map(item => _sanitizeItemForSave(item));
-        
-        console.log('Sanitized items ready for saving:', sanitizedItems.length);
-        console.log('Sample sanitized item:', sanitizedItems.length > 0 ? sanitizedItems[0] : 'No items');
-        
-        // Call the server-side function with the sanitized items
+
         google.script.run
           .withSuccessHandler(function(result) {
-            console.log('Server response for save operation:', result);
+            console.log('Server response for saveItemsToMasterList operation:', result);
             hideDashboardLoading();
             
             if (result.success) {
-              showDashboardStatusMessage(`Successfully saved ${result.count} items`, false);
+              showDashboardStatusMessage(`Successfully saved ${result.count} items. ${result.backupSheetName ? 'Backup created: ' + result.backupSheetName : ''}`, false);
               
-              // Update any temporary IDs with permanent ones if provided by server
               if (result.items) {
-                updateItemIdsAfterSave(result.items);
+                dashboardItemData.items = result.items; 
+                console.log('dashboardItemData.items replaced with server data:', dashboardItemData.items.length);
+
+                dashboardItemData.itemsByRoom = {};
+                dashboardItemData.items.forEach(item => {
+                  if (!dashboardItemData.itemsByRoom[item.room]) {
+                    dashboardItemData.itemsByRoom[item.room] = [];
+                  }
+                  dashboardItemData.itemsByRoom[item.room].push(item);
+                });
+                console.log('dashboardItemData.itemsByRoom rebuilt.');
+
+                if (typeof renderItemUpdateInterface === 'function') {
+                    console.log('Re-rendering UI with refreshed data...');
+                    renderItemUpdateInterface(dashboardItemData); 
+                } else {
+                    console.error('renderItemUpdateInterface function is not defined. UI will be stale.');
+                    showDashboardStatusMessage('Data saved, but UI refresh failed. Please reload.', true);
+                }
+              } else {
+                console.warn('Save successful, but no items returned from server. UI may be stale.');
               }
-              
-              // Mark all items as no longer new
-              dashboardItemData.items.forEach(item => {
-                if (item.isNew) item.isNew = false;
-              });
             } else {
-              console.error('Server reported error:', result.error || 'Unknown error');
-              showDashboardStatusMessage('Error: ' + (result.error || 'Failed to save items'), true);
+              console.error('Server reported error during save:', result.error || 'Unknown error');
+              let errorMsg = 'Error: ' + (result.error || 'Failed to save items.');
+              if (result.backupSheetName) {
+                errorMsg += ` A backup was created: ${result.backupSheetName}`;
+              }
+              showDashboardStatusMessage(errorMsg, true);
             }
           })
           .withFailureHandler(function(error) {
-            console.error('Error during save operation:', error);
+            console.error('Client-side error during save operation:', error);
             hideDashboardLoading();
-            showDashboardStatusMessage('Error: ' + (error.message || error), true);
+            showDashboardStatusMessage('Client Error: ' + (error.message || error), true);
           })
-          .validateItemsDataCore(sanitizedItems, sheetId);
+          .saveItemsToMasterList(itemsFromUIData, null); // Explicitly pass null to use Active Spreadsheet
       }
-
+      
+      // Helper function to update item IDs after saving
+      // THIS FUNCTION IS NOW LARGELY OBSOLETE due to the full refresh strategy.
+      // It can be removed or heavily simplified if specific parts are still needed for other flows (unlikely for this save operation).
+      // For now, let's comment it out to ensure it's not accidentally used by the save success handler.
+      /*
+      function updateItemIdsAfterSave(savedItemsFromServer) { 
+        // ... old logic ...
+      }
+      */
+      
       // Load dashboard when page opens
       document.addEventListener('DOMContentLoaded', function() {     
         initializeProjectDetailsSidebarInteractions();
@@ -2520,6 +2533,7 @@
           highBudget: null,
           lowBudgetTotal: null,
           highBudgetTotal: null,
+          specFfe: "", // Initialize specFfe for new items
           isNew: true // Flag to indicate this is a newly added item
         };
         
@@ -2712,146 +2726,96 @@
       // Save all items data to the server
       function saveAllItemsFromDashboard() {
         console.log('Starting save process for all items');
-        console.log('Total items in dashboardItemData:', dashboardItemData.items.length);
-        console.log('Room counts:', Object.keys(dashboardItemData.itemsByRoom).map(room => 
-          `${room}: ${dashboardItemData.itemsByRoom[room].length}`
-        ));
+        // console.log('Total items in dashboardItemData:', dashboardItemData.items.length); // Will be logged by _getAndPrepareDashboardItems
         
-        // Get sheetId from the modal if available
         const dialog = document.querySelector('.app-container');
         const sheetId = dialog ? dialog.getAttribute('data-sheet-id') : null;
-        console.log('saveAllItemsFromDashboard: found sheetId:', sheetId);
         
         showDashboardLoading('Saving items...');
         
-        // Verify data integrity first and prepare items
-        const allItems = _getAndPrepareDashboardItems(dashboardItemData);
+        // Get all items from the current UI state. These are considered the source of truth.
+        const itemsFromUIData = dashboardItemData.items ? [...dashboardItemData.items] : [];
+        console.log('Items collected from dashboardItemData.items for saving:', itemsFromUIData.length);
+        // It's crucial that itemsFromUIData contains all necessary fields, including specFfe.
+        // The server will sort and validate these.
         
-        // Filter out items that don't have valid data
-        const itemsToSave = _filterValidItemsToSave(allItems);
-        
-        console.log('Valid items to save:', itemsToSave.length);
-        
-        if (itemsToSave.length === 0) {
+        if (itemsFromUIData.length === 0) {
           hideDashboardLoading();
-          showDashboardStatusMessage('No valid items to save. Please add items with names before saving.', true);
-          return;
+          showDashboardStatusMessage('No items to save.', false); // Not an error, just nothing to do.
+          // Optionally, call server to clear the sheet if that's desired for an empty save.
+          // For now, just return if truly nothing to send.
+          // To clear the sheet, send an empty array to saveItemsToMasterList.
         }
-        
-        // Make sure all budget values are properly formatted
-        const sanitizedItems = itemsToSave.map(item => _sanitizeItemForSave(item));
-        
-        console.log('Sanitized items ready for saving:', sanitizedItems.length);
-        console.log('Sample sanitized item:', sanitizedItems.length > 0 ? sanitizedItems[0] : 'No items');
-        
-        // Call the server-side function with the sanitized items
+
+        // The server-side saveItemsToMasterList will handle validation and sorting.
+        // We pass the current state of items from the UI.
         google.script.run
           .withSuccessHandler(function(result) {
-            console.log('Server response for save operation:', result);
+            console.log('Server response for saveItemsToMasterList operation:', result);
             hideDashboardLoading();
             
             if (result.success) {
-              showDashboardStatusMessage(`Successfully saved ${result.count} items`, false);
+              showDashboardStatusMessage(`Successfully saved ${result.count} items. ${result.backupSheetName ? 'Backup created: ' + result.backupSheetName : ''}`, false);
               
-              // Update any temporary IDs with permanent ones if provided by server
+              // CRITICAL: Full data refresh based on server response
               if (result.items) {
-                updateItemIdsAfterSave(result.items);
+                // 1. Replace dashboardItemData.items with the authoritative list from the server
+                dashboardItemData.items = result.items; 
+                console.log('dashboardItemData.items replaced with server data:', dashboardItemData.items.length);
+
+                // 2. Rebuild dashboardItemData.itemsByRoom from the new dashboardItemData.items
+                dashboardItemData.itemsByRoom = {};
+                dashboardItemData.items.forEach(item => {
+                  if (!dashboardItemData.itemsByRoom[item.room]) {
+                    dashboardItemData.itemsByRoom[item.room] = [];
+                  }
+                  dashboardItemData.itemsByRoom[item.room].push(item);
+                });
+                console.log('dashboardItemData.itemsByRoom rebuilt.');
+
+                // 3. Re-render the entire item update interface
+                // This ensures UI matches the sheet's sorted order and all values.
+                // We need to pass the full dashboardItemData, not just result or result.items,
+                // as renderItemUpdateInterface expects availableItems, combinedItems etc.
+                // Ensure dashboardItemData still contains necessary fields like availableItems, combinedItems if they are not part of result.items.
+                // For now, assuming renderItemUpdateInterface can handle dashboardItemData directly after it has been updated.
+                if (typeof renderItemUpdateInterface === 'function') {
+                    console.log('Re-rendering UI with refreshed data...');
+                    renderItemUpdateInterface(dashboardItemData); 
+                } else {
+                    console.error('renderItemUpdateInterface function is not defined. UI will be stale.');
+                    showDashboardStatusMessage('Data saved, but UI refresh failed. Please reload.', true);
+                }
+              } else {
+                // Should not happen if result.success is true and result.count > 0
+                console.warn('Save successful, but no items returned from server. UI may be stale.');
               }
-              
-              // Mark all items as no longer new
-              dashboardItemData.items.forEach(item => {
-                if (item.isNew) item.isNew = false;
-              });
             } else {
-              console.error('Server reported error:', result.error || 'Unknown error');
-              showDashboardStatusMessage('Error: ' + (result.error || 'Failed to save items'), true);
+              console.error('Server reported error during save:', result.error || 'Unknown error');
+              let errorMsg = 'Error: ' + (result.error || 'Failed to save items.');
+              if (result.backupSheetName) {
+                errorMsg += ` A backup was created: ${result.backupSheetName}`;
+              }
+              showDashboardStatusMessage(errorMsg, true);
             }
           })
           .withFailureHandler(function(error) {
-            console.error('Error during save operation:', error);
+            console.error('Client-side error during save operation:', error);
             hideDashboardLoading();
-            showDashboardStatusMessage('Error: ' + (error.message || error), true);
+            showDashboardStatusMessage('Client Error: ' + (error.message || error), true);
           })
-          .validateItemsDataCore(sanitizedItems, sheetId);
+          .saveItemsToMasterList(itemsFromUIData, sheetId); // Pass current items and sheetId
       }
       
       // Helper function to update item IDs after saving
-      function updateItemIdsAfterSave(savedItemsFromServer) { // Renamed for clarity
-        console.log('Updating item IDs after save. Data from server:', JSON.stringify(savedItemsFromServer));
-        
-        const allSavedItemsWithRoom = [];
-
-        if (Array.isArray(savedItemsFromServer)) {
-            // Scenario 2: savedItemsFromServer is already a flat array of items, each with a .room property
-            console.log('updateItemIdsAfterSave: savedItemsFromServer is an array. Assuming flat list with room property.');
-            savedItemsFromServer.forEach(item => {
-                if (item && item.room) { // Ensure item and item.room exist
-                    allSavedItemsWithRoom.push(item); // Item already has .room
-                }
-            });
-        } else if (typeof savedItemsFromServer === 'object' && savedItemsFromServer !== null) {
-            // Scenario 1: savedItemsFromServer is an object where keys are room names
-            console.log('updateItemIdsAfterSave: savedItemsFromServer is an object. Assuming room-keyed structure.');
-            Object.keys(savedItemsFromServer).forEach(roomName => {
-                const itemsInRoom = savedItemsFromServer[roomName];
-                if (Array.isArray(itemsInRoom)) { // Check if itemsInRoom is an array
-                    itemsInRoom.forEach(item => {
-                        if (item) { // Ensure item exists
-                           allSavedItemsWithRoom.push({...item, room: roomName}); // Add roomName to item
-                        }
-                    });
-                } else {
-                    console.warn(`updateItemIdsAfterSave: Expected an array of items for room '${roomName}', but got:`, itemsInRoom);
-                }
-            });
-        } else {
-            console.error('updateItemIdsAfterSave: savedItemsFromServer is neither an array nor a valid object:', savedItemsFromServer);
-            return; // Cannot proceed
-        }
-        
-        console.log('Processed allSavedItemsWithRoom for ID update:', JSON.stringify(allSavedItemsWithRoom));
-
-        // Update dashboard items with IDs from saved items
-        dashboardItemData.items.forEach((itemInDashboard, indexInDashboard) => {
-          // Only try to update items that were newly added (had temporary IDs) or are flagged as new
-          if (itemInDashboard.isNew || (itemInDashboard.id && itemInDashboard.id.toString().startsWith('new_'))) {
-            // Find the matching saved item based on room, item name, and type
-            // This matching logic needs to be robust.
-            const matchedSavedItem = allSavedItemsWithRoom.find(savedItem => 
-              savedItem.room === itemInDashboard.room && 
-              savedItem.item === itemInDashboard.item && 
-              savedItem.type === itemInDashboard.type 
-              // Consider adding more properties if needed for a unique match, 
-              // or if the server guarantees to return the original temporary ID for mapping.
-            );
-            
-            if (matchedSavedItem && matchedSavedItem.id) {
-              console.log(`Updating dashboard item ID: Old ID '${itemInDashboard.id || 'none'}' (isNew: ${itemInDashboard.isNew}) with New ID '${matchedSavedItem.id}' for item '${itemInDashboard.item}' in room '${itemInDashboard.room}'`);
-              dashboardItemData.items[indexInDashboard].id = matchedSavedItem.id;
-              delete dashboardItemData.items[indexInDashboard].isNew;
-              
-              // Also update in itemsByRoom for consistency
-              const roomItems = dashboardItemData.itemsByRoom[itemInDashboard.room];
-              if (roomItems) {
-                const roomIndex = roomItems.findIndex(ri => 
-                  (ri.id && ri.id === itemInDashboard.id) || // Match by old temporary ID if it exists
-                  (ri.isNew && ri.item === itemInDashboard.item && ri.type === itemInDashboard.type && ri.room === itemInDashboard.room) // Or by properties if it was new without an ID
-                );
-                if (roomIndex >= 0) {
-                  dashboardItemData.itemsByRoom[itemInDashboard.room][roomIndex].id = matchedSavedItem.id;
-                  delete dashboardItemData.itemsByRoom[itemInDashboard.room][roomIndex].isNew;
-                } else {
-                  console.warn(`Could not find item '${itemInDashboard.item}' in itemsByRoom['${itemInDashboard.room}'] to update its ID after save.`);
-                }
-              }
-            } else {
-                 console.warn(`No matching saved item found (or saved item has no ID) for dashboard item: '${itemInDashboard.item}' in room '${itemInDashboard.room}'. Old ID: '${itemInDashboard.id}', isNew: ${itemInDashboard.isNew}`);
-            }
-          }
-        });
-        console.log('Finished updating item IDs. dashboardItemData.items:', JSON.stringify(dashboardItemData.items));
-        console.log('dashboardItemData.itemsByRoom:', JSON.stringify(dashboardItemData.itemsByRoom));
+      // THIS FUNCTION IS NOW LARGELY OBSOLETE due to the full refresh strategy.
+      // It can be removed or heavily simplified if specific parts are still needed for other flows (unlikely for this save operation).
+      // For now, let's comment it out to ensure it's not accidentally used by the save success handler.
+      /*
+      function updateItemIdsAfterSave(savedItemsFromServer) { 
+        // ... old logic ...
       }
+      */
       
       // Autocomplete functionality
       let currentFocus = -1;
@@ -3453,6 +3417,7 @@
           highBudget: null,
           lowBudgetTotal: null,
           highBudgetTotal: null,
+          specFfe: "", // Initialize specFfe for new items
           isNew: true // Flag to indicate this is a newly added item
         };
         
@@ -4649,6 +4614,12 @@
       headers.appendChild(quantityHeader);
       headers.appendChild(lowBudgetHeader);
       headers.appendChild(highBudgetHeader);
+      
+      const specFfeHeader = document.createElement('div');
+      specFfeHeader.className = 'column-header spec-ffe-header';
+      specFfeHeader.textContent = 'SPEC/FFE';
+      headers.appendChild(specFfeHeader);
+
       headers.appendChild(actionsHeader);
       
       roomContainer.appendChild(headers);

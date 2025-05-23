@@ -3003,4 +3003,50 @@ body.loading-active {
     background-color: #744082 !important; /* A darker shade */
     color: #ffffff !important;
   }
+
+  /* Styles for SPEC/FFE Column in Item Update Interface */
+  .column-header.spec-ffe-header {
+    flex-basis: 100px; /* Adjust width as needed */
+    text-align: left;
+    padding-left: 10px; /* Align with input padding */
+  }
+
+  .spec-ffe-cell {
+    flex-basis: 100px; /* Match header width */
+    display: flex;
+    align-items: center;
+    padding-right: 10px; /* Add some spacing before the remove button cell */
+  }
+
+  .spec-ffe-select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+    background-color: white;
+    height: 38px; /* Match other input heights for alignment */
+  }
+
+  /* Adjustments for item details layout to accommodate new column */
+  .item-details {
+    /* Ensure it still displays as flex if it was */
+    /* display: flex; */ 
+    /* No change needed here if it's already a flex container 
+       and new cells are just added as flex items. 
+       The flex-basis on cells will control width distribution. */
+  }
+
+  /* Adjust action header if SPEC/FFE header makes it too cramped */
+  .column-header.actions-header {
+    flex-basis: 120px; /* Example: Give it a bit more space if needed */
+    text-align: center;
+  }
+
+  .actions-cell {
+    flex-basis: 120px; /* Match header */
+    /* display: flex; */
+    /* justify-content: center; */ /* If button needs centering */
+    /* align-items: center; */
+  }
 </style>
