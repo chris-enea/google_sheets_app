@@ -605,17 +605,6 @@
         
         // Get the sheet ID from the project details modal
         const dialog = document.querySelector('.app-container');
-        const sheetId = dialog ? dialog.getAttribute('data-sheet-id') : null;
-        
-        console.log('showManageItems: found sheetId:', sheetId);
-        
-        // Only proceed if we have a sheetId
-        if (!sheetId) {
-          if (mainContentContainer) {
-            renderUIState(mainContentContainer, 'error', '<strong>Error:</strong> No sheet ID found. Unable to load items.');
-          }
-          return;
-        }
         
         // Show global loading overlay and set loading for main container
         showDashboardLoading('Loading items management...');
@@ -676,7 +665,7 @@
                      alert('Error loading items data. Main content area missing.');
                 }
               })
-              .getItemUpdateContentForDashboard(sheetId);
+              .getItemUpdateContentForDashboard();
           })
           .withFailureHandler(function(error) {
             hideDashboardLoading();
@@ -686,7 +675,7 @@
                  alert('Error loading items management. Main content area missing.');
             }
           })
-          .getSelectedRooms(sheetId);
+          .getSelectedRooms();
       }
 
       // New function to show the item update interface in the dashboard
@@ -1179,7 +1168,7 @@
         const containerId = (location === 'sidebar') 
           ? 'sidebarStatusMessage' 
           : 'dashboardStatusMessage';
-        console.log(`[showDashboardStatusMessage] Target container ID: "${containerId}"`); // Log target ID
+        console.log(`[showDashboardStatusMessage] Target container ID: "${containerId}" (location: "${location}")`); // Log target ID
 
         const statusContainer = document.getElementById(containerId);
           
@@ -2517,8 +2506,8 @@
       
       // Add a new item to a room
       function addItemToRoom(roomName) {
-        // console.log('Adding new item to room:', roomName); // Removed
         const roomItems = dashboardItemData.itemsByRoom[roomName] || [];
+        console.log('dashboardItemData.itemsByRoom[roomName]:', dashboardItemData.itemsByRoom[roomName]);
         
         // Create new item object with temporary ID
         const newItem = {
@@ -2534,8 +2523,6 @@
           isNew: true // Flag to indicate this is a newly added item
         };
         
-        // console.log('Creating new item:', newItem); // Removed
-        
         // Make sure the room container exists in the data structure
         if (!dashboardItemData.itemsByRoom[roomName]) {
           // console.log('Creating new room array for:', roomName); // Removed
@@ -2547,10 +2534,8 @@
         
         // Make sure it's also added to the main items array
         dashboardItemData.items.push(newItem);
-        
-        // console.log('Items array after adding new item:', dashboardItemData.items.length); // Removed
-        // console.log('Room items after adding:', dashboardItemData.itemsByRoom[roomName].length); // Removed
-        
+
+        console.log('dashboardItemData.itemsByRoom[roomName]:', dashboardItemData.itemsByRoom[roomName]);
         // Get the container and add the new row
         const container = document.getElementById(`items-${roomName.replace(/\s+/g, '-')}`);
         const newIndex = dashboardItemData.itemsByRoom[roomName].length - 1;
@@ -2791,48 +2776,81 @@
       }
       
       // Helper function to update item IDs after saving
-      function updateItemIdsAfterSave(savedItems) {
-        console.log('Updating item IDs after save');
+      function updateItemIdsAfterSave(savedItemsFromServer) { // Renamed for clarity
+        console.log('Updating item IDs after save. Data from server:', JSON.stringify(savedItemsFromServer));
         
-        // Flatten the saved items from all rooms
-        const allSavedItems = [];
-        Object.keys(savedItems).forEach(room => {
-          savedItems[room].forEach(item => {
-            // Add the room to each item for matching
-            allSavedItems.push({...item, room: room});
-          });
-        });
+        const allSavedItemsWithRoom = [];
+
+        if (Array.isArray(savedItemsFromServer)) {
+            // Scenario 2: savedItemsFromServer is already a flat array of items, each with a .room property
+            console.log('updateItemIdsAfterSave: savedItemsFromServer is an array. Assuming flat list with room property.');
+            savedItemsFromServer.forEach(item => {
+                if (item && item.room) { // Ensure item and item.room exist
+                    allSavedItemsWithRoom.push(item); // Item already has .room
+                }
+            });
+        } else if (typeof savedItemsFromServer === 'object' && savedItemsFromServer !== null) {
+            // Scenario 1: savedItemsFromServer is an object where keys are room names
+            console.log('updateItemIdsAfterSave: savedItemsFromServer is an object. Assuming room-keyed structure.');
+            Object.keys(savedItemsFromServer).forEach(roomName => {
+                const itemsInRoom = savedItemsFromServer[roomName];
+                if (Array.isArray(itemsInRoom)) { // Check if itemsInRoom is an array
+                    itemsInRoom.forEach(item => {
+                        if (item) { // Ensure item exists
+                           allSavedItemsWithRoom.push({...item, room: roomName}); // Add roomName to item
+                        }
+                    });
+                } else {
+                    console.warn(`updateItemIdsAfterSave: Expected an array of items for room '${roomName}', but got:`, itemsInRoom);
+                }
+            });
+        } else {
+            console.error('updateItemIdsAfterSave: savedItemsFromServer is neither an array nor a valid object:', savedItemsFromServer);
+            return; // Cannot proceed
+        }
         
+        console.log('Processed allSavedItemsWithRoom for ID update:', JSON.stringify(allSavedItemsWithRoom));
+
         // Update dashboard items with IDs from saved items
-        dashboardItemData.items.forEach((item, index) => {
-          if (item.isNew || (item.id && item.id.toString().startsWith('new_'))) {
-            // Find the matching saved item
-            const savedItem = allSavedItems.find(saved => 
-              saved.room === item.room && 
-              saved.item === item.item && 
-              saved.type === item.type
+        dashboardItemData.items.forEach((itemInDashboard, indexInDashboard) => {
+          // Only try to update items that were newly added (had temporary IDs) or are flagged as new
+          if (itemInDashboard.isNew || (itemInDashboard.id && itemInDashboard.id.toString().startsWith('new_'))) {
+            // Find the matching saved item based on room, item name, and type
+            // This matching logic needs to be robust.
+            const matchedSavedItem = allSavedItemsWithRoom.find(savedItem => 
+              savedItem.room === itemInDashboard.room && 
+              savedItem.item === itemInDashboard.item && 
+              savedItem.type === itemInDashboard.type 
+              // Consider adding more properties if needed for a unique match, 
+              // or if the server guarantees to return the original temporary ID for mapping.
             );
             
-            if (savedItem && savedItem.id) {
-              console.log(`Updating item ID: ${item.id || 'none'} → ${savedItem.id}`);
-              dashboardItemData.items[index].id = savedItem.id;
-              delete dashboardItemData.items[index].isNew;
+            if (matchedSavedItem && matchedSavedItem.id) {
+              console.log(`Updating dashboard item ID: Old ID '${itemInDashboard.id || 'none'}' (isNew: ${itemInDashboard.isNew}) with New ID '${matchedSavedItem.id}' for item '${itemInDashboard.item}' in room '${itemInDashboard.room}'`);
+              dashboardItemData.items[indexInDashboard].id = matchedSavedItem.id;
+              delete dashboardItemData.items[indexInDashboard].isNew;
               
-              // Also update in itemsByRoom
-              const roomItems = dashboardItemData.itemsByRoom[item.room];
+              // Also update in itemsByRoom for consistency
+              const roomItems = dashboardItemData.itemsByRoom[itemInDashboard.room];
               if (roomItems) {
                 const roomIndex = roomItems.findIndex(ri => 
-                  (ri.id === item.id) || 
-                  (ri.item === item.item && ri.type === item.type)
+                  (ri.id && ri.id === itemInDashboard.id) || // Match by old temporary ID if it exists
+                  (ri.isNew && ri.item === itemInDashboard.item && ri.type === itemInDashboard.type && ri.room === itemInDashboard.room) // Or by properties if it was new without an ID
                 );
                 if (roomIndex >= 0) {
-                  dashboardItemData.itemsByRoom[item.room][roomIndex].id = savedItem.id;
-                  delete dashboardItemData.itemsByRoom[item.room][roomIndex].isNew;
+                  dashboardItemData.itemsByRoom[itemInDashboard.room][roomIndex].id = matchedSavedItem.id;
+                  delete dashboardItemData.itemsByRoom[itemInDashboard.room][roomIndex].isNew;
+                } else {
+                  console.warn(`Could not find item '${itemInDashboard.item}' in itemsByRoom['${itemInDashboard.room}'] to update its ID after save.`);
                 }
               }
+            } else {
+                 console.warn(`No matching saved item found (or saved item has no ID) for dashboard item: '${itemInDashboard.item}' in room '${itemInDashboard.room}'. Old ID: '${itemInDashboard.id}', isNew: ${itemInDashboard.isNew}`);
             }
           }
         });
+        console.log('Finished updating item IDs. dashboardItemData.items:', JSON.stringify(dashboardItemData.items));
+        console.log('dashboardItemData.itemsByRoom:', JSON.stringify(dashboardItemData.itemsByRoom));
       }
       
       // Autocomplete functionality
@@ -2841,14 +2859,7 @@
       
       // Show autocomplete list
       function showAutocomplete(input) {
-        // Close previous autocomplete lists - but not all of them
-        if (activeAutocompleteInput && activeAutocompleteInput !== input) {
-          // Close only the previous dropdown, not all dropdowns
-          const prevList = activeAutocompleteInput.parentElement.querySelector('.autocomplete-list');
-          if (prevList) {
-            prevList.style.display = 'none';
-          }
-        }
+        closeAllAutocompletes(); // Close any existing autocomplete lists
         
         const autocompleteList = input.parentElement.querySelector('.autocomplete-list');
         lastActiveInput = input;
@@ -3428,6 +3439,8 @@
       function addSpecificItemToRoom(roomName, itemName, itemType = '') {
         // Get current room items
         const roomItems = dashboardItemData.itemsByRoom[roomName] || [];
+
+        console.log('roomItems:', roomItems);
         
         // Create new item object with temporary ID and the specified item name
         const newItem = {
@@ -3450,6 +3463,8 @@
         
         // Add the new item to the room's items array
         dashboardItemData.itemsByRoom[roomName].push(newItem);
+
+        console.log('dashboardItemData.itemsByRoom[roomName]:', dashboardItemData.itemsByRoom[roomName]);
         
         // Make sure it's also added to the main items array
         dashboardItemData.items.push(newItem);
@@ -4409,4 +4424,369 @@
           createMasterListBtn.style.display = 'none';
         }
       }
+
+  // Render the item update interface in the dashboard
+  function renderItemUpdateInterface(data) {
+    if (!data.success) {
+      document.getElementById('mainContent').innerHTML = `
+        <div class="error-box" style="margin: 20px;">
+          <strong>Error:</strong> ${data.error || 'Failed to load item data'}
+        </div>`;
+      return;
+    }
+    
+    console.log('Data received in renderItemUpdateInterface:', data);
+    
+    // Normalize itemsByRoom keys and item.room properties
+    const normalizedItemsByRoom = {};
+    if (data.itemsByRoom && data.selectedRooms) {
+        data.selectedRooms.forEach(selectedRoomName => {
+            const actualKeyInDataItemsByRoom = Object.keys(data.itemsByRoom).find(
+                k => k.toUpperCase() === selectedRoomName.toUpperCase()
+            );
+            
+            if (actualKeyInDataItemsByRoom) {
+                const itemsForThisRoom = Array.isArray(data.itemsByRoom[actualKeyInDataItemsByRoom]) 
+                                           ? data.itemsByRoom[actualKeyInDataItemsByRoom] 
+                                           : [];
+                normalizedItemsByRoom[selectedRoomName] = itemsForThisRoom.map(item => ({
+                    ...item,
+                    room: selectedRoomName // Ensure item.room matches canonical key
+                }));
+            } else {
+                normalizedItemsByRoom[selectedRoomName] = [];
+            }
+        });
+    }
+
+    // Update the global dashboardItemData with normalized data
+    dashboardItemData = {
+        ...data, // Spread original data first
+        itemsByRoom: normalizedItemsByRoom, // Override with normalized version
+        selectedRooms: data.selectedRooms ? [...data.selectedRooms] : [], // Ensure selectedRooms is a fresh copy
+        items: [] // Initialize items, will be rebuilt below
+    };
+
+    // Rebuild dashboardItemData.items from the normalized itemsByRoom for consistency
+    Object.keys(dashboardItemData.itemsByRoom).forEach(roomKey => {
+        dashboardItemData.itemsByRoom[roomKey].forEach(item => {
+            dashboardItemData.items.push(item); // item already has correct .room property
+        });
+    });
+    
+    // Check if we have combinedItems property - this needs to use the new dashboardItemData
+    if (!dashboardItemData.combinedItems || !Array.isArray(dashboardItemData.combinedItems)) {
+      console.warn('combinedItems is missing or not an array, initializing from availableItems in normalized dashboardItemData');
+      if (dashboardItemData.availableItems && Array.isArray(dashboardItemData.availableItems)) {
+        dashboardItemData.combinedItems = dashboardItemData.availableItems.map(item => {
+          if (typeof item === 'string') return item;
+          // Ensure type and item properties exist before trying to combine
+          const typeStr = item.type || '';
+          const itemStr = item.item || '';
+          return typeStr && itemStr ? `${typeStr} : ${itemStr}` : (itemStr || typeStr || '');
+        });
+        console.log('Created combinedItems with', dashboardItemData.combinedItems.length, 'items from normalized data');
+      } else {
+        console.warn('availableItems is also missing or not an array in normalized data, initializing empty combinedItems');
+        dashboardItemData.combinedItems = [];
+      }
+    }
+    
+    // Create container for all room sections
+    const container = document.createElement('div');
+    container.className = 'item-update-content';
+    container.style.padding = '20px';
+    
+    // Add help icon with tooltip instead of static instructions
+    const helpContainer = document.createElement('div');
+    helpContainer.className = 'tooltip';
+    helpContainer.style.position = 'absolute';
+    helpContainer.style.top = '16px';
+    helpContainer.style.right = '16px';
+    
+    const helpIcon = document.createElement('div');
+    helpIcon.className = 'help-icon';
+    helpIcon.innerHTML = '?';
+    
+    const tooltipText = document.createElement('div');
+    tooltipText.className = 'tooltip-text';
+    tooltipText.innerHTML = '<p>Review and update your items below. Make any necessary changes to the item details, then click Save All Items to update the spreadsheet.</p>';
+    
+    helpContainer.appendChild(helpIcon);
+    helpContainer.appendChild(tooltipText);
+    container.appendChild(helpContainer);
+    
+    // Group items by room first - using the globally normalized dashboardItemData
+    const itemsByRoomForUiDisplay = {}; 
+    if (dashboardItemData.selectedRooms && dashboardItemData.itemsByRoom) {
+        dashboardItemData.selectedRooms.forEach(room => {
+            itemsByRoomForUiDisplay[room] = dashboardItemData.itemsByRoom[room] || [];
+        });
+    }
+    
+    // Create the sticky filter and save button container
+    const stickyContainer = document.createElement('div');
+    stickyContainer.id = 'sticky-filter-save-container';
+    stickyContainer.style.position = 'sticky';
+    stickyContainer.style.top = '0';
+    stickyContainer.style.backgroundColor = 'white';
+    stickyContainer.style.zIndex = '100';
+    stickyContainer.style.padding = '10px 0';
+    stickyContainer.style.display = 'flex';
+    stickyContainer.style.justifyContent = 'space-between';
+    stickyContainer.style.alignItems = 'center';
+    stickyContainer.style.borderBottom = '1px solid rgba(0,0,0,0.1)';
+    stickyContainer.style.marginBottom = '15px';
+    
+    // Add room filter
+    const filterContainer = document.createElement('div');
+    filterContainer.id = 'filter-container';
+    filterContainer.style.display = 'flex';
+    filterContainer.style.alignItems = 'center';
+    
+    const filterLabel = document.createElement('label');
+    filterLabel.className = 'filter-label';
+    filterLabel.htmlFor = 'room-filter';
+    filterLabel.textContent = 'Filter by Room:';
+    filterLabel.style.marginRight = '10px';
+    
+    const roomFilter = document.createElement('select');
+    roomFilter.id = 'room-filter';
+    roomFilter.style.marginRight = '20px';
+    roomFilter.addEventListener('change', filterRoomsInDashboard);
+    
+    const allRoomsOption = document.createElement('option');
+    allRoomsOption.value = 'all';
+    allRoomsOption.textContent = 'All Rooms';
+    roomFilter.appendChild(allRoomsOption);
+    
+    filterContainer.appendChild(filterLabel);
+    filterContainer.appendChild(roomFilter);
+    
+    // Create save button for the sticky container
+    const saveButton = document.createElement('button');
+    saveButton.className = 'btn';
+    saveButton.addEventListener('click', saveAllItemsFromDashboard);
+    
+    const saveIcon = document.createElement('i');
+    saveIcon.className = 'material-icons';
+    saveIcon.textContent = 'save';
+    saveIcon.style.marginRight = '5px';
+    
+    saveButton.appendChild(saveIcon);
+    saveButton.appendChild(document.createTextNode('Save All Items'));
+       
+    // Create actions container in the sticky header
+    const actionsContainer = document.createElement('div');
+    actionsContainer.style.display = 'flex';
+    actionsContainer.style.gap = '10px';
+    actionsContainer.appendChild(saveButton);
+    
+    // Add filter and actions to sticky container
+    stickyContainer.appendChild(filterContainer);
+    stickyContainer.appendChild(actionsContainer);
+    
+    // Add sticky container to main container
+    container.appendChild(stickyContainer);
+    
+    // Populate filter dropdown with rooms
+    Object.keys(itemsByRoomForUiDisplay).sort().forEach(room => {
+      const option = document.createElement('option');
+      option.value = room;
+      option.textContent = room;
+      roomFilter.appendChild(option);
+    });
+    
+    // Create a DocumentFragment to hold all room containers before appending to the main container
+    const roomsFragment = document.createDocumentFragment();
+    
+    // Create room sections
+    Object.keys(itemsByRoomForUiDisplay).sort().forEach(room => {
+      const currentRoomItems = itemsByRoomForUiDisplay[room];
+      
+      // Create room container
+      const roomContainer = document.createElement('div');
+      roomContainer.className = 'room-container';
+      roomContainer.id = `room-container-${room.replace(/\s+/g, '-')}`;
+      roomContainer.dataset.room = room;
+      
+      // Add room title
+      const roomTitle = document.createElement('div');
+      roomTitle.className = 'room-title';
+      roomTitle.textContent = room;
+      roomContainer.appendChild(roomTitle);
+      
+      // Add column headers
+      const headers = document.createElement('div');
+      headers.className = 'column-headers';
+      
+      const itemHeader = document.createElement('div');
+      itemHeader.className = 'column-header item-header';
+      itemHeader.textContent = 'Item';
+      
+      const typeHeader = document.createElement('div');
+      typeHeader.className = 'column-header type-header';
+      typeHeader.textContent = 'Type';
+      
+      const quantityHeader = document.createElement('div');
+      quantityHeader.className = 'column-header quantity-header';
+      quantityHeader.textContent = 'QTY';
+      
+      const lowBudgetHeader = document.createElement('div');
+      lowBudgetHeader.className = 'column-header budget-header';
+      lowBudgetHeader.textContent = 'Low Budget';
+      
+      const highBudgetHeader = document.createElement('div');
+      highBudgetHeader.className = 'column-header budget-header';
+      highBudgetHeader.textContent = 'High Budget';
+      
+      const actionsHeader = document.createElement('div');
+      actionsHeader.className = 'column-header actions-header';
+      actionsHeader.textContent = 'Remove Item';
+      
+      headers.appendChild(itemHeader);
+      headers.appendChild(typeHeader);
+      headers.appendChild(quantityHeader);
+      headers.appendChild(lowBudgetHeader);
+      headers.appendChild(highBudgetHeader);
+      headers.appendChild(actionsHeader);
+      
+      roomContainer.appendChild(headers);
+      
+      // Add items container
+      const itemsContainer = document.createElement('div');
+      itemsContainer.className = 'items-container';
+      itemsContainer.id = `items-${room.replace(/\s+/g, '-')}`;
+      
+      // Use a DocumentFragment for batching item row appends
+      const itemsFragment = document.createDocumentFragment();
+      // Add each item
+      currentRoomItems.forEach((item, index) => {
+        const itemRow = createItemRow(item, index, room); // Assumes createItemRow is available and compatible
+        itemsFragment.appendChild(itemRow);
+      });
+      itemsContainer.appendChild(itemsFragment); // Append all item rows at once
+      
+      // Add delegated event listeners to itemsContainer
+      itemsContainer.addEventListener('change', function(event) {
+        const target = event.target;
+        if (target.classList.contains('item-input') ||
+            target.classList.contains('type-input') ||
+            target.classList.contains('quantity-input') ||
+            target.classList.contains('budget-input')) {
+          if (target.dataset.room && target.dataset.index !== undefined && target.dataset.field) {
+            updateItemData(target.dataset.room, target.dataset.index, target.dataset.field, target.value);
+          }
+        }
+      });
+
+      itemsContainer.addEventListener('input', function(event) {
+        const target = event.target;
+        if (target.classList.contains('item-input') ||
+            target.classList.contains('type-input') ||
+            target.classList.contains('quantity-input') ||
+            target.classList.contains('budget-input')) {
+          if (target.dataset.room && target.dataset.index !== undefined && target.dataset.field) {
+            updateItemData(target.dataset.room, target.dataset.index, target.dataset.field, target.value);
+          }
+        }
+      });
+
+      itemsContainer.addEventListener('click', function(event) {
+        const target = event.target;
+        if (target.classList.contains('delete-button')) {
+          if (target.dataset.room && target.dataset.index !== undefined) {
+            deleteItemRow(target.dataset.room, target.dataset.index);
+          }
+        }
+      });
+
+      roomContainer.appendChild(itemsContainer);
+      
+      // Create the button row for "Add Item" and quick-add buttons
+      const addMoreRow = document.createElement('div');
+      addMoreRow.className = 'add-more-row';
+      
+      const addItemButton = document.createElement('button');
+      addItemButton.className = 'add-item-btn';
+      addItemButton.addEventListener('click', function() {
+        addItemToRoom(room);
+      });
+      
+      const buttonIcon = document.createElement('i');
+      buttonIcon.className = 'material-icons';
+      buttonIcon.textContent = 'add';
+      
+      addItemButton.appendChild(buttonIcon);
+      addItemButton.appendChild(document.createTextNode(' Add Item'));
+      addMoreRow.appendChild(addItemButton);
+      
+      const suggestedItems = getSuggestedItemsForRoom(room);
+      
+      const quickAddContainer = document.createElement('div');
+      quickAddContainer.className = 'quick-add-container';
+      
+      if (!dashboardItemData.visibleSuggestedItems) {
+        dashboardItemData.visibleSuggestedItems = {};
+      }
+      
+      const availableSuggestions = suggestedItems.filter(item => 
+        !itemExistsInRoom(dashboardItemData.itemsByRoom[room] || [], item)
+      );
+      
+      dashboardItemData.visibleSuggestedItems[room] = availableSuggestions.slice(0, 5);
+      
+      dashboardItemData.visibleSuggestedItems[room].forEach(itemObj => {
+        const quickAddButton = document.createElement('button');
+        quickAddButton.className = 'quick-add-btn';
+        quickAddButton.textContent = `Add ${itemObj.name}`;
+        
+        quickAddButton.addEventListener('click', function() {
+          addSpecificItemToRoom(room, itemObj.name, itemObj.type);
+        });
+        
+        quickAddContainer.appendChild(quickAddButton);
+      });
+      
+      if (quickAddContainer.children.length > 0) {
+        addMoreRow.appendChild(quickAddContainer);
+      }
+      
+      roomContainer.appendChild(addMoreRow);
+      
+      updateRoomBudgetDisplay(room);
+      
+      roomsFragment.appendChild(roomContainer);
+    });
+    
+    container.appendChild(roomsFragment);
+    
+    Object.keys(itemsByRoomForUiDisplay).sort().forEach(room => {
+      updateRoomBudgetDisplay(room);
+    });
+    
+    document.getElementById('mainContent').innerHTML = '';
+    document.getElementById('mainContent').appendChild(container);
+    
+    setTimeout(() => {
+      console.log('Applying budget summary updates after DOM render');
+      Object.keys(itemsByRoomForUiDisplay).sort().forEach(room => {
+        updateRoomBudgetDisplay(room);
+      });
+    }, 50);
+  }
+
+  // Function to filter rooms in the dashboard
+  function filterRoomsInDashboard() {
+    const selectedRoom = document.getElementById('room-filter').value;
+    const roomContainers = document.querySelectorAll('.room-container');
+    
+    roomContainers.forEach(container => {
+      if (selectedRoom === 'all' || container.dataset.room === selectedRoom) {
+        container.style.display = 'block';
+      } else {
+        container.style.display = 'none';
+      }
+    });
+  }
 </script> 

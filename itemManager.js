@@ -3,7 +3,6 @@
  * Contains all functionality related to managing project items and rooms.
  */
 
-
   
   /**
    * Fetches master room data from the Data sheet.
@@ -13,7 +12,7 @@
    */
   function getMasterRoomData(sheetId = null) {
     try {
-      const id = sheetId || ScriptProperties.getProperty('DATA_SHEET_ID');
+      const id = sheetId || PropertiesService.getScriptProperties().getProperty('DATA_SHEET_ID');
       const ss = SpreadsheetApp.openById(id);
       const dataSheet = ss.getSheetByName("Data");
 
@@ -134,19 +133,6 @@
   }
   
   /**
-   * Shows the item manager dialog.
-   */
-  function showItemManager() {
-    const html = HtmlService.createTemplateFromFile('ItemManager')
-      .evaluate()
-      .setWidth(1500)
-      .setHeight(1000)
-      .setTitle('Item Manager');
-    
-    SpreadsheetApp.getUi().showModalDialog(html, 'Item Manager');
-  }
-  
-  /**
    * CORE UTILITY FUNCTIONS
    * These functions provide shared functionality for both the dialog and dashboard interfaces
    */
@@ -185,53 +171,7 @@
       return [];
     }
   }
-  
-  /**
-   * Core function to save selected rooms to the temporary sheet.
-   * Used by both dashboard and dialog interfaces.
-   * 
-   * @param {Array} selectedRooms - Array of room names to save
-   * @param {string} sheetId - Optional spreadsheet ID. If not provided, uses active spreadsheet.
-   * @return {Boolean} Success status
-   * @return {Object} Object with success status and optional error message
-   */
-  function saveSelectedRoomsCore(selectedRooms) {
-    try {
-      if (!selectedRooms || !Array.isArray(selectedRooms)) {
-        Logger.log("Invalid rooms data passed to saveSelectedRoomsCore");
-        return { success: false, error: "Invalid rooms data" };
-      }
-      
-      // Use provided sheetId if available, otherwise fallback to active spreadsheet
-      const ss = SpreadsheetApp.getActiveSpreadsheet();
-      
-      // Create or get the temporary sheet
-      let tempSheet = ss.getSheetByName("_TempSelectedRooms");
-      if (tempSheet) {
-        // Clear existing content if sheet exists
-        tempSheet.clear();
-      } else {
-        // Create the sheet if it doesn't exist
-        tempSheet = ss.insertSheet("_TempSelectedRooms");
-        // Hide the sheet as it's for temporary storage only
-        tempSheet.hideSheet();
-      }
-      
-      // Add header row
-      tempSheet.getRange(1, 1).setValue("Selected Rooms");
-      
-      // Add the selected rooms
-      selectedRooms.forEach((room, index) => {
-        tempSheet.getRange(index + 2, 1).setValue(room);
-      });
-      
-      Logger.log(`Core: Saved ${selectedRooms.length} selected rooms to temporary sheet`);
-      return { success: true };
-    } catch (error) {
-      Logger.log("Error in saveSelectedRoomsCore: " + error.message);
-      return { success: false, error: "Error saving selected rooms: " + error.message };
-    }
-  }
+
   
   /**
    * Core function to prepare item data for display and editing.
@@ -248,7 +188,7 @@
         selectedRooms = getSelectedRoomsCore(sheetId);
       }
       
-      // Get raw items data from Items sheet, passing along the sheetId
+      // Get raw items data from Master Items List sheet, passing along the sheetId
       const itemsData = getItemsData(selectedRooms, sheetId);
       
       // Add any additional processing needed by both interfaces here
@@ -320,9 +260,9 @@
       
       Logger.log("No cached data found, fetching available items from Data sheet");
       
-      // Get the active spreadsheet
-      const ss = SpreadsheetApp.openById(ScriptProperties.getProperty('SHEET_ID'));
-      const dataSheet = ss.getSheetByName("Data");
+      // Get the master data spreadsheet
+      const sheetId = PropertiesService.getScriptProperties().getProperty('DATA_SHEET_ID');
+      const dataSheet = SpreadsheetApp.openById(sheetId).getSheetByName("Data");
       
       if (!dataSheet) {
         const error = "Data sheet not found";
@@ -564,24 +504,15 @@
       Logger.log("Getting items data from sheet");
       
       // Use provided sheetId if available, otherwise fallback to active spreadsheet
-      const ss = sheetId 
-        ? SpreadsheetApp.openById(sheetId) 
-        : SpreadsheetApp.getActiveSpreadsheet();
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
       
-      const itemsSheet = ss.getSheetByName("Items");
+      const itemsSheet = ss.getSheetByName("Master Item List");
       
       if (!itemsSheet) {
         Logger.log("Items sheet not found, creating one");
-        // Create items sheet if it doesn't exist
-        const newSheet = ss.insertSheet("Items");
-        const headers = ["ROOM", "TYPE", "ITEM", "QUANTITY", "LOW BUDGET", "LOW BUDGET TOTAL", "HIGH BUDGET", "HIGH BUDGET TOTAL"];
-        newSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-        newSheet.setFrozenRows(1);
-        
         return {
-          success: true,
-          items: [],
-          itemsByRoom: {}
+          success: false,
+          error: "Items sheet not found"
         };
       }
       

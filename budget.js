@@ -24,13 +24,13 @@
 function getBudgetData(sheetId) {
     try {
       // Use the provided sheetId if available, otherwise fall back to active spreadsheet
-      const ss = sheetId ? SpreadsheetApp.openById(sheetId) : SpreadsheetApp.getActiveSpreadsheet();
-      const budgetSheet = ss.getSheetByName('Items');
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const budgetSheet = ss.getSheetByName('Master Items List');
       
       if (!budgetSheet) {
         Logger.log('Budget sheet not found. Trying to use Items sheet instead.');
         // Try to use the Items sheet as a fallback
-        const itemsSheet = ss.getSheetByName('Items');
+        const itemsSheet = ss.getSheetByName('Master Items List');
         if (!itemsSheet) {
           throw new Error('Neither Budget nor Items sheet found');
         }
