@@ -885,18 +885,23 @@
               showDashboardStatusMessage(`Successfully saved ${result.count} items. ${result.backupSheetName ? 'Backup created: ' + result.backupSheetName : ''}`, false);
               
               if (result.items) {
+                // Replace local data with server's authoritative data
                 dashboardItemData.items = result.items; 
                 console.log('dashboardItemData.items replaced with server data:', dashboardItemData.items.length);
 
+                // Rebuild itemsByRoom from the new items array
                 dashboardItemData.itemsByRoom = {};
                 dashboardItemData.items.forEach(item => {
-                  if (!dashboardItemData.itemsByRoom[item.room]) {
-                    dashboardItemData.itemsByRoom[item.room] = [];
+                  // Ensure room property exists, falling back to a default if necessary
+                  const roomKey = item.room || 'Unassigned';
+                  if (!dashboardItemData.itemsByRoom[roomKey]) {
+                    dashboardItemData.itemsByRoom[roomKey] = [];
                   }
-                  dashboardItemData.itemsByRoom[item.room].push(item);
+                  dashboardItemData.itemsByRoom[roomKey].push(item);
                 });
                 console.log('dashboardItemData.itemsByRoom rebuilt.');
 
+                // Re-render the entire UI with the refreshed and authoritative data
                 if (typeof renderItemUpdateInterface === 'function') {
                     console.log('Re-rendering UI with refreshed data...');
                     renderItemUpdateInterface(dashboardItemData); 
@@ -905,7 +910,19 @@
                     showDashboardStatusMessage('Data saved, but UI refresh failed. Please reload.', true);
                 }
               } else {
-                console.warn('Save successful, but no items returned from server. UI may be stale.');
+                // This case might occur if 0 items were saved successfully but the operation itself was a success.
+                // Or if the server intentionally returns no items on success for certain scenarios.
+                console.warn('Save successful, but no items array returned from server. UI might not reflect the latest state or could be empty if all items were deleted.');
+                // If saving 0 items means clearing the UI, this might be the place.
+                // For now, if result.items is missing/empty, and save was successful, we might need to clear local data too.
+                if (result.count === 0) {
+                    dashboardItemData.items = [];
+                    dashboardItemData.itemsByRoom = {};
+                    if (typeof renderItemUpdateInterface === 'function') {
+                        console.log('Save successful with 0 items, re-rendering empty UI...');
+                        renderItemUpdateInterface(dashboardItemData);
+                    }
+                }
               }
             } else {
               console.error('Server reported error during save:', result.error || 'Unknown error');
@@ -921,7 +938,7 @@
             hideDashboardLoading();
             showDashboardStatusMessage('Client Error: ' + (error.message || error), true);
           })
-          .saveItemsToMasterList(itemsFromUIData, null); // Explicitly pass null to use Active Spreadsheet
+          .saveItemsToMasterList(itemsFromUIData, null); // Explicitly pass null to use Active Spreadsheet for Master Item List
       }
       
       // Helper function to update item IDs after saving
@@ -930,7 +947,70 @@
       // For now, let's comment it out to ensure it's not accidentally used by the save success handler.
       /*
       function updateItemIdsAfterSave(savedItemsFromServer) { 
-        // ... old logic ...
+        // This function is intended to map temporary client-side IDs to permanent server-side IDs.
+        // However, the current strategy is to replace all client-side item data with the server's response.
+        // If savedItemsFromServer contains an `originalTemporaryId` field, that could be used here
+        // to find and update specific items in `dashboardItemData` if a full replacement is not desired.
+
+        console.log('updateItemIdsAfterSave received:', savedItemsFromServer);
+        if (!Array.isArray(savedItemsFromServer) || savedItemsFromServer.length === 0) {
+          console.log('No items returned from server to update IDs.');
+          return;
+        }
+
+        let itemsUpdatedCount = 0;
+        let itemsNotFoundCount = 0;
+
+        savedItemsFromServer.forEach(savedItem => {
+          if (!savedItem.id || !savedItem.originalTemporaryId) {
+            // console.warn('Skipping item, missing id or originalTemporaryId:', savedItem);
+            return; // Cannot map without these
+          }
+
+          // Find the item in the main items array using originalTemporaryId
+          const mainItemIndex = dashboardItemData.items.findIndex(
+            localItem => localItem.id === savedItem.originalTemporaryId
+          );
+
+          if (mainItemIndex !== -1) {
+            const localItemToUpdate = dashboardItemData.items[mainItemIndex];
+            console.log(`Updating ID for item: ${localItemToUpdate.item} (Temp ID: ${localItemToUpdate.id}) to New ID: ${savedItem.id}`);
+            localItemToUpdate.id = savedItem.id; // Update the ID
+            if ('isNew' in localItemToUpdate) delete localItemToUpdate.isNew; // No longer a new item
+
+            // Also update in itemsByRoom
+            const roomName = localItemToUpdate.room;
+            if (roomName && dashboardItemData.itemsByRoom[roomName]) {
+              const roomItemIndex = dashboardItemData.itemsByRoom[roomName].findIndex(
+                roomItem => roomItem.id === savedItem.originalTemporaryId // Find by temp ID here too
+              );
+              if (roomItemIndex !== -1) {
+                dashboardItemData.itemsByRoom[roomName][roomItemIndex].id = savedItem.id;
+                if ('isNew' in dashboardItemData.itemsByRoom[roomName][roomItemIndex]) {
+                  delete dashboardItemData.itemsByRoom[roomName][roomItemIndex].isNew;
+                }
+              } else {
+                console.warn(`Item with temp ID ${savedItem.originalTemporaryId} not found in itemsByRoom[${roomName}] after being found in main list.`);
+              }
+            } else {
+               console.warn(`Room ${roomName} not found in itemsByRoom or item had no room property during ID update.`);
+            }
+            itemsUpdatedCount++;
+          } else {
+            // console.warn(`Item with originalTemporaryId ${savedItem.originalTemporaryId} not found in dashboardItemData.items.`);
+            itemsNotFoundCount++;
+          }
+        });
+
+        if (itemsUpdatedCount > 0) {
+          console.log(`Successfully updated IDs for ${itemsUpdatedCount} items.`);
+        }
+        if (itemsNotFoundCount > 0) {
+          console.warn(`${itemsNotFoundCount} saved items from server (with originalTemporaryId) could not be matched to local items.`);
+        }
+        
+        // After updating IDs, re-render the interface to reflect changes (e.g., remove 'new' indicators, ensure data attributes are correct)
+        // renderItemUpdateInterface(dashboardItemData); // This will be handled by the main success handler of saveAllItemsFromDashboard
       }
       */
       

@@ -901,30 +901,38 @@
         item.specFfe
       ]);
 
-      // --- 5. Rewrite Sheet ---
-      masterSheet.clear(); // Clear all content and formatting
-      masterSheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold");
-      Logger.log("Sheet cleared and headers rewritten.");
+      // --- 5. Rewrite Sheet (Preserving Header Formatting) ---
+      if (masterSheet.getMaxRows() > 0) { 
+        masterSheet.getRange(1, 1, masterSheet.getMaxRows(), masterSheet.getMaxColumns()).clearContent();
+      }
+      Logger.log("Sheet content cleared from row 1 downwards.");
+
+      masterSheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold"); 
+      Logger.log("Headers rewritten to row 1.");
 
       if (itemsArray2D.length > 0) {
         masterSheet.getRange(2, 1, itemsArray2D.length, headers.length).setValues(itemsArray2D);
-        Logger.log(`Wrote ${itemsArray2D.length} items to sheet.`);
+        Logger.log(`Wrote ${itemsArray2D.length} items to sheet starting from row 2.`);
 
-        // Reapply Data Validation for SPEC/FFE column
-        const specFfeColIndex = headers.indexOf("SPEC/FFE"); // Zero-based
+        const specFfeColIndex = headers.indexOf("SPEC/FFE"); 
         if (specFfeColIndex !== -1) {
-          const specFfeSheetCol = specFfeColIndex + 1; // One-based for sheet
+          const specFfeSheetCol = specFfeColIndex + 1; 
           const numDataRows = itemsArray2D.length;
-          const specFfeRange = masterSheet.getRange(2, specFfeSheetCol, numDataRows, 1);
-          const rule = SpreadsheetApp.newDataValidation()
-                                   .requireValueInList(['SPEC', 'FFE'], true)
-                                   .setAllowInvalid(false) // Disallow other values not in list
-                                   .build();
-          specFfeRange.setDataValidation(rule);
-          Logger.log(`Applied SPEC/FFE dropdown validation to column ${specFfeSheetCol}, ${numDataRows} rows.`);
+          if (numDataRows > 0) { 
+              const specFfeRange = masterSheet.getRange(2, specFfeSheetCol, numDataRows, 1);
+              const rule = SpreadsheetApp.newDataValidation()
+                                       .requireValueInList(['SPEC', 'FFE'], true) 
+                                       .setAllowInvalid(false) 
+                                       .build();
+              specFfeRange.setDataValidation(rule);
+              Logger.log(`Applied SPEC/FFE dropdown validation to column ${specFfeSheetCol}, ${numDataRows} rows.`);
+          }
         }
       } else {
-        Logger.log("No items to write to sheet (itemsToSave was empty or became empty after validation).");
+        Logger.log("No items to write to sheet. Sheet contains only headers.");
+        if (masterSheet.getMaxRows() > 1) {
+            masterSheet.getRange(2, 1, masterSheet.getMaxRows() - 1, masterSheet.getMaxColumns()).clearDataValidations();
+        }
       }
           
       Logger.log(`Full rewrite save successful. Processed: ${validatedItemsForSheet.length} items.`);
