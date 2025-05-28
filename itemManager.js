@@ -501,127 +501,130 @@
    */
   function getItemsData(selectedRooms, sheetId) {
     try {
-      Logger.log("Getting items data from sheet (including SPEC/FFE)");
+      const ss = sheetId ? SpreadsheetApp.openById(sheetId) : SpreadsheetApp.getActiveSpreadsheet();
+      const sheet = ss.getSheetByName('Master Item List');
       
-      const ss = SpreadsheetApp.getActiveSpreadsheet(); // Assuming sheetId is handled by caller or not strictly needed here if always active
-      const itemsSheet = ss.getSheetByName("Master Item List");
-      
-      if (!itemsSheet) {
-        Logger.log("Master Item List sheet not found");
+      if (!sheet) {
+        Logger.log('Master Item List sheet not found in getItemsData');
         return {
           success: false,
-          error: "Master Item List sheet not found"
+          error: "Sheet 'Master Item List' not found."
         };
       }
       
-      const dataRange = itemsSheet.getDataRange();
-      const values = dataRange.getValues();
+      const dataRange = sheet.getDataRange();
+      const allData = dataRange.getValues();
       
-      if (values.length <= 1) {
-        Logger.log("Master Item List sheet is empty or contains only headers");
+      if (allData.length < 2) {
+        Logger.log('Master Item List sheet is empty or has only headers.');
         return {
           success: true,
           items: [],
           itemsByRoom: {},
-          totalLowBudget: 0,
-          totalHighBudget: 0
+          selectedRooms: selectedRooms || [] 
         };
       }
       
-      const headers = values[0].map(h => String(h).toUpperCase()); // Normalize headers to uppercase
-      const roomIndex = headers.indexOf("ROOM");
-      const typeIndex = headers.indexOf("TYPE");
-      const itemIndex = headers.indexOf("ITEM");
-      const quantityIndex = headers.indexOf("QUANTITY");
-      const lowBudgetIndex = headers.indexOf("LOW BUDGET");
-      const lowBudgetTotalIndex = headers.indexOf("LOW BUDGET TOTAL"); // This might be calculated or read
-      const highBudgetIndex = headers.indexOf("HIGH BUDGET");
-      const highBudgetTotalIndex = headers.indexOf("HIGH BUDGET TOTAL"); // This might be calculated or read
-      const specFfeIndex = headers.indexOf("SPEC/FFE"); // New column
+      const headers = allData[0].map(header => header.toString().trim());
+      // Define expected headers for robust mapping
+      const expectedHeaders = ["Room", "Type", "Item", "Quantity", "Low Budget", "High Budget", "SPEC/FFE"]; 
+      // "ID" header is intentionally NOT included as per plan to use row numbers.
       
-      if (roomIndex === -1 || itemIndex === -1 || quantityIndex === -1) { // Added quantity as essential for budget calcs
-        const error = "Required columns (ROOM, ITEM, QUANTITY) missing in Master Item List sheet";
-        Logger.log(error);
-        return {
-          success: false,
-          error: error
-        };
+      // Create a map of header names to their column indices
+      const headerMap = {};
+      headers.forEach((header, index) => {
+        headerMap[header] = index;
+      });
+      
+      // Validate that all expected headers are present
+      for (const eh of expectedHeaders) {
+        if (headerMap[eh] === undefined) {
+          const errorMsg = `Missing expected header '${eh}' in 'Master Item List'. Please add it and try again.`;
+          Logger.log(errorMsg);
+          return {
+            success: false,
+            error: errorMsg
+          };
+        }
       }
       
       const items = [];
       const itemsByRoom = {};
-      let totalLowBudgetProject = 0;
-      let totalHighBudgetProject = 0;
       
-      for (let i = 1; i < values.length; i++) {
-        const row = values[i];
-        const roomName = row[roomIndex] ? String(row[roomIndex]).trim().toUpperCase() : "";
-        const itemName = row[itemIndex] ? String(row[itemIndex]).trim().toUpperCase() : "";
+      // Start from row 1 (data starts at index 1, after headers at index 0)
+      // The actual sheet row number is `i + 1` because allData is 0-indexed array of rows.
+      // And if header is row 1, then data starts at row 2. So `allData[1]` is sheet row 2.
+      // Therefore, the rowNumber for `allData[i]` (where i > 0) is `i + 1`.
+      for (let i = 1; i < allData.length; i++) {
+        const row = allData[i];
+        const currentSheetRowNumber = i + 1; // 1-indexed physical row number in the sheet
+        
+        // Basic validation: ensure the row has enough columns for expected headers
+        if (row.length < expectedHeaders.length) {
+          // Logger.log(`Row ${currentSheetRowNumber} has insufficient columns. Skipping.`);
+          // continue; // Skip malformed rows
+        }
 
-        if (!roomName && !itemName) { // Skip rows that are completely empty in essential columns
+        const roomName = row[headerMap["Room"]] ? row[headerMap["Room"]].toString().trim() : 'Unassigned';
+        
+        // If selectedRooms are provided, only process items for those rooms
+        if (selectedRooms && selectedRooms.length > 0 && !selectedRooms.includes(roomName)) {
           continue;
         }
-        if (!roomName || !itemName) { // If one is missing but not the other, it's an incomplete row, log and skip
-            Logger.log(`Skipping incomplete row ${i+1}: Room='${roomName}', Item='${itemName}'`);
-            continue;
-        }
         
-        const quantity = parseInt(row[quantityIndex]) || 1;
-        let lowBudget = null;
-        if (lowBudgetIndex !== -1 && row[lowBudgetIndex] !== null && String(row[lowBudgetIndex]).trim() !== "") {
-            const parsedLow = parseFloat(row[lowBudgetIndex]);
-            if (!isNaN(parsedLow)) lowBudget = parsedLow;
-        }
-
-        let highBudget = null;
-        if (highBudgetIndex !== -1 && row[highBudgetIndex] !== null && String(row[highBudgetIndex]).trim() !== "") {
-            const parsedHigh = parseFloat(row[highBudgetIndex]);
-            if (!isNaN(parsedHigh)) highBudget = parsedHigh;
-        }
-        
-        // Calculate budget totals for the item
-        const itemLowBudgetTotal = lowBudget !== null ? lowBudget * quantity : null;
-        const itemHighBudgetTotal = highBudget !== null ? highBudget * quantity : null;
-        
-        if (itemLowBudgetTotal !== null) totalLowBudgetProject += itemLowBudgetTotal;
-        if (itemHighBudgetTotal !== null) totalHighBudgetProject += itemHighBudgetTotal;
-        
-        const itemData = {
+        const item = {
+          // id: row[headerMap["ID"]] ? row[headerMap["ID"]].toString().trim() : `temp_${Date.now()}_${i}`, // Using temp ID for now, will be replaced by server on save if needed
+          // Temporary client-side ID if no actual ID column exists. Will be replaced by rowNumber strategy.
+          // For new items added on client, they will get a 'new_...' id.
+          // For existing items, their true identifier will be 'rowNumber'.
+          id: `row_${currentSheetRowNumber}`, // Temporary unique ID for client-side processing until full refactor
+          rowNumber: currentSheetRowNumber, // Key addition: 1-indexed physical row number
           room: roomName,
-          type: typeIndex !== -1 && row[typeIndex] ? String(row[typeIndex]).trim().toUpperCase() : "",
-          item: itemName,
-          quantity: quantity,
-          lowBudget: lowBudget,
-          lowBudgetTotal: itemLowBudgetTotal,
-          highBudget: highBudget,
-          highBudgetTotal: itemHighBudgetTotal,
-          specFfe: specFfeIndex !== -1 && row[specFfeIndex] ? String(row[specFfeIndex]).trim().toUpperCase() : ""
+          type: row[headerMap["Type"]] ? row[headerMap["Type"]].toString().trim() : "",
+          item: row[headerMap["Item"]] ? row[headerMap["Item"]].toString().trim() : "",
+          quantity: parseInt(row[headerMap["Quantity"]]) || 1,
+          lowBudget: parseFloat(row[headerMap["Low Budget"]]) || null,
+          highBudget: parseFloat(row[headerMap["High Budget"]]) || null,
+          specFfe: row[headerMap["SPEC/FFE"]] ? row[headerMap["SPEC/FFE"]].toString().trim() : "",
+          // Calculate totals - these might be better calculated on client or based on need
+          lowBudgetTotal: null,
+          highBudgetTotal: null
         };
         
-        items.push(itemData);
-        
-        if (!itemsByRoom[roomName]) {
-          itemsByRoom[roomName] = [];
+        // Basic validation: ensure item name is present
+        if (!item.item) {
+          // Logger.log(`Row ${currentSheetRowNumber} is missing an item name. Skipping.`);
+          // continue;
         }
-        itemsByRoom[roomName].push(itemData);
+        
+        // Calculate total budgets if individual budgets and quantity are present
+        if (item.quantity && item.lowBudget !== null) {
+          item.lowBudgetTotal = item.quantity * item.lowBudget;
+        }
+        if (item.quantity && item.highBudget !== null) {
+          item.highBudgetTotal = item.quantity * item.highBudget;
+        }
+        
+        items.push(item);
+        
+        if (!itemsByRoom[item.room]) {
+          itemsByRoom[item.room] = [];
+        }
+        itemsByRoom[item.room].push(item);
       }
-      
-      Logger.log(`Processed ${items.length} items from Master Item List sheet.`);
       
       return {
         success: true,
         items: items,
         itemsByRoom: itemsByRoom,
-        totalLowBudget: totalLowBudgetProject, // Return aggregated totals
-        totalHighBudget: totalHighBudgetProject
+        selectedRooms: selectedRooms || Object.keys(itemsByRoom) // If no selectedRooms passed, return all rooms found
       };
       
     } catch (e) {
-      const errorMsg = `Error getting items data: ${e.message} Stack: ${e.stack}`;
-      Logger.log(errorMsg);
+      Logger.log('Error in getItemsData: ' + e.toString() + ' Stack: ' + e.stack);
       return {
         success: false,
-        error: errorMsg
+        error: "An error occurred while fetching item data: " + e.message
       };
     }
   }
@@ -771,184 +774,200 @@
    */
   function saveItemsToMasterList(itemsToSave, sheetId = null) {
     let backupSheetName = null;
+    const processedItemsWithRowNumbers = []; // To store items with their final row numbers
+
     try {
-      Logger.log(`Starting FULL REWRITE save of ${itemsToSave ? itemsToSave.length : 0} items. Received sheetId: ${sheetId}`); 
-      
-      const ss = SpreadsheetApp.getActiveSpreadsheet();
-      
+      Logger.log(`Starting ROW-NUMBER BASED save of ${itemsToSave ? itemsToSave.length : 0} items. Received sheetId: ${sheetId}`);
+
+      const ss = sheetId ? SpreadsheetApp.openById(sheetId) : SpreadsheetApp.getActiveSpreadsheet();
       if (!ss) {
         Logger.log(`Spreadsheet object is null. sheetId provided was: ${sheetId}`);
         return { success: false, error: "Spreadsheet not found (object was null)." };
       }
-      Logger.log(`Operating on Spreadsheet ID: ${ss.getId()}, Name: ${ss.getName()}, URL: ${ss.getUrl()}`);
 
       const masterSheetName = "Master Item List";
       const masterSheet = ss.getSheetByName(masterSheetName);
       if (!masterSheet) {
-        Logger.log(`Sheet "${masterSheetName}" not found in spreadsheet ID: ${ss.getId()}. Available sheets: ${ss.getSheets().map(s => s.getName()).join(', ')}`);
+        Logger.log(`Sheet "${masterSheetName}" not found in spreadsheet ID: ${ss.getId()}.`);
         return { success: false, error: `Sheet "${masterSheetName}" not found.` };
       }
 
-      // --- 1. Safety Backup --- 
+      // --- 1. Safety Backup --- (Keep existing backup logic)
       const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd_HHmmss");
       backupSheetName = `${masterSheetName}_Backup_${timestamp}`;
       try {
         const existingBackup = ss.getSheetByName(backupSheetName);
-        if (existingBackup) {
-          ss.deleteSheet(existingBackup);
-        }
+        if (existingBackup) ss.deleteSheet(existingBackup);
         masterSheet.copyTo(ss).setName(backupSheetName).hideSheet();
         Logger.log(`Successfully created backup: ${backupSheetName}`);
       } catch (e) {
         Logger.log(`Error creating backup sheet: ${e.message}`);
-        // Proceed without backup if it fails, but log it.
-        backupSheetName = null; // Indicate backup failed
+        backupSheetName = null;
       }
 
-      // --- 2. Initial Validation & Preparation ---
-      if (!itemsToSave || !Array.isArray(itemsToSave)) { // Allow saving an empty list to clear the sheet
-        Logger.log("itemsToSave is null or not an array. Assuming intent to clear if execution proceeds.");
-        itemsToSave = []; // Treat as empty list to clear the sheet
-      }
-      
-      let invalidClientItems = [];
-      let validatedItemsForSheet = []; 
-      
+      // --- 2. Initial Validation & Preparation of Incoming Items ---
+      if (!itemsToSave || !Array.isArray(itemsToSave)) itemsToSave = [];
+
+      const itemsToUpdateInPlace = [];
+      const itemsToAppend = [];
+      const clientSentInvalidItems = [];
+
       itemsToSave.forEach((item, index) => {
-        const validatedItem = {}; 
-        
-        if (!item || typeof item !== 'object'){
-            invalidClientItems.push({ index: index, item: item, reason: "Item is not an object" });
-            Logger.log(`Invalid item at index ${index}: Not an object`);
-            return;
+        if (!item || typeof item !== 'object') {
+          clientSentInvalidItems.push({ index, item, reason: "Item is not an object" });
+          return;
         }
-
-        // Room and Item are essential
         if (!item.room || String(item.room).trim() === "" || !item.item || String(item.item).trim() === "") {
-          invalidClientItems.push({ index: index, item: item, reason: "Missing room or item name" });
-          Logger.log(`Invalid item at index ${index}: Missing room or item name`);
-          return; 
-        }
-        
-        validatedItem.room = String(item.room).trim().toUpperCase();
-        validatedItem.item = String(item.item).trim().toUpperCase();
-        validatedItem.type = item.type ? String(item.type).trim().toUpperCase() : "";
-        
-        validatedItem.quantity = item.quantity !== undefined && item.quantity !== null ? 
-          Math.max(1, parseInt(item.quantity) || 1) : 1;
-        
-        if (item.lowBudget !== undefined && item.lowBudget !== null && String(item.lowBudget).trim() !== "" && !isNaN(parseFloat(item.lowBudget))) {
-          validatedItem.lowBudget = parseFloat(item.lowBudget);
-        } else {
-          validatedItem.lowBudget = null;
-        }
-        
-        if (item.highBudget !== undefined && item.highBudget !== null && String(item.highBudget).trim() !== "" && !isNaN(parseFloat(item.highBudget))) {
-          validatedItem.highBudget = parseFloat(item.highBudget);
-        } else {
-          validatedItem.highBudget = null;
-        }
-        
-        validatedItem.lowBudgetTotal = validatedItem.lowBudget !== null ? 
-          validatedItem.lowBudget * validatedItem.quantity : null;
-        
-        validatedItem.highBudgetTotal = validatedItem.highBudget !== null ? 
-          validatedItem.highBudget * validatedItem.quantity : null;
-
-        validatedItem.specFfe = item.specFfe ? String(item.specFfe).trim().toUpperCase() : "";
-        // Basic validation for SPEC/FFE - can be enhanced
-        if (validatedItem.specFfe !== "" && validatedItem.specFfe !== "SPEC" && validatedItem.specFfe !== "FFE") {
-            Logger.log(`Warning: Item at index ${index} has unusual SPEC/FFE value: '${validatedItem.specFfe}'. Will save as is.`);
-            // Keep the value, sheet dropdown will constrain later if needed or allow it.
+          clientSentInvalidItems.push({ index, item, reason: "Missing room or item name" });
+          return;
         }
 
-        validatedItemsForSheet.push(validatedItem);
-      });
-      
-      if (invalidClientItems.length > 0) {
-        Logger.log(`Validation found ${invalidClientItems.length} invalid items. Aborting save.`);
-        // Optionally delete backup? For now, leave it as it's state *before* this failed validation.
-        return {
-          success: false,
-          error: `${invalidClientItems.length} invalid items found during validation. Save aborted.`,
-          invalidItems: invalidClientItems,
-          backupSheetName: backupSheetName
+        // Common validation for all items
+        const validatedItem = {
+          room: String(item.room).trim().toUpperCase(),
+          type: item.type ? String(item.type).trim().toUpperCase() : "",
+          item: String(item.item).trim().toUpperCase(),
+          quantity: item.quantity !== undefined && item.quantity !== null ? Math.max(1, parseInt(item.quantity) || 1) : 1,
+          lowBudget: (item.lowBudget !== undefined && item.lowBudget !== null && String(item.lowBudget).trim() !== "" && !isNaN(parseFloat(item.lowBudget))) ? parseFloat(item.lowBudget) : null,
+          highBudget: (item.highBudget !== undefined && item.highBudget !== null && String(item.highBudget).trim() !== "" && !isNaN(parseFloat(item.highBudget))) ? parseFloat(item.highBudget) : null,
+          specFfe: item.specFfe ? String(item.specFfe).trim().toUpperCase() : "",
+          originalTemporaryId: item.id && String(item.id).startsWith('new_') ? item.id : null // Capture client's temporary ID
         };
-      }
-      Logger.log(`Validation successful for ${validatedItemsForSheet.length} items to be written.`);
+        validatedItem.lowBudgetTotal = validatedItem.lowBudget !== null ? validatedItem.lowBudget * validatedItem.quantity : null;
+        validatedItem.highBudgetTotal = validatedItem.highBudget !== null ? validatedItem.highBudget * validatedItem.quantity : null;
 
-      // --- 3. Sort Data for Rewrite ---
-      validatedItemsForSheet.sort((a, b) => {
-        const roomComp = a.room.localeCompare(b.room);
-        if (roomComp !== 0) return roomComp;
-        const typeComp = (a.type || "").localeCompare(b.type || "");
-        if (typeComp !== 0) return typeComp;
-        return (a.item || "").localeCompare(b.item || "");
+        if (item.rowNumber && Number.isInteger(item.rowNumber) && item.rowNumber > 0) {
+          validatedItem.rowNumber = item.rowNumber;
+          itemsToUpdateInPlace.push(validatedItem);
+        } else {
+          itemsToAppend.push(validatedItem); // Will get rowNumber after append
+        }
       });
-      Logger.log("Items sorted for rewrite.");
 
-      // --- 4. Define Headers and Prepare 2D Array for Sheet ---
-      const headers = ["ROOM", "TYPE", "ITEM", "QUANTITY", "LOW BUDGET", "HIGH BUDGET", "LOW BUDGET TOTAL", "HIGH BUDGET TOTAL", "SPEC/FFE"];
-      const itemsArray2D = validatedItemsForSheet.map(item => [
-        item.room,
-        item.type,
-        item.item,
-        item.quantity,
-        item.lowBudget,
-        item.highBudget,
-        item.lowBudgetTotal,
-        item.highBudgetTotal,
-        item.specFfe
-      ]);
-
-      // --- 5. Rewrite Sheet (Preserving Header Formatting) ---
-      if (masterSheet.getMaxRows() > 0) { 
-        masterSheet.getRange(1, 1, masterSheet.getMaxRows(), masterSheet.getMaxColumns()).clearContent();
+      if (clientSentInvalidItems.length > 0) {
+        Logger.log(`Validation found ${clientSentInvalidItems.length} invalid items from client. Aborting save.`);
+        return { success: false, error: `${clientSentInvalidItems.length} invalid items received. Save aborted.`, invalidItems: clientSentInvalidItems, backupSheetName };
       }
-      Logger.log("Sheet content cleared from row 1 downwards.");
+      Logger.log(`Separated items: ${itemsToUpdateInPlace.length} to update, ${itemsToAppend.length} to append.`);
 
-      masterSheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold"); 
-      Logger.log("Headers rewritten to row 1.");
+      // --- 3. Get Sheet Headers and Data ---
+      const headerRowValues = masterSheet.getRange(1, 1, 1, masterSheet.getLastColumn()).getValues()[0];
+      const headerMap = {};
+      headerRowValues.forEach((header, index) => headerMap[header.toString().trim()] = index);
+      
+      const expectedHeaderOrder = ["ROOM", "TYPE", "ITEM", "QUANTITY", "LOW BUDGET", "HIGH BUDGET", "LOW BUDGET TOTAL", "HIGH BUDGET TOTAL", "SPEC/FFE"];
+      // Validate headerMap contains all expectedHeaderOrder keys, crucial for writing data correctly.
+      for (const h of expectedHeaderOrder) {
+        if (headerMap[h] === undefined) {
+          const errorMsg = `Master Item List is missing critical header: '${h}'. Cannot proceed.`;
+          Logger.log(errorMsg);
+          return { success: false, error: errorMsg, backupSheetName };
+        }
+      }
 
-      if (itemsArray2D.length > 0) {
-        masterSheet.getRange(2, 1, itemsArray2D.length, headers.length).setValues(itemsArray2D);
-        Logger.log(`Wrote ${itemsArray2D.length} items to sheet starting from row 2.`);
+      let allSheetData = [];
+      const lastRow = masterSheet.getLastRow();
+      const lastCol = masterSheet.getLastColumn();
+      if (lastRow > 1) { // Only read if there's data beyond headers
+        allSheetData = masterSheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+      }
 
-        const specFfeColIndex = headers.indexOf("SPEC/FFE"); 
-        if (specFfeColIndex !== -1) {
-          const specFfeSheetCol = specFfeColIndex + 1; 
-          const numDataRows = itemsArray2D.length;
-          if (numDataRows > 0) { 
+      // --- 4. Process In-Place Updates ---
+      itemsToUpdateInPlace.forEach(item => {
+        const rowIndexInSheetData = item.rowNumber - 2; // -1 for 0-indexed, -1 because allSheetData excludes header
+        if (rowIndexInSheetData >= 0 && rowIndexInSheetData < allSheetData.length) {
+          const sheetRowArray = allSheetData[rowIndexInSheetData];
+          // Update the sheetRowArray based on item properties and headerMap
+          sheetRowArray[headerMap["ROOM"]] = item.room;
+          sheetRowArray[headerMap["TYPE"]] = item.type;
+          sheetRowArray[headerMap["ITEM"]] = item.item;
+          sheetRowArray[headerMap["QUANTITY"]] = item.quantity;
+          sheetRowArray[headerMap["LOW BUDGET"]] = item.lowBudget;
+          sheetRowArray[headerMap["HIGH BUDGET"]] = item.highBudget;
+          sheetRowArray[headerMap["LOW BUDGET TOTAL"]] = item.lowBudgetTotal;
+          sheetRowArray[headerMap["HIGH BUDGET TOTAL"]] = item.highBudgetTotal;
+          sheetRowArray[headerMap["SPEC/FFE"]] = item.specFfe;
+          // Add to processed list, rowNumber is known
+          processedItemsWithRowNumbers.push(item);
+        } else {
+          Logger.log(`Warning: Item designated for update at row ${item.rowNumber} is out of sheet bounds (max data row ${lastRow -1}). Will attempt to append instead.`);
+          item.rowNumber = null; // Clear invalid row number
+          itemsToAppend.push(item); // Re-route to append
+        }
+      });
+      Logger.log(`${itemsToUpdateInPlace.length - itemsToAppend.filter(i => i.rowNumber === null).length} items prepared for in-place update in memory.`);
+
+      // --- 5. Write Updated Data (if any changes made to existing rows) ---
+      if (itemsToUpdateInPlace.length > 0 && allSheetData.length > 0) {
+        masterSheet.getRange(2, 1, allSheetData.length, lastCol).setValues(allSheetData);
+        Logger.log('Successfully wrote back updated existing rows data.');
+      }
+
+      // --- 6. Process Appends ---
+      if (itemsToAppend.length > 0) {
+        const newRowsDataArray = itemsToAppend.map(item => {
+          const newRow = new Array(expectedHeaderOrder.length).fill(null);
+          newRow[headerMap["ROOM"]] = item.room;
+          newRow[headerMap["TYPE"]] = item.type;
+          newRow[headerMap["ITEM"]] = item.item;
+          newRow[headerMap["QUANTITY"]] = item.quantity;
+          newRow[headerMap["LOW BUDGET"]] = item.lowBudget;
+          newRow[headerMap["HIGH BUDGET"]] = item.highBudget;
+          newRow[headerMap["LOW BUDGET TOTAL"]] = item.lowBudgetTotal;
+          newRow[headerMap["HIGH BUDGET TOTAL"]] = item.highBudgetTotal;
+          newRow[headerMap["SPEC/FFE"]] = item.specFfe;
+          return newRow;
+        });
+
+        const appendStartRow = masterSheet.getLastRow() + 1;
+        masterSheet.getRange(appendStartRow, 1, newRowsDataArray.length, expectedHeaderOrder.length).setValues(newRowsDataArray);
+        Logger.log(`Appended ${newRowsDataArray.length} new rows starting at row ${appendStartRow}.`);
+
+        // Assign rowNumbers to appended items and add to processed list
+        itemsToAppend.forEach((item, index) => {
+          item.rowNumber = appendStartRow + index;
+          processedItemsWithRowNumbers.push(item);
+        });
+      }
+      
+      // --- 7. Apply SPEC/FFE Data Validation to all data rows ---
+      const finalLastDataRow = masterSheet.getLastRow();
+      if (finalLastDataRow > 1) { // If there are any data rows (header is row 1)
+          const specFfeColIndex = headerMap["SPEC/FFE"];
+          if (specFfeColIndex !== undefined) {
+              const specFfeSheetCol = specFfeColIndex + 1; // 1-indexed column
+              const numDataRows = finalLastDataRow - 1;
               const specFfeRange = masterSheet.getRange(2, specFfeSheetCol, numDataRows, 1);
               const rule = SpreadsheetApp.newDataValidation()
-                                       .requireValueInList(['SPEC', 'FFE'], true) 
-                                       .setAllowInvalid(false) 
+                                       .requireValueInList(['SPEC', 'FFE', ''], true) // Allow blank
+                                       .setAllowInvalid(false)
                                        .build();
               specFfeRange.setDataValidation(rule);
-              Logger.log(`Applied SPEC/FFE dropdown validation to column ${specFfeSheetCol}, ${numDataRows} rows.`);
+              Logger.log(`Applied SPEC/FFE dropdown validation to column ${specFfeSheetCol}, for ${numDataRows} data rows.`);
+          } else {
+              Logger.log("SPEC/FFE header not found, skipping data validation for it.");
           }
-        }
       } else {
-        Logger.log("No items to write to sheet. Sheet contains only headers.");
-        if (masterSheet.getMaxRows() > 1) {
-            masterSheet.getRange(2, 1, masterSheet.getMaxRows() - 1, masterSheet.getMaxColumns()).clearDataValidations();
-        }
+          Logger.log("No data rows found after save, skipping SPEC/FFE validation.");
       }
-          
-      Logger.log(`Full rewrite save successful. Processed: ${validatedItemsForSheet.length} items.`);
+
+      // --- 8. Sort processedItemsWithRowNumbers by their final rowNumber for consistent return ---
+      processedItemsWithRowNumbers.sort((a, b) => (a.rowNumber || 0) - (b.rowNumber || 0));
+      
+      Logger.log(`Save successful using row numbers. Processed: ${processedItemsWithRowNumbers.length} items.`);
       return {
         success: true,
-        items: validatedItemsForSheet, // Return the validated, sorted items as they are in the sheet
-        count: validatedItemsForSheet.length,
+        items: processedItemsWithRowNumbers, // Return all items with their final row numbers
+        count: processedItemsWithRowNumbers.length,
         backupSheetName: backupSheetName
       };
       
     } catch (error) {
-      Logger.log(`Critical Error in saveItemsToMasterList (Full Rewrite): ${error.message} Stack: ${error.stack}`);
+      Logger.log(`Critical Error in saveItemsToMasterList (Row Number Based): ${error.message} Stack: ${error.stack}`);
       return {
         success: false,
         error: `Error saving items: ${error.message}`,
-        backupSheetName: backupSheetName // Return backup name even on error
+        backupSheetName: backupSheetName
       };
     }
   }
