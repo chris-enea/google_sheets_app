@@ -516,8 +516,6 @@
         const checkboxes = roomListElement.querySelectorAll('input[type="checkbox"]:checked');
         const selectedRooms = Array.from(checkboxes).map(checkbox => checkbox.getAttribute('data-room'));
         
-        console.log(`[saveRoomsFromDashboard - ${location}${isAutoSave ? ' (AutoSave)' : ''}] Attempting to save rooms:`, JSON.stringify(selectedRooms)); // Added detailed log
-
         // Allow auto-save with empty selection to clear all if needed, but prevent explicit save of no rooms.
         if (selectedRooms.length === 0 && !isAutoSave && location === 'main') { 
           showDashboardStatusMessage('Please select at least one room to continue', true, location);
@@ -1637,35 +1635,42 @@
           console.error(`updateHomeSidebarContent: Container #${selectedRoomsContainerId} not found.`);
         }
 
-        // Create and append the 'Create Master Item List' button
-        const homeActionsContainer = document.createElement('div');
-        homeActionsContainer.className = 'sidebar-action-buttons'; // Use existing class for styling
-        homeActionsContainer.style.marginTop = '20px'; // Add some top margin
-
-        const createMasterListButton = document.createElement('button');
-        createMasterListButton.id = 'createMasterItemListBtnSidebar';
-        createMasterListButton.className = 'btn btn-primary'; // Use primary button styling
-        createMasterListButton.style.width = '100%'; // Make button full width
-        createMasterListButton.addEventListener('click', saveSelectedItemsFromDashboard);
-        
-        const createIcon = document.createElement('i');
-        createIcon.className = 'material-icons';
-        createIcon.textContent = 'add_circle_outline'; // Changed icon to reflect creation
-        createIcon.style.marginRight = '8px';
-        
-        createMasterListButton.appendChild(createIcon);
-        createMasterListButton.appendChild(document.createTextNode('Create Master Item List'));
-        
-        homeActionsContainer.appendChild(createMasterListButton);
-        // homeSidebarContent.appendChild(homeActionsContainer); // Old: Append to sidebar-body
-
-        // Append to the parent of sidebar-body (which is #home-content)
         const homeContentTab = homeSidebarContent.parentElement;
-        if (homeContentTab) {
-            homeContentTab.appendChild(homeActionsContainer);
-        } else {
-            console.error('Could not find parent container (#home-content) for home sidebar action buttons. Appending to sidebar-body as fallback.');
-            homeSidebarContent.appendChild(homeActionsContainer); // Fallback
+
+        // Check if the button already exists within the stable parent (homeContentTab) before creating and appending it
+        if (homeContentTab && !homeContentTab.querySelector('#createMasterItemListBtnSidebar')) {
+          const homeActionsContainer = document.createElement('div');
+          homeActionsContainer.className = 'sidebar-action-buttons'; // Use existing class for styling
+          homeActionsContainer.style.marginTop = '20px'; // Add some top margin
+
+          const createMasterListButton = document.createElement('button');
+          createMasterListButton.id = 'createMasterItemListBtnSidebar';
+          createMasterListButton.className = 'btn btn-primary'; // Use primary button styling
+          createMasterListButton.style.width = '100%'; // Make button full width
+          createMasterListButton.addEventListener('click', saveSelectedItemsFromDashboard);
+          
+          const createIcon = document.createElement('i');
+          createIcon.className = 'material-icons';
+          createIcon.textContent = 'add_circle_outline'; // Changed icon to reflect creation
+          createIcon.style.marginRight = '8px';
+          
+          createMasterListButton.appendChild(createIcon);
+          createMasterListButton.appendChild(document.createTextNode('Create Master Item List'));
+          
+          homeActionsContainer.appendChild(createMasterListButton);
+          
+          // Append to the parent of sidebar-body (which is #home-content)
+          // homeContentTab is already defined above
+          if (homeContentTab) {
+              homeContentTab.appendChild(homeActionsContainer);
+          } else {
+              // This else block might be less likely to be hit if homeSidebarContent always has a parent,
+              // but kept for safety if homeSidebarContent could be a root in some case.
+              console.error('Could not find parent container for home sidebar action buttons. Appending to sidebar-body as fallback.');
+              homeSidebarContent.appendChild(homeActionsContainer); // Fallback
+          }
+        } else if (!homeContentTab) {
+            console.error('#home-content (parent of sidebar-body) not found. Cannot add Create Master Item List button.');
         }
 
         // Set initial visibility state for the button
@@ -2039,344 +2044,6 @@
           })
           .addRoom(newRoomName);
       }
-
-      // Render the room manager UI in the sidebar
-      // function renderRoomManager(result, targetContainer, location) {
-      //   console.log(`renderRoomManager called for ${location}. Target: ${targetContainer ? targetContainer.id : 'NULL'}. Result success: ${result ? result.success : 'N/A'}`); // ADD THIS LOG
-
-      //   if (!targetContainer) {
-      //       console.error(`renderRoomManager: Target container for ${location} is null or undefined.`);
-      //       // Optionally, alert or show a global error if targetContainer is critical and missing
-      //       return;
-      //   }
-
-      //   if (!result || !result.success) {
-      //     const errorMsg = result && result.error ? result.error : `Failed to load rooms or invalid data for ${location}.`;
-      //     console.error(`renderRoomManager (${location}): Invalid result or success=false. Error: ${errorMsg}. Full result:`, JSON.stringify(result, null, 2)); // ADD THIS LOG
-      //     renderUIState(targetContainer, 'error', errorMsg);
-      //     return;
-      //   }
-
-      //   console.log('renderRoomManager: result:', result);
-        
-      //   const rooms = result.rooms || [];
-      //   const selectedRooms = result.selectedRooms || [];
-        
-      //   // Check if we have combinedItems property
-      //   if (!dashboardItemData.combinedItems || !Array.isArray(dashboardItemData.combinedItems)) {
-      //     console.warn('combinedItems is missing or not an array, initializing from availableItems');
-          
-      //     // Initialize combinedItems from availableItems if needed
-      //     if (dashboardItemData.availableItems && Array.isArray(dashboardItemData.availableItems)) {
-      //       dashboardItemData.combinedItems = dashboardItemData.availableItems.map(item => {
-      //         if (typeof item === 'string') return item;
-      //         return item.type && item.item ? `${item.type} : ${item.item}` : (item.item || '');
-      //       });
-      //       console.log('Created combinedItems with', dashboardItemData.combinedItems.length, 'items');
-      //     } else {
-      //       console.warn('availableItems is also missing or not an array, initializing empty array');
-      //       dashboardItemData.combinedItems = [];
-      //     }
-      //   }
-        
-      //   // Create container for all room sections
-      //   const container = document.createElement('div');
-      //   container.className = 'item-update-content';
-      //   container.style.padding = '20px';
-        
-      //   // Add help icon with tooltip instead of static instructions
-      //   const helpContainer = document.createElement('div');
-      //   helpContainer.className = 'tooltip';
-      //   helpContainer.style.position = 'absolute';
-      //   helpContainer.style.top = '16px';
-      //   helpContainer.style.right = '16px';
-        
-      //   const helpIcon = document.createElement('div');
-      //   helpIcon.className = 'help-icon';
-      //   helpIcon.innerHTML = '?';
-        
-      //   const tooltipText = document.createElement('div');
-      //   tooltipText.className = 'tooltip-text';
-      //   tooltipText.innerHTML = '<p>Review and update your items below. Make any necessary changes to the item details, then click Save All Items to update the spreadsheet.</p>';
-        
-      //   helpContainer.appendChild(helpIcon);
-      //   helpContainer.appendChild(tooltipText);
-      //   container.appendChild(helpContainer);
-        
-      //   // Group items by room first
-      //   const itemsByRoom = {};
-      //   data.selectedRooms.forEach(room => {
-      //     itemsByRoom[room] = data.itemsByRoom[room] || [];
-      //   });
-        
-      //   // Create the sticky filter and save button container
-      //   const stickyContainer = document.createElement('div');
-      //   stickyContainer.id = 'sticky-filter-save-container';
-      //   stickyContainer.style.position = 'sticky';
-      //   stickyContainer.style.top = '0';
-      //   stickyContainer.style.backgroundColor = 'white';
-      //   stickyContainer.style.zIndex = '100';
-      //   stickyContainer.style.paddingBottom = '10px';
-      //   stickyContainer.style.display = 'flex';
-      //   stickyContainer.style.justifyContent = 'space-between';
-      //   stickyContainer.style.alignItems = 'center';
-      //   stickyContainer.style.borderBottom = '1px solid rgba(0,0,0,0.1)';
-        
-      //   // Add room filter
-      //   const filterContainer = document.createElement('div');
-      //   filterContainer.id = 'filter-container';
-      //   filterContainer.style.display = 'flex';
-      //   filterContainer.style.alignItems = 'center';
-        
-      //   const filterLabel = document.createElement('label');
-      //   filterLabel.className = 'filter-label';
-      //   filterLabel.htmlFor = 'room-filter';
-      //   filterLabel.textContent = 'Filter by Room:';
-      //   filterLabel.style.marginRight = '10px';
-        
-      //   const roomFilter = document.createElement('select');
-      //   roomFilter.id = 'room-filter';
-      //   roomFilter.style.marginRight = '20px';
-      //   roomFilter.addEventListener('change', filterRoomsInDashboard);
-        
-      //   const allRoomsOption = document.createElement('option');
-      //   allRoomsOption.value = 'all';
-      //   allRoomsOption.textContent = 'All Rooms';
-      //   roomFilter.appendChild(allRoomsOption);
-        
-      //   filterContainer.appendChild(filterLabel);
-      //   filterContainer.appendChild(roomFilter);
-        
-      //   // Create save button for the sticky container
-      //   const saveButton = document.createElement('button');
-      //   saveButton.className = 'btn';
-      //   saveButton.addEventListener('click', saveAllItemsFromDashboard);
-        
-      //   const saveIcon = document.createElement('i');
-      //   saveIcon.className = 'material-icons';
-      //   saveIcon.textContent = 'save';
-      //   saveIcon.style.marginRight = '5px';
-        
-      //   saveButton.appendChild(saveIcon);
-      //   saveButton.appendChild(document.createTextNode('Save All Items'));
-        
-      //   // Then show the room manager in the main content
-      //   showRoomManager();
-        
-       
-      //   // Create actions container in the sticky header
-      //   const actionsContainer = document.createElement('div');
-      //   actionsContainer.style.display = 'flex';
-      //   actionsContainer.style.gap = '10px';
-      //   actionsContainer.appendChild(saveButton);
-      //   actionsContainer.appendChild(saveDraftButton);
-      //   // Add filter and actions to sticky container
-      //   stickyContainer.appendChild(filterContainer);
-      //   stickyContainer.appendChild(actionsContainer);
-        
-      //   // Add sticky container to main container
-      //   container.appendChild(stickyContainer);
-        
-      //   // Populate filter dropdown with rooms
-      //   Object.keys(itemsByRoom).sort().forEach(room => {
-      //     const option = document.createElement('option');
-      //     option.value = room;
-      //     option.textContent = room;
-      //     roomFilter.appendChild(option);
-      //   });
-        
-      //   // Create a DocumentFragment to hold all room containers before appending to the main container
-      //   const roomsFragment = document.createDocumentFragment();
-        
-      //   // Create room sections
-      //   Object.keys(itemsByRoom).sort().forEach(room => {
-      //     const currentRoomItems = itemsByRoom[room];
-          
-      //     // Create room container
-      //     const roomContainer = document.createElement('div');
-      //     roomContainer.className = 'room-container';
-      //     roomContainer.id = `room-container-${room.replace(/\s+/g, '-')}`;
-      //     roomContainer.dataset.room = room;
-          
-      //     // Add room title
-      //     const roomTitle = document.createElement('div');
-      //     roomTitle.className = 'room-title';
-      //     roomTitle.textContent = room;
-      //     roomContainer.appendChild(roomTitle);
-          
-      //     // Add column headers
-      //     const headers = document.createElement('div');
-      //     headers.className = 'column-headers';
-          
-      //     // Add a checkbox header
-      //     const checkboxHeader = document.createElement('div');
-      //     checkboxHeader.className = 'column-header checkbox-header';
-      //     checkboxHeader.textContent = 'Add';
-          
-      //     const roomHeader = document.createElement('div');
-      //     roomHeader.className = 'column-header room-header';
-      //     roomHeader.textContent = 'Room';
-
-      //     const typeHeader = document.createElement('div');
-      //     typeHeader.className = 'column-header type-header';
-      //     typeHeader.textContent = 'Type';
-          
-      //     const itemHeader = document.createElement('div');
-      //     itemHeader.className = 'column-header item-header';
-      //     itemHeader.textContent = 'Item';
-          
-      //     const quantityHeader = document.createElement('div');
-      //     quantityHeader.className = 'column-header quantity-header';
-      //     quantityHeader.textContent = 'QTY';
-          
-      //     // const actionsHeader = document.createElement('div');
-      //     // actionsHeader.className = 'column-header actions-header';
-      //     // actionsHeader.textContent = 'Remove Item';
-          
-      //     headers.appendChild(checkboxHeader);
-      //     headers.appendChild(roomHeader); // Added new room header
-      //     headers.appendChild(typeHeader);
-      //     headers.appendChild(itemHeader);
-      //     headers.appendChild(quantityHeader);
-      //     // headers.appendChild(actionsHeader);
-          
-      //     roomContainer.appendChild(headers);
-          
-      //     // Add items container
-      //     const itemsContainer = document.createElement('div');
-      //     itemsContainer.className = 'items-container';
-      //     itemsContainer.id = `items-${room.replace(/\s+/g, '-')}`;
-          
-      //     // Use a DocumentFragment for batching item row appends
-      //     const itemsFragment = document.createDocumentFragment();
-      //     // Add each item
-      //     currentRoomItems.forEach((item, index) => {
-      //       const itemRow = createItemRow(item, index, room);
-      //       itemsFragment.appendChild(itemRow);
-      //     });
-      //     itemsContainer.appendChild(itemsFragment); // Append all item rows at once
-          
-      //     // Add delegated event listeners to itemsContainer
-      //     itemsContainer.addEventListener('change', function(event) {
-      //       const target = event.target;
-      //       if (target.classList.contains('item-input') ||
-      //           target.classList.contains('type-input') ||
-      //           target.classList.contains('quantity-input') ||
-      //           target.classList.contains('budget-input')) {
-      //         if (target.dataset.room && target.dataset.index !== undefined && target.dataset.field) {
-      //           updateItemData(target.dataset.room, target.dataset.index, target.dataset.field, target.value);
-      //         }
-      //       }
-      //     });
-
-      //     itemsContainer.addEventListener('input', function(event) {
-      //       const target = event.target;
-      //       if (target.classList.contains('item-input') ||
-      //           target.classList.contains('type-input') ||
-      //           target.classList.contains('quantity-input') ||
-      //           target.classList.contains('budget-input')) {
-      //         if (target.dataset.room && target.dataset.index !== undefined && target.dataset.field) {
-      //           updateItemData(target.dataset.room, target.dataset.index, target.dataset.field, target.value);
-      //         }
-      //       }
-      //     });
-
-      //     itemsContainer.addEventListener('click', function(event) {
-      //       const target = event.target;
-      //       if (target.classList.contains('delete-button')) {
-      //         if (target.dataset.room && target.dataset.index !== undefined) {
-      //           deleteItemRow(target.dataset.room, target.dataset.index);
-      //         }
-      //       }
-      //     });
-
-      //     roomContainer.appendChild(itemsContainer);
-          
-      //     // // Create the button row for "Add Item" and quick-add buttons
-      //     // const addMoreRow = document.createElement('div');
-      //     // addMoreRow.className = 'add-more-row';
-          
-      //     // // Create standard "Add Item" button
-      //     // const addItemButton = document.createElement('button');
-      //     // addItemButton.className = 'add-item-btn';
-      //     // addItemButton.addEventListener('click', function() {
-      //     //   addItemToRoom(room);
-      //     // });
-          
-      //     // const buttonIcon = document.createElement('i');
-      //     // buttonIcon.className = 'material-icons';
-      //     // buttonIcon.textContent = 'add';
-          
-      //     // addItemButton.appendChild(buttonIcon);
-      //     // addItemButton.appendChild(document.createTextNode(' Add Item'));
-      //     // addMoreRow.appendChild(addItemButton);
-          
-      //     // // Add Quick-Add buttons for suggested items
-      //     // const suggestedItems = getSuggestedItemsForRoom(room);
-          
-      //     // // Create a container for the quick-add buttons
-      //     // const quickAddContainer = document.createElement('div');
-      //     // quickAddContainer.className = 'quick-add-container';
-          
-      //     // // Initialize tracking for visible suggested items if needed
-      //     // if (!dashboardItemData.visibleSuggestedItems) {
-      //     //   dashboardItemData.visibleSuggestedItems = {};
-      //     // }
-          
-      //     // // Filter out items that already exist in the room
-      //     // const availableSuggestions = suggestedItems.filter(item => 
-      //     //   !itemExistsInRoom(dashboardItemData.itemsByRoom[room] || [], item)
-      //     // );
-          
-      //     // // Initialize with up to 5 available suggestions
-      //     // dashboardItemData.visibleSuggestedItems[room] = availableSuggestions.slice(0, 5);
-          
-      //     // // Create buttons for the visible items (max 5)
-      //     // dashboardItemData.visibleSuggestedItems[room].forEach(itemObj => { // itemObj is now an object {name, type?}
-      //     //   const quickAddButton = document.createElement('button');
-      //     //   quickAddButton.className = 'quick-add-btn';
-      //     //   quickAddButton.textContent = `Add ${itemObj.name}`;
-            
-      //     //   // Add click handler to add this specific item
-      //     //   quickAddButton.addEventListener('click', function() {
-      //     //     addSpecificItemToRoom(room, itemObj.name, itemObj.type); // Pass name and type
-      //     //   });
-            
-      //     //   quickAddContainer.appendChild(quickAddButton);
-      //     // });
-          
-      //     // // Only add the container if it has buttons
-      //     // if (quickAddContainer.children.length > 0) {
-      //     //   addMoreRow.appendChild(quickAddContainer);
-      //     // }
-          
-      //     // roomContainer.appendChild(addMoreRow);
-          
-      //     // Only call updateRoomBudgetDisplay once, after both items container and add button are added
-      //     // updateRoomBudgetDisplay(room); // [DISABLED: Hide room budget summary in UI, keep for future use]
-          
-      //     roomsFragment.appendChild(roomContainer); // Append room container to the fragment
-      //   });
-        
-      //   container.appendChild(roomsFragment); // Append all room containers at once
-        
-      //   // Re-run updateRoomBudgetDisplay for all rooms to ensure proper placement
-      //   // Object.keys(itemsByRoom).sort().forEach(room => {
-      //   //   updateRoomBudgetDisplay(room);
-      //   // }); // [DISABLED: Hide room budget summary in UI, keep for future use]
-        
-      //   // Update the content area
-      //   document.getElementById('mainContent').innerHTML = '';
-      //   document.getElementById('mainContent').appendChild(container);
-        
-      //   // Add a small delay to ensure all DOM elements are fully rendered before calculating budget summaries
-      //   // setTimeout(() => {
-      //   //   console.log('Applying budget summary updates after DOM render');
-      //   //   Object.keys(itemsByRoom).sort().forEach(room => {
-      //   //     updateRoomBudgetDisplay(room);
-      //   //   });
-      //   // }, 50); // [DISABLED: Hide room budget summary in UI, keep for future use]
-      // }
 
       // Function to filter rooms in the dashboard
       function filterRoomsInDashboard() {

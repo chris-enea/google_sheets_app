@@ -190,6 +190,45 @@ function columnIndexToLetter_(column) {
     }
   }
 
+  /**
+   * Core function to save selected rooms to the temporary sheet.
+   * Used by both dashboard and dialog interfaces.
+   *
+   * @param {Array<string>} rooms - Array of room names to save.
+   * @param {string} [sheetId] - Optional spreadsheet ID. If not provided, uses active spreadsheet.
+   * @return {Object} Object with success status and optional error message.
+   */
+  function saveSelectedRoomsCore(rooms, sheetId) {
+    try {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const tempSheetName = "_TempSelectedRooms";
+      let tempSheet = ss.getSheetByName(tempSheetName);
+
+      if (!tempSheet) {
+        tempSheet = ss.insertSheet(tempSheetName);
+        Logger.log(`Created sheet "${tempSheetName}"`);
+        tempSheet.getRange(1, 1).setValue("Selected Room").setFontWeight("bold");
+      } else {
+        // Clear existing rooms data, keeping the header
+        if (tempSheet.getLastRow() > 1) {
+          tempSheet.getRange(2, 1, tempSheet.getLastRow() - 1, 1).clearContent();
+        }
+      }
+
+      if (rooms && rooms.length > 0) {
+        const valuesToSave = rooms.map(room => [room]); // Convert to 2D array for setValues
+        tempSheet.getRange(2, 1, valuesToSave.length, 1).setValues(valuesToSave);
+        Logger.log(`Core: Saved ${valuesToSave.length} rooms to "${tempSheetName}"`);
+      } else {
+        Logger.log(`Core: No rooms provided to save, or empty array. "${tempSheetName}" is cleared (except header).`);
+      }
+      
+      return { success: true };
+    } catch (error) {
+      Logger.log("Error in saveSelectedRoomsCore: " + error.message + " Stack: " + error.stack);
+      return { success: false, error: "Error saving selected rooms: " + error.message };
+    }
+  }
   
   /**
    * Core function to prepare item data for display and editing.
@@ -429,9 +468,7 @@ function columnIndexToLetter_(column) {
 
       // Check for any previously saved item selections
       // Use provided sheetId if available, otherwise fallback to active spreadsheet
-      const ss = sheetId 
-        ? SpreadsheetApp.openById(sheetId) 
-        : SpreadsheetApp.getActiveSpreadsheet();
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
       
       const tempSelectionSheet = ss.getSheetByName("_TempItemSelections");
       let savedSelections = {};
@@ -1734,7 +1771,7 @@ function columnIndexToLetter_(column) {
           error: "Required columns 'Item-Name' and 'Item-Type' not found in the Data sheet"
         };
       }
-      
+      Logger.log(`values: ${JSON.stringify(values)}`);
       // Extract items data (skipping the header row)
       const allItemsWithTypes = [];
       for (let i = 1; i < values.length; i++) {
@@ -1752,6 +1789,8 @@ function columnIndexToLetter_(column) {
           item: itemName
         });
       }
+
+      Logger.log(`allItemsWithTypes: ${JSON.stringify(allItemsWithTypes)}`);
       
       // Organize items by type
       const itemsByType = {};

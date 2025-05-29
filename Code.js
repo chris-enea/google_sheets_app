@@ -1206,7 +1206,7 @@ function handleCreateProjectFromMaster(baseProjectName) {
     Logger.log(`New project created: "${fullFileName}", ID: ${newSpreadsheet.getId()}`);
     return {
       success: true,
-      message: `Project file created successfully! IMPORTANT: Open the new file and use the 'Project Manager > Setup > Initialize this Sheet as Project' menu to complete configuration.`,
+      message: `Project file created successfully!`,
       url: newSpreadsheet.getUrl(),
       fileName: fullFileName
     };

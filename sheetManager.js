@@ -100,10 +100,10 @@ function splitItemsByFFE() { // Renaming this might be good later, but UI calls 
     true // deleteSpecFfeColumnInTarget (true for FFE as header is copied then col deleted)
   );
 
-  // --- SPEC (Allowances) Processing Configuration ---
-  const allowancesSheetName = "Allowances";
+  // --- SPEC Processing Configuration ---
+  const allowancesSheetName = "SPEC";
   const allowancesTargetHeaders = [
-    "CATEGORIES", "TYPE", "ITEM", "SET ALLOWANCE",
+    "CATEGORIES", "TYPE", "ITEM", "ACTUAL PRICE",
     "QUANTITY", "LOW", "TOTAL LOW", "HIGH", "TOTAL HIGH", "NOTES"
   ];
   
@@ -111,7 +111,7 @@ function splitItemsByFFE() { // Renaming this might be good later, but UI calls 
     { targetHeaderName: "CATEGORIES", isBlank: true, defaultFormatSourceMasterColName: masterHeaders[0] || "" }, // Use first master col for style
     { targetHeaderName: "TYPE", sourceMasterColumnName: MASTER_TYPE_COL_NAME },
     { targetHeaderName: "ITEM", sourceMasterColumnName: MASTER_ITEM_COL_NAME },
-    { targetHeaderName: "SET ALLOWANCE", isBlank: true, defaultFormatSourceMasterColName: masterHeaders[0] || "" }, // Use first master col for style
+    { targetHeaderName: "ACTUAL PRICE", isBlank: true, defaultFormatSourceMasterColName: masterHeaders[0] || "" }, // Use first master col for style
     { targetHeaderName: "QUANTITY", sourceMasterColumnName: MASTER_QTY_COL_NAME },
     { targetHeaderName: "LOW", sourceMasterColumnName: MASTER_LOW_UNIT_COST_COL_NAME },
     { targetHeaderName: "TOTAL LOW", sourceMasterColumnName: MASTER_LOW_TOTAL_HEADER, isFormulaColumn: true },
@@ -188,9 +188,54 @@ function _processAndCopyItemsInternal(
       return;
     }
   } else { // Allowances case (and any future similar cases)
-    const targetHeaderRange = targetSheet.getRange(1, 1, 1, targetHeadersArray.length);
-    targetHeaderRange.setValues([targetHeadersArray]);
-    targetHeaderRange.setFontWeight("bold");
+    const targetHeaderValueRange = targetSheet.getRange(1, 1, 1, targetHeadersArray.length);
+    targetHeaderValueRange.setValues([targetHeadersArray]); // Set all header values first.
+
+    // Then apply formatting cell by cell
+    for (let i = 0; i < targetHeadersArray.length; i++) {
+      const targetCell = targetSheet.getRange(1, i + 1);
+      const headerText = targetHeadersArray[i]; // Primarily for logging or potential direct matching if needed
+      const currentMapping = columnMappingConfig[i];
+      
+      let sourceFormatMasterColZeroBasedIndex = -1;
+
+      // Determine source column for formatting using a cascade of priorities:
+      // 1. From explicitly mapped sourceMasterColumnName (via currentMapping.masterColumnIndex)
+      if (currentMapping.masterColumnIndex !== undefined && currentMapping.masterColumnIndex >= 0) {
+        sourceFormatMasterColZeroBasedIndex = currentMapping.masterColumnIndex;
+      } else {
+        // 2. Direct match of target header text to a master header text
+        const directMatchInMaster = masterHeaders.indexOf(headerText);
+        if (directMatchInMaster !== -1) {
+          sourceFormatMasterColZeroBasedIndex = directMatchInMaster;
+        } 
+        // 3. From defaultFormatSourceMasterColName in mapping (for blank/new columns, via currentMapping.defaultFormatMasterColIndex)
+        else if (currentMapping.defaultFormatMasterColIndex !== undefined && currentMapping.defaultFormatMasterColIndex >= 0) {
+          sourceFormatMasterColZeroBasedIndex = currentMapping.defaultFormatMasterColIndex;
+        } 
+        // 4. Absolute fallback: style from the first column of master headers, if master has headers
+        else if (masterHeaders.length > 0) {
+          sourceFormatMasterColZeroBasedIndex = 0; 
+        }
+      }
+
+      // Apply format if a valid source column index was found and master sheet is usable
+      if (sourceFormatMasterColZeroBasedIndex !== -1 && 
+          masterSheet.getLastRow() > 0 && 
+          (masterSheet.getLastColumn() - 1) >= sourceFormatMasterColZeroBasedIndex) { // Ensure source column index is within bounds
+        try {
+          const sourceCellToCopyFormatFrom = masterSheet.getRange(1, sourceFormatMasterColZeroBasedIndex + 1);
+          sourceCellToCopyFormatFrom.copyTo(targetCell, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+          // Value is already set by targetHeaderValueRange.setValues() above. PASTE_FORMAT should not clear it.
+        } catch (e) {
+          Logger.log(`Error copying format for Allowances header '${headerText}' from master column index ${sourceFormatMasterColZeroBasedIndex}: ${e.toString()}`);
+          targetCell.setFontWeight("bold"); // Fallback on error during copy
+        }
+      } else {
+        // Fallback if no source format could be identified, or master sheet is empty/too small
+        targetCell.setFontWeight("bold"); 
+      }
+    }
   }
 
   const processedRows = [];
@@ -221,6 +266,12 @@ function _processAndCopyItemsInternal(
       const singleRowFormat_WrapStrategies = [];
       const singleRowFormat_NumberFormats = [];
 
+      // Determine the target row number for A1 notation formulas
+      // processedRows contains data rows. Header is row 1. So, first data row is 2.
+      // Length of processedRows is current number of data rows already added.
+      // So, the next row to be added will be at index processedRows.length, making its sheet row number processedRows.length + 2.
+      const targetSheetRowNum = processedRows.length + 2;
+
       for (const mapping of columnMappingConfig) {
         let cellValue = "";
         let srcMasterColIdx = -1;
@@ -235,7 +286,31 @@ function _processAndCopyItemsInternal(
              cellValue = "ERROR"; // Or skip row / handle error
           } else {
             if (mapping.isFormulaColumn && masterRowFormulas[srcMasterColIdx]) {
-              cellValue = masterRowFormulas[srcMasterColIdx];
+              // Existing formula logic
+              let baseFormula = masterRowFormulas[srcMasterColIdx];
+
+              if (targetSheetName === "SPEC") {
+                if (mapping.targetHeaderName === "TOTAL LOW") {
+                  const qtyColLetter = getColumnLetter(targetHeadersArray.indexOf(MASTER_QTY_COL_NAME));
+                  const lowColLetter = getColumnLetter(targetHeadersArray.indexOf(MASTER_LOW_UNIT_COST_COL_NAME));
+                  if (qtyColLetter && lowColLetter) {
+                    baseFormula = `=${lowColLetter}${targetSheetRowNum}*${qtyColLetter}${targetSheetRowNum}`;
+                  } else {
+                    Logger.log(`Could not find columns for SPEC 'TOTAL LOW' formula. QTY header: ${MASTER_QTY_COL_NAME} (index: ${targetHeadersArray.indexOf(MASTER_QTY_COL_NAME)}), LOW header: ${MASTER_LOW_UNIT_COST_COL_NAME} (index: ${targetHeadersArray.indexOf(MASTER_LOW_UNIT_COST_COL_NAME)})`);
+                    // Fallback to master formula or error - original behavior if columns not found
+                  }
+                } else if (mapping.targetHeaderName === "TOTAL HIGH") {
+                  const qtyColLetter = getColumnLetter(targetHeadersArray.indexOf(MASTER_QTY_COL_NAME));
+                  const highColLetter = getColumnLetter(targetHeadersArray.indexOf(MASTER_HIGH_UNIT_COST_COL_NAME));
+                  if (qtyColLetter && highColLetter) {
+                    baseFormula = `=${highColLetter}${targetSheetRowNum}*${qtyColLetter}${targetSheetRowNum}`;
+                  } else {
+                    Logger.log(`Could not find columns for SPEC 'TOTAL HIGH' formula. QTY header: ${MASTER_QTY_COL_NAME} (index: ${targetHeadersArray.indexOf(MASTER_QTY_COL_NAME)}), HIGH header: ${MASTER_HIGH_UNIT_COST_COL_NAME} (index: ${targetHeadersArray.indexOf(MASTER_HIGH_UNIT_COST_COL_NAME)})`);
+                    // Fallback to master formula or error - original behavior if columns not found
+                  }
+                }
+              }
+              cellValue = baseFormula;
             } else {
               cellValue = masterRowValues[srcMasterColIdx];
             }
@@ -321,13 +396,20 @@ function _processAndCopyItemsInternal(
           const mapping = columnMappingConfig[col];
           let widthToSet = DEFAULT_TARGET_COL_WIDTH;
           if (mapping && mapping.sourceMasterColumnName && mapping.masterColumnIndex !== undefined && mapping.masterColumnIndex >= 0) {
-              try { // It's possible masterColumnIndex is for a column that doesn't exist if config is bad.
-                widthToSet = masterSheet.getColumnWidth(mapping.masterColumnIndex + 1);
+              try {
+                // Ensure masterColumnIndex is within bounds of actual masterSheet columns before calling getColumnWidth
+                if ((mapping.masterColumnIndex + 1) > masterSheet.getLastColumn()) {
+                    Logger.log(`WARNING: Master column index ${mapping.masterColumnIndex + 1} for target header '${mapping.targetHeaderName}' (target col ${col + 1}) is out of bounds for masterSheet (last column: ${masterSheet.getLastColumn()}). Using default width.`);
+                    // widthToSet remains DEFAULT_TARGET_COL_WIDTH, which is already set
+                } else {
+                    widthToSet = masterSheet.getColumnWidth(mapping.masterColumnIndex + 1);
+                }
               } catch (e) {
-                // keep default width
+                Logger.log(`Error getting column width for target header '${mapping.targetHeaderName}' (target col ${col + 1}) from master col ${mapping.masterColumnIndex + 1}: ${e.toString()}. Using default width.`);
+                // widthToSet remains DEFAULT_TARGET_COL_WIDTH, which is already set
               }
           } else if (mapping && mapping.isBlank) {
-              widthToSet = DEFAULT_TARGET_COL_WIDTH; // Default for blank columns
+              // widthToSet remains DEFAULT_TARGET_COL_WIDTH for blank columns, already set
           }
           targetSheet.setColumnWidth(col + 1, widthToSet);
       }
@@ -339,7 +421,18 @@ function _processAndCopyItemsInternal(
   }
 
   SpreadsheetApp.getUi().alert(`"${filterValue}" items processed and copied to sheet "${targetSheetName}" successfully.`);
-} 
+}
+
+// Helper function to convert 0-indexed column to A1 letter
+function getColumnLetter(colIndex) {
+  let temp, letter = '';
+  while (colIndex >= 0) {
+    temp = colIndex % 26;
+    letter = String.fromCharCode(temp + 65) + letter;
+    colIndex = Math.floor(colIndex / 26) - 1;
+  }
+  return letter;
+}
 
 /**
  * Summarizes SPEC items from Master Item List and updates the Budget sheet.

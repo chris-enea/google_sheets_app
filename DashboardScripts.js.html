@@ -769,234 +769,6 @@
         .getProjects();
     }
     
-    // The createProjectCard function has been moved to ProjectCard.html
-    
-    // Handle the Add Project modal
-    // function setupAddProjectModal() {
-    //   const addProjectButton = document.getElementById('addProjectButton');
-    //   const modal = document.getElementById('addProjectModal');
-    //   const closeBtn = document.getElementById('closeModal');
-    //   const cancelBtn = document.getElementById('cancelAddProject');
-    //   const form = document.getElementById('addProjectForm');
-    //   const submitBtn = document.getElementById('submitAddProject');
-    //   const errorMessage = document.getElementById('formErrorMessage');
-    //   const modalTitle = document.getElementById('modalTitle');
-    //   const projectIdField = document.getElementById('projectId');
-    //   const isEditModeField = document.getElementById('isEditMode');
-      
-    //   /**
-    //    * Populates the add/edit project form with existing project data.
-    //    * @param {object} project - The project data object.
-    //    */
-    //   function _populateProjectForm(project) {
-    //     document.getElementById('projectNameInput').value = project.name;
-    //     document.getElementById('projectClient').value = project.client || '';
-    //     document.getElementById('projectClientEmail').value = project.clientEmail || '';
-    //     document.getElementById('projectClientAddress').value = project.clientAddress || '';
-    //     document.getElementById('projectArchitect').value = project.architect || '';
-    //     document.getElementById('projectArchitectEmail').value = project.architectEmail || '';
-    //     document.getElementById('projectContractor').value = project.contractor || '';
-    //     document.getElementById('projectContractorEmail').value = project.contractorEmail || '';
-    //     document.getElementById('projectStatus').value = project.status || 'Not Started';
-    //     document.getElementById('asanaProjectId').value = project.asanaProjectId ? project.asanaProjectId.replace(/["']/g, '') : '';
-    //     document.getElementById('projectSheetId').value = project.sheetId || '';
-    //     document.getElementById('projectFolderId').value = project.folderId || '';
-    //     document.getElementById('projectColorInput').value = project.projectColor || '#26717D';
-    //   }
-
-    //   /**
-    //    * Collects and returns data from the add/edit project form.
-    //    * @return {object} An object containing the project form data.
-    //    */
-    //   function _getProjectFormData() {
-    //     return {
-    //       name: document.getElementById('projectNameInput').value.trim(),
-    //       client: document.getElementById('projectClient').value.trim(),
-    //       clientEmail: document.getElementById('projectClientEmail').value.trim(),
-    //       clientAddress: document.getElementById('projectClientAddress').value.trim(),
-    //       architect: document.getElementById('projectArchitect').value.trim(),
-    //       architectEmail: document.getElementById('projectArchitectEmail').value.trim(),
-    //       contractor: document.getElementById('projectContractor').value.trim(),
-    //       contractorEmail: document.getElementById('projectContractorEmail').value.trim(),
-    //       status: document.getElementById('projectStatus').value,
-    //       asanaProjectId: document.getElementById('asanaProjectId').value ? 
-    //                       document.getElementById('asanaProjectId').value.replace(/["']/g, '').trim() : '',
-    //       sheetId: document.getElementById('projectSheetId').value.trim() || '',
-    //       folderId: document.getElementById('projectFolderId').value.trim() || '',
-    //       projectColor: document.getElementById('projectColorInput').value || '#26717D'
-    //     };
-    //   }
-
-    //   /**
-    //    * Handles the success response from adding or updating a project.
-    //    * @param {object} response - The response object from the server.
-    //    * @param {boolean} isEditMode - True if the operation was an update, false for an add.
-    //    * @param {HTMLElement} submitBtn - The submit button element.
-    //    * @param {function} closeModalFn - The function to close the modal.
-    //    * @param {HTMLElement} errorMessageElement - The error message display element.
-    //    */
-    //   function _handleProjectFormSubmitSuccess(response, isEditMode, submitBtn, closeModalFn, errorMessageElement) {
-    //     submitBtn.disabled = false;
-    //     submitBtn.textContent = isEditMode ? 'Update Project' : 'Add Project';
-    //     hideDashboardLoading();
-
-    //     if (!response.success) {
-    //       errorMessageElement.textContent = response.error;
-    //       errorMessageElement.style.display = 'block';
-    //       return;
-    //     }
-        
-    //     closeModalFn();
-    //     const welcomeMessage = document.querySelector('.welcome-message');
-    //     if (welcomeMessage) {
-    //       welcomeMessage.style.display = 'none';
-    //     }
-    //     loadProjects(); // Reload projects on success
-    //   }
-
-    //   /**
-    //    * Handles the failure response from adding or updating a project.
-    //    * @param {object} error - The error object from the server call.
-    //    * @param {boolean} isEditMode - True if the operation was an update, false for an add.
-    //    * @param {HTMLElement} submitBtn - The submit button element.
-    //    * @param {HTMLElement} errorMessageElement - The error message display element.
-    //    */
-    //   function _handleProjectFormSubmitError(error, isEditMode, submitBtn, errorMessageElement) {
-    //     submitBtn.disabled = false;
-    //     submitBtn.textContent = isEditMode ? 'Update Project' : 'Add Project';
-    //     hideDashboardLoading();
-    //     errorMessageElement.textContent = 'Error ' + (isEditMode ? 'updating' : 'adding') + ' project: ' + (error.message || error.toString());
-    //     errorMessageElement.style.display = 'block';
-    //   }
-
-    //   // Open modal for new project
-    //   addProjectButton.addEventListener('click', function() {
-    //     // Reset form and set to Add mode
-    //     form.reset();
-    //     modalTitle.textContent = 'Add New Project';
-    //     submitBtn.textContent = 'Add Project';
-    //     projectIdField.value = '';
-    //     isEditModeField.value = 'false';
-        
-    //     modal.classList.add('visible');
-    //   });
-      
-    //   // Close modal functions
-    //   function closeModal() {
-    //     modal.classList.remove('visible');
-    //     form.reset();
-    //     errorMessage.style.display = 'none';
-        
-    //     // Reset any edit buttons that might be in loading state
-    //     document.querySelectorAll('.edit-project-btn.loading').forEach(button => {
-    //       button.classList.remove('loading');
-    //     });
-    //   }
-      
-    //   closeBtn.addEventListener('click', closeModal);
-    //   cancelBtn.addEventListener('click', closeModal);
-      
-    //   // Close when clicking outside the modal
-    //   modal.addEventListener('click', function(event) {
-    //     if (event.target === modal) {
-    //       closeModal();
-    //     }
-    //   });
-      
-    //   // Open modal for editing an existing project
-    //   document.addEventListener('click', function(event) {
-    //     if (event.target.classList.contains('edit-project-btn') || 
-    //         (event.target.parentElement && event.target.parentElement.classList.contains('edit-project-btn'))) {
-    //       // Get the button and project ID
-    //       const button = event.target.classList.contains('edit-project-btn') ? 
-    //                      event.target : event.target.parentElement;
-    //       const projectId = button.getAttribute('data-project-id');
-          
-    //       // Show loading state on the button
-    //       button.classList.add('loading');
-          
-    //       // Fetch project data
-    //       google.script.run
-    //         .withSuccessHandler(function(response) {
-    //           // Reset loading state
-    //           button.classList.remove('loading');
-              
-    //           if (!response.success) {
-    //             alert('Error loading project: ' + response.error);
-    //             return;
-    //           }
-              
-    //           // Fill form with project data
-    //           _populateProjectForm(response.project);
-              
-    //           // Set form to Edit mode
-    //           modalTitle.textContent = 'Edit Project';
-    //           submitBtn.textContent = 'Update Project';
-    //           projectIdField.value = projectId;
-    //           isEditModeField.value = 'true';
-              
-    //           // Show modal
-    //           modal.classList.add('visible');
-    //         })
-    //         .withFailureHandler(function(error) {
-    //           // Reset loading state on error
-    //           button.classList.remove('loading');
-    //           alert('Error loading project: ' + error);
-    //         })
-    //         .getProjectById(projectId);
-    //     }
-    //   });
-      
-    //   // Form submission
-    //   submitBtn.addEventListener('click', function() {
-    //     const nameInput = document.getElementById('projectNameInput');
-        
-    //     if (!nameInput || !nameInput.value.trim()) {
-    //       errorMessage.textContent = 'Project name is required';
-    //       errorMessage.style.display = 'block';
-    //       return;
-    //     }
-        
-    //     // Get form data
-    //     const formData = _getProjectFormData();
-        
-    //     // Disable submit button and show loading state
-    //     submitBtn.disabled = true;
-    //     submitBtn.textContent = isEditModeField.value === 'true' ? 'Updating...' : 'Adding...';
-    //     errorMessage.style.display = 'none';
-        
-    //     // Determine whether to add or update
-    //     const isEditMode = isEditModeField.value === 'true';
-    //     const projectId = projectIdField.value;
-        
-    //     // Show loading overlay
-    //     showDashboardLoading(isEditMode ? 'Updating project...' : 'Adding project...');
-        
-    //     if (isEditMode) {
-    //       // Update existing project
-    //       google.script.run
-    //         .withSuccessHandler(function(response) {
-    //           _handleProjectFormSubmitSuccess(response, true, submitBtn, closeModal, errorMessage);
-    //         })
-    //         .withFailureHandler(function(error) {
-    //           _handleProjectFormSubmitError(error, true, submitBtn, errorMessage);
-    //         })
-    //         .updateProject(projectId, formData);
-    //     } else {
-    //       // Add new project
-    //       google.script.run
-    //         .withSuccessHandler(function(response) {
-    //           _handleProjectFormSubmitSuccess(response, false, submitBtn, closeModal, errorMessage);
-    //         })
-    //         .withFailureHandler(function(error) {
-    //           _handleProjectFormSubmitError(error, false, submitBtn, errorMessage);
-    //         })
-    //         .addProject(formData);
-    //     }
-    //   });
-    // }
-    
-    
     // Render the Gantt chart with the provided tasks
     function renderGanttChart(tasks) {
       if (!tasks || tasks.length === 0) {
@@ -2134,50 +1906,6 @@
         .clearTemporaryItemData();
     }
 
-    // --- Integration Points (TODO: Implement these based on your UI structure) ---
-    // Example: When the relevant page/tab/section for item entry loads:
-    // document.addEventListener('DOMContentLoaded', function() { // Or a more specific event
-    //   if (isItemEntryPageActive()) { // Replace with your condition
-    //     handleLoadDraftItem();
-    //   }
-    // });
-
-    // Example: When navigating away from item entry (e.g., clicking another tab)
-    // const categoryTabButton = document.getElementById('categoryTabButton'); // Replace with your selector
-    // if (categoryTabButton) {
-    //   categoryTabButton.addEventListener('click', function() {
-    //     if (isCurrentlyOnItemEntryTab()) { // Replace with your condition
-    //       handleSaveDraftItem();
-    //     }
-    //   });
-    // }
-    
-    // Example: Before the window unloads (more generic, might catch too much but good fallback)
-    // window.addEventListener('beforeunload', function() {
-    //    if (isCurrentlyOnItemEntryTab() && hasUnsavedItemData()) { // your conditions
-    //        handleSaveDraftItem();
-           // Note: synchronous google.script.run calls are not allowed in beforeunload.
-           // You might need a more sophisticated way or accept that some data might be lost if relying solely on beforeunload for this.
-           // Better to save on explicit navigation actions like tab clicks.
-    //    }
-    // });
-
-
-    // Example: After successfully submitting an item to the Master List:
-    // function onItemSuccessfullyAddedToMasterList() {
-    //   handleClearDraftItem();
-    //   // ... your existing success logic ...
-    // }
-
-    // Example: If you have a "Discard" or "Cancel" button for the item entry:
-    // const discardItemButton = document.getElementById('discardItemEntryButton'); // Replace with your selector
-    // if (discardItemButton) {
-    //   discardItemButton.addEventListener('click', function() {
-    //     clearItemForm(); // Your function to clear the form fields
-    //     handleClearDraftItem();
-    //   });
-    // }
-
     // MODIFIED setupGanttObserver (V2.5 - uses V4 functions)
     function setupGanttObserver() {
       if (ganttObserver) {
@@ -2350,7 +2078,7 @@
           html += `
             <li class="checkbox-item">
               <input type="checkbox" class="styled-checkbox" id="${categoryId}" data-room="${escapeHtml(room)}" data-category="${escapeHtml(category)}" 
-                     onchange="handleCategorySelectionChange(this, 'main')" ${isChecked ? 'checked' : ''}>
+                     ${isChecked ? 'checked' : ''}>
               <label for="${categoryId}" class="checkbox-label">${escapeHtml(category)}</label>
             </li>`;
         });
@@ -2365,6 +2093,25 @@
 
       renderUIState(container, 'success'); // Clear loading/error
       container.innerHTML = html;
+
+      // Add debounced event listeners for category checkboxes
+      const categoryCheckboxes = container.querySelectorAll('.styled-checkbox');
+
+      const debouncedHandleCategoryChange = debounce((checkboxElement, loc) => {
+        if (typeof handleCategorySelectionChange === 'function') {
+          handleCategorySelectionChange(checkboxElement, loc, true); // Pass true for isAutoSave
+        } else {
+          console.error('handleCategorySelectionChange function is not defined.');
+        }
+      }, 750); // 750ms delay, adjust as needed
+
+      categoryCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() { // 'this' here is the checkbox
+          console.log(`Category checkbox for room '${this.dataset.room}', category '${this.dataset.category}' in ${location} changed. Triggering debounced save.`);
+          // The 'location' variable is from the outer scope of renderRoomCategoriesUI
+          debouncedHandleCategoryChange(this, location); 
+        });
+      });
 
       // If in 'main' and there are rooms, ensure the first tab's content is active.
       if (location === 'main' && selectedRooms.length > 0) {
@@ -2412,7 +2159,7 @@
      * @param {HTMLInputElement} checkbox - The checkbox element that changed.
      * @param {string} location - 'sidebar' or 'main'.
      */
-    function handleCategorySelectionChange(checkbox, location = 'main') { // Default location to main
+    function handleCategorySelectionChange(checkbox, location = 'main', isAutoSave = false) { // Default location to main, add isAutoSave parameter
       const roomName = checkbox.dataset.room;
       const categoryName = checkbox.dataset.category;
       const isSelected = checkbox.checked;
@@ -2433,16 +2180,12 @@
       google.script.run
         .withSuccessHandler(function(result) {
           if (result && result.success) {
-            showDashboardStatusMessage('Category \'' + categoryName + '\' ' + (isSelected ? 'assigned to' : 'unassigned from') + ' ' + roomName + '.', false, location); // Corrected line
-            // Potentially update a global state if needed, or re-fetch if complex dependencies.
-            // For now, optimistic update is fine.
 
             // Refresh home sidebar content after successful category change
             if (typeof updateHomeSidebarContent === 'function') {
               // Add a small delay to allow server-side changes to propagate
               setTimeout(function() {
-                console.log('Refreshing home sidebar after category assignment change for room: ' + roomName);
-                updateHomeSidebarContent(true); // Assuming true triggers a full refresh
+                updateHomeSidebarContent(false); // Assuming true triggers a full refresh
               }, 300); // 300ms delay
             } else {
               console.warn('updateHomeSidebarContent function not found. Home sidebar will not be refreshed automatically.');

@@ -3,7 +3,7 @@
 ## 1. Product overview
 ### 1.1 Document title and version
 - PRD: Norton Project Sheet
-- Version: 1.4 (Updated for consistent DATA_SHEET_ID handling and master template workflow)
+- Version: 1.4.1 (Fixed formula bug in SPEC sheet generation)
 
 ### 1.2 Product summary
    - This Google App Script assists users in building and maintaining a Google Sheet to manage interior design projects using a dialog UI. It allows users to select rooms for the project and manage those rooms (add, update, and delete).
@@ -245,6 +245,13 @@ Sarah, a Lead Interior Designer, wants to quickly create accurate and profession
    - **Focus Area 5: Sheet Generation Logic (Review/Refine Priority)**
      - Goal: Verify that the sheet generation process accurately reflects the data in the temporary sheets and produces the output in the specified column format (`ROOM`, `TYPE`, `ITEM`, `QUANTITY` + headers for manual entry columns).
      - Key activities: Review and optimize the function that populates the final output tab.
+
+## 8. Changelog
+### Version 1.4.1 (YYYY-MM-DD)
+- **Fix**: Corrected an issue in the `_processAndCopyItemsInternal` function where formulas for "Low Total" and "High Total" columns in the "SPEC" sheet were referencing incorrect cells due to an additional "ACTUAL PRICE" column. The formulas are now dynamically generated using A1 notation based on the "SPEC" sheet's specific column layout for "QUANTITY", "LOW", and "HIGH" to ensure accurate calculations.
+
+---
+[Previous content of PRD continues from here if any]
 
 <!-- ## 10. User stories
 
