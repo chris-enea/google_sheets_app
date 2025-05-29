@@ -25,13 +25,13 @@ function saveSettings(asanaToken, sheetId, projectColor) {
 
 /**
  * Retrieves the project name from ScriptProperties.
- * @return {string} The project name or an empty string if not set.
+ * @return {string} The project name (base name) or an empty string if not set.
  */
 function getProjectNameFromProperties() {
   try {
     const scriptProps = PropertiesService.getScriptProperties();
-    const projectName = scriptProps.getProperty('PROJECT_NAME');
-    return projectName || ''; // Return empty string if not set
+    const projectName = scriptProps.getProperty('PROJECT_NAME'); // This should be the base project name
+    return projectName || ''; 
   } catch (e) {
     Logger.log('Error getting project name from properties: ' + e.toString());
     throw 'Error retrieving project name.'; 
@@ -39,9 +39,9 @@ function getProjectNameFromProperties() {
 }
 
 /**
- * Saves the project name to ScriptProperties.
- * @param {string} projectName - The project name to save.
- * @return {string} The saved project name.
+ * Saves the base project name to ScriptProperties.
+ * @param {string} projectName - The base project name to save.
+ * @return {string} The saved base project name.
  */
 function saveProjectNameToProperties(projectName) {
   try {
@@ -49,8 +49,8 @@ function saveProjectNameToProperties(projectName) {
       throw 'Project name cannot be empty.';
     }
     const scriptProps = PropertiesService.getScriptProperties();
-    scriptProps.setProperty('PROJECT_NAME', projectName.trim());
-    return projectName.trim(); // Return the saved name for confirmation
+    scriptProps.setProperty('PROJECT_NAME', projectName.trim()); // Stores the base project name
+    return projectName.trim(); 
   } catch (e) {
     Logger.log('Error saving project name to properties: ' + e.toString());
     throw 'Error saving project name: ' + e.toString(); 
@@ -932,4 +932,359 @@ function saveSelectedItemsWithTemplateCopy(items) {
       error: "Error saving items: " + error.message
     };
   }
+}
+
+/**
+ * Shows the Master Action Dialog. Called from a custom menu.
+ */
+function showMasterActionDialog_fromMenu() {
+  const ui = SpreadsheetApp.getUi();
+  const htmlOutput = HtmlService.createHtmlOutputFromFile('MasterActionDialog')
+      .setWidth(400)
+      .setHeight(300);
+  ui.showModalDialog(htmlOutput, 'Master Template Options');
+}
+
+/**
+ * @OnlyCurrentDoc
+ * The onOpen function runs automatically when the Google Docs, Sheets, Slides, or Forms file is opened.
+ */
+function onOpen(e) {
+  var ui = SpreadsheetApp.getUi();
+  try {
+    // Check script properties to determine the state of the sheet
+    const scriptProps = PropertiesService.getScriptProperties();
+    const isMaster = scriptProps.getProperty('IS_MASTER_TEMPLATE') === 'true';
+    const masterTemplateActualId = scriptProps.getProperty('MASTER_TEMPLATE_ACTUAL_ID');
+    const projectInitialized = scriptProps.getProperty('PROJECT_INITIALIZED') === 'true';
+    const currentFileId = SpreadsheetApp.getActiveSpreadsheet().getId();
+
+    Logger.log('onOpen: IS_MASTER_TEMPLATE = ' + isMaster);
+    Logger.log('onOpen: MASTER_TEMPLATE_ACTUAL_ID = ' + masterTemplateActualId);
+    Logger.log('onOpen: PROJECT_INITIALIZED = ' + projectInitialized);
+    Logger.log('onOpen: Current File ID = ' + currentFileId);
+
+    if (isMaster && masterTemplateActualId === currentFileId) {
+      // This IS the Master Template
+      Logger.log('Mode: Master Template');
+      ui.createMenu('Setup New Project') 
+          .addItem('Create NEW project', 'showMasterActionDialog_fromMenu')
+          .addToUi();
+    } else if (!projectInitialized) {
+      // This is NOT the master template AND it's NOT initialized
+      Logger.log('Mode: Unconfigured Sheet');
+      
+      let projectManagerMenu = ui.createMenu('Project Manager');
+      let setupSubMenu = ui.createMenu('Setup');
+      setupSubMenu.addItem('Initialize this Sheet as Project', 'initializeAsProjectManually');
+      projectManagerMenu.addSubMenu(setupSubMenu);
+      // Add "Open Dashboard" here, but it will be checked for initialization
+      projectManagerMenu.addItem('Open Dashboard', 'openDashboard');
+      projectManagerMenu.addToUi();
+
+      ui.alert(
+        'Sheet Not Configured',
+        'This sheet is not yet configured as a project. Please use the "Project Manager > Setup > Initialize this Sheet as Project" menu item to configure it.',
+        ui.ButtonSet.OK
+      );
+    } else {
+      // This is an Initialized Project
+      Logger.log('Mode: Initialized Project');
+      loadStandardMenus(ui, scriptProps, false, true); 
+    }
+  } catch (err) {
+    Logger.log('Error in onOpen: ' + err.toString() + '\n' + err.stack);
+    // Ensure the message is a string for ui.alert
+    const errorMessage = err.message ? String(err.message) : 'An unknown error occurred.';
+    ui.alert('Error', 'An error occurred during sheet opening: ' + errorMessage, ui.ButtonSet.OK);
+  }
+}
+
+/**
+ * Loads the standard menus for an initialized project.
+ * @param {GoogleAppsScript.Base.Ui} ui The UI instance.
+ * @param {GoogleAppsScript.Properties.Properties} scriptProps The script properties.
+ * @param {boolean} isMaster Indicates if the current sheet is the master template.
+ * @param {boolean} isInitialized Indicates if the current sheet is an initialized project.
+ */
+function loadStandardMenus(ui, scriptProps, isMaster, isInitialized) {
+  // Determine the Project Name for the menu
+  let projectName = scriptProps.getProperty('PROJECT_NAME');
+  let menuTitle = 'Project Manager';
+  if (projectName) {
+    // menuTitle = projectName; // Using 'Project Manager' for consistency
+  }
+
+  let projectManagerMenu = ui.createMenu(menuTitle);
+  
+  projectManagerMenu.addSeparator();
+  
+  projectManagerMenu.addToUi();
+
+  // Add Sheet Manager menu only for initialized projects
+  if (isInitialized && !isMaster) {
+    projectManagerMenu.addItem('Split Items by SPEC/FFE', 'splitItemsByFFE');
+    // Add other Sheet Manager items here if needed in the future
+    projectManagerMenu.addToUi();
+  }
+}
+
+/**
+ * Called by onOpen for unconfigured sheets or by initializeAsProjectManually after completion.
+ * This function specifically sets up the minimal menu after initialization without a reload.
+ */
+function updateMenuAfterInitialization() {
+  const ui = SpreadsheetApp.getUi();
+  // Clear all existing menus first to avoid duplicates or old items.
+  // Note: Apps Script does not offer a direct way to remove a specific menu by name after it's added.
+  // The common practice is to rebuild all menus or rely on the onOpen trigger for a full refresh.
+  // For an immediate change, we will build just the 'Project Manager' menu.
+  // A full refresh (re-opening the sheet) will ensure all menus are correctly loaded by onOpen.
+  
+  let projectManagerMenu = ui.createMenu('Project Manager');
+  projectManagerMenu.addItem('Open Dashboard', 'openDashboard'); // Add only Open Dashboard initially
+  // projectManagerMenu.addSeparator(); // Separator might not be needed if Setup is removed
+
+  // let setupSubMenu = ui.createMenu('Setup'); // Removed as per request
+  // setupSubMenu.addItem('Edit Project Configuration', 'editProjectProperties');
+  // setupSubMenu.addItem('View Project Properties', 'viewProjectProperties');
+  
+  // projectManagerMenu.addSubMenu(setupSubMenu); // Removed as per request
+  projectManagerMenu.addSeparator();
+  projectManagerMenu.addItem('Split Items by SPEC/FFE', 'splitItemsByFFE');
+  projectManagerMenu.addToUi(); 
+
+
+  Logger.log("Menu updated dynamically after initialization to show only 'Open Dashboard'.");
+}
+
+function initializeAsProjectManually(showAlertOnCancel = true) {
+    const ui = SpreadsheetApp.getUi();
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const scriptProps = PropertiesService.getScriptProperties();
+    const FILE_SUFFIX = " - Budget Sheet";
+    
+    let projectName = ss.getName();
+    if (projectName.endsWith(FILE_SUFFIX)) {
+        projectName = projectName.substring(0, projectName.length - FILE_SUFFIX.length);
+    }
+    projectName = projectName.trim();
+
+    if (!projectName) {
+        ui.alert("Initialization Error", "The sheet name is not valid for project initialization (e.g., it might be empty or only contain the suffix). Please give the sheet a meaningful name and try again.", ui.ButtonSet.OK);
+        return false;
+    }
+    
+    // Logger.log(`Derived Project Name: ${projectName}`); // Optional: for debugging
+
+    const HARDCODED_DATA_SHEET_ID = "1c9xqP_dxM7T_RG8KYahXGknV6t4YyJa6tXUxmBL_xx8";
+    // const dataSheetIdResponse = ui.prompt("Initialize Project", `Enter Master Data Sheet ID for project "${projectName}":`, ui.ButtonSet.OK_CANCEL);
+    //  if (dataSheetIdResponse.getSelectedButton() !== ui.Button.OK) {
+    //     if (showAlertOnCancel) ui.alert("Cancelled", "Project initialization cancelled.", ui.ButtonSet.OK);
+    //     return false;
+    // }
+    // const dataSheetId = dataSheetIdResponse.getResponseText().trim();
+    // if (!dataSheetId) {
+    //     ui.alert("Error", "Master Data Sheet ID cannot be empty.", ui.ButtonSet.OK);
+    //     return false;
+    // }
+    const dataSheetId = HARDCODED_DATA_SHEET_ID; // Use the hardcoded ID
+
+    scriptProps.setProperty('PROJECT_NAME', projectName); 
+    scriptProps.setProperty('DATA_SHEET_ID', dataSheetId); // This will now use the hardcoded value
+    scriptProps.setProperty('PROJECT_INITIALIZED', 'true');
+    scriptProps.setProperty('IS_MASTER_TEMPLATE', 'false'); 
+    scriptProps.deleteProperty('MASTER_TEMPLATE_ACTUAL_ID'); 
+    
+    // const fullFileNameForRename = projectName + FILE_SUFFIX;
+    // if (ss.getName() !== fullFileNameForRename) {
+    //     ss.rename(fullFileNameForRename);
+    //     ui.alert('Project Initialized & Renamed', `Project "${projectName}" is now set up. File renamed to "${fullFileNameForRename}". Standard menus should load correctly. You might need to reopen.`, ui.ButtonSet.OK);
+    // } else {
+    //     ui.alert('Project Initialized', `Project "${projectName}" is now set up. Standard menus should load correctly. You might need to reopen.`, ui.ButtonSet.OK);
+    // }
+    ui.alert('Project Initialized', `Project "${projectName}" is now set up. The 'Open Dashboard' menu item is now available.`, ui.ButtonSet.OK);
+    
+    // Dynamically update the menu
+    updateMenuAfterInitialization();
+    return true;
+}
+
+/* // Removed function as it is no longer used after removing the menu item
+function viewTemplateProperties() {
+  const scriptProps = PropertiesService.getScriptProperties();
+  const props = scriptProps.getProperties();
+  let message = "Master Template Properties:\n";
+  message += `IS_MASTER_TEMPLATE: ${props['IS_MASTER_TEMPLATE'] || 'Not Set'}\n`;
+  message += `MASTER_TEMPLATE_ACTUAL_ID: ${props['MASTER_TEMPLATE_ACTUAL_ID'] || 'Not Set'}\n`;
+  message += `PROJECT_NAME: ${props['PROJECT_NAME'] || 'Not Set (should be empty for master)'}\n`;
+  message += `DATA_SHEET_ID: ${props['DATA_SHEET_ID'] || 'Not Set (should be empty for master)'}\n`;
+  message += `PROJECT_INITIALIZED: ${props['PROJECT_INITIALIZED'] || 'Not Set (should be false for master)'}\n`;
+  SpreadsheetApp.getUi().alert(message);
+}
+*/
+
+function viewProjectProperties() {
+  const scriptProps = PropertiesService.getScriptProperties();
+  const props = scriptProps.getProperties();
+  let message = "Current Project/Sheet Properties:\n";
+  message += `IS_MASTER_TEMPLATE: ${props['IS_MASTER_TEMPLATE'] || 'Not Set'}\n`;
+  message += `MASTER_TEMPLATE_ACTUAL_ID: ${props['MASTER_TEMPLATE_ACTUAL_ID'] || 'Not Set (should be empty for initialized projects)'}\n`;
+  message += `PROJECT_NAME: ${props['PROJECT_NAME'] || 'Not Set'}\n`;
+  message += `DATA_SHEET_ID: ${props['DATA_SHEET_ID'] || 'Not Set'}\n`;
+  message += `PROJECT_INITIALIZED: ${props['PROJECT_INITIALIZED'] || 'Not Set'}\n`;
+  SpreadsheetApp.getUi().alert(message);
+}
+
+function editProjectProperties() {
+    const ui = SpreadsheetApp.getUi();
+    const scriptProps = PropertiesService.getScriptProperties();
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const FILE_SUFFIX = " - Budget Sheet";
+    
+    if (scriptProps.getProperty('IS_MASTER_TEMPLATE') === 'true' && scriptProps.getProperty('MASTER_TEMPLATE_ACTUAL_ID') === ss.getId()) {
+        ui.alert("Action Not Allowed", "This is the Master Template. Its critical properties (IS_MASTER_TEMPLATE, MASTER_TEMPLATE_ACTUAL_ID) are set manually by an admin. Project-specific properties are not applicable here.", ui.ButtonSet.OK);
+        return;
+    }
+    if (scriptProps.getProperty('PROJECT_INITIALIZED') !== 'true') {
+        ui.alert("Project Not Initialized", "This project is not yet initialized. Please initialize it first using the 'Setup' menu.", ui.ButtonSet.OK);
+        return;
+    }
+
+    const currentProjectName = scriptProps.getProperty('PROJECT_NAME') || ""; 
+    const currentDataSheetId = scriptProps.getProperty('DATA_SHEET_ID') || '';
+
+    const newProjectNameResponse = ui.prompt("Edit Project Name", "Enter new Project Name:", ui.ButtonSet.OK_CANCEL, currentProjectName);
+    if (newProjectNameResponse.getSelectedButton() !== ui.Button.OK) return;
+    const newProjectName = newProjectNameResponse.getResponseText().trim();
+    
+    if (!newProjectName) {
+        ui.alert("Error", "Project Name cannot be empty.", ui.ButtonSet.OK);
+        return;
+    }
+
+    const dataSheetIdResponse = ui.prompt("Edit Master Data Sheet ID", `Enter new Master Data Sheet ID for project "${newProjectName}":`, ui.ButtonSet.OK_CANCEL, currentDataSheetId);
+    if (dataSheetIdResponse.getSelectedButton() !== ui.Button.OK) return;
+    const newDataSheetId = dataSheetIdResponse.getResponseText().trim();
+
+    if (!newDataSheetId) {
+        ui.alert("Error", "Master Data Sheet ID cannot be empty.", ui.ButtonSet.OK);
+        return;
+    }
+
+    scriptProps.setProperty('PROJECT_NAME', newProjectName);
+    scriptProps.setProperty('DATA_SHEET_ID', newDataSheetId);
+    
+    // const newFullFileName = newProjectName + FILE_SUFFIX;
+    // if (ss.getName() !== newFullFileName) {
+    //   ss.rename(newFullFileName);
+    // }
+    
+    // ui.alert('Properties Updated', `Project properties updated to:\nName: ${newProjectName}\nData Sheet ID: ${newDataSheetId}.\nSheet file name updated to "${newFullFileName}". You may need to reopen for all changes to reflect.`, ui.ButtonSet.OK);
+    ui.alert('Properties Updated', `Project properties updated to:\nName: ${newProjectName}\nData Sheet ID: ${newDataSheetId}.\nYou may need to reopen for all changes to reflect.`, ui.ButtonSet.OK);
+}
+
+/**
+ * Called from the MasterActionDialog.html when the user submits a project name.
+ * Handles the creation of a new project sheet by copying the master template.
+ * @param {string} baseProjectName The base name for the new project.
+ * @return {object} An object with success status, message, and optionally URL and fileName.
+ */
+function handleCreateProjectFromMaster(baseProjectName) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const FILE_SUFFIX = " - Budget Sheet";
+  Logger.log(`handleCreateProjectFromMaster called with projectName: ${baseProjectName}`);
+
+  if (!baseProjectName || baseProjectName.trim() === "") {
+    Logger.log('handleCreateProjectFromMaster: Project name was empty.');
+    return { success: false, message: "Project Name cannot be empty." };
+  }
+
+  const fullFileName = baseProjectName.trim() + FILE_SUFFIX;
+  try {
+    const newSpreadsheet = ss.copy(fullFileName);
+    Logger.log(`New project created: "${fullFileName}", ID: ${newSpreadsheet.getId()}`);
+    return {
+      success: true,
+      message: `Project file created successfully! IMPORTANT: Open the new file and use the 'Project Manager > Setup > Initialize this Sheet as Project' menu to complete configuration.`,
+      url: newSpreadsheet.getUrl(),
+      fileName: fullFileName
+    };
+  } catch (e) {
+    Logger.log(`Error copying master template in handleCreateProjectFromMaster: ${e.toString()}`);
+    return { success: false, message: "Could not create the new project copy: " + e.toString() };
+  }
+}
+
+/**
+ * Called from the MasterActionDialog.html when the user chooses to edit the master template.
+ * Ensures standard master menus are loaded and informs the dialog.
+ * @return {string} A message to display in the dialog.
+ */
+function prepareEditMaster() {
+  Logger.log('prepareEditMaster called.');
+  const ui = SpreadsheetApp.getUi();
+  const scriptProps = PropertiesService.getScriptProperties();
+  // Assuming currentFileId logic for master is already handled by onOpen determining it IS master
+  // We just need to ensure the correct menus are loaded.
+  // loadStandardMenus(ui, scriptProps, true, false); // isMaster=true, isInitialized=false // This was causing issues, master menu is simpler.
+  // The master menu is already set up by onOpen if it's a master.
+  // If this function is called, it's from the dialog AFTER confirming to edit master.
+  // The dialog should just close.
+  google.script.host.close(); 
+  return "Master template editing menus are now active. You can close this dialog if it doesn't close automatically.";
+}
+
+/**
+ * Opens the project dashboard.
+ * Checks if the project is initialized before opening.
+ */
+function openDashboard() {
+  const scriptProps = PropertiesService.getScriptProperties();
+  const projectInitialized = scriptProps.getProperty('PROJECT_INITIALIZED') === 'true';
+  const ui = SpreadsheetApp.getUi();
+
+  if (!projectInitialized) {
+    ui.alert(
+      'Project Not Initialized',
+      'This project is not yet initialized. Please use the "Project Manager > Setup > Initialize this Sheet as Project" menu item to configure it before opening the dashboard.',
+      ui.ButtonSet.OK
+    );
+    return;
+  }
+  // Assuming showProjectDashboardDefault is defined in ui.js or another loaded script file
+  // and it handles displaying the dashboard.
+  showProjectDashboardDefault(); 
+}
+
+// Make sure to define openGanttChart, syncAsanaTasks, and openSettingsDialog if they are intended to be functional.
+// For now, they are placeholders called by loadStandardMenus.
+// Example placeholder for openGanttChart:
+function openGanttChart() {
+  SpreadsheetApp.getUi().alert("Placeholder: Open Gantt Chart functionality not yet implemented.");
+}
+function syncAsanaTasks() {
+  SpreadsheetApp.getUi().alert("Placeholder: Sync Asana Tasks functionality not yet implemented.");
+}
+// openSettingsDialog seems to be in DashboardScripts.js.html, ensure it's callable from server-side if needed
+// or called from a client-side handler that calls google.script.run.openSettingsDialog if it's a server function.
+// If it's a client-side function in an HTML dialog, then the menu item should open that dialog.
+// For consistency, if openSettingsDialog is to show a dialog, it should be like:
+// function openSettingsDialog() {
+//   const htmlOutput = HtmlService.createHtmlOutputFromFile('YourSettingsDialogFileName')
+//       .setWidth(XXX)
+//       .setHeight(YYY);
+//   SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Settings');
+// }
+// However, the grep result showed it in DashboardScripts.js.html, which implies it's a client-side JS function.
+// The menu can only call server-side Apps Script functions directly.
+// To call a client-side function like that, you'd typically have the menu item call a server function
+// that serves the HTML containing the DashboardScripts.js.html and its openSettingsDialog function.
+
+// To make 'Settings' functional in the menu if it's intended to open a dialog:
+function openSettingsDialog() {
+  // This assumes 'SettingsDialog.html' exists and is the entry point for your settings UI
+  // Or, if 'openSettingsDialog' is a global JS function in an already loaded sidebar/dialog, this won't work directly.
+  // For now, similar to Gantt/Asana:
+  SpreadsheetApp.getUi().alert("Placeholder: Open Settings Dialog functionality to be confirmed (is it server or client-side?).");
 }

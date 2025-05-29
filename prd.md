@@ -3,7 +3,7 @@
 ## 1. Product overview
 ### 1.1 Document title and version
 - PRD: Norton Project Sheet
-- Version: 1.0
+- Version: 1.4 (Updated for consistent DATA_SHEET_ID handling and master template workflow)
 
 ### 1.2 Product summary
    - This Google App Script assists users in building and maintaining a Google Sheet to manage interior design projects using a dialog UI. It allows users to select rooms for the project and manage those rooms (add, update, and delete).
@@ -34,9 +34,46 @@
    - **All Users**: Currently, there is no user authentication or role-based access control. All users of the Google Sheet and associated App Script will have the same level of access to create, read, update, and delete project data.
 ## 4. Functional requirements
    - **Project Initialization & Configuration** (Priority: High)
-     - On first run or via a settings menu, allow user to set/update the ID of the Master Data Sheet (containing master lists for rooms, category types, and items) in `ScriptProperties` of the Active Project Sheet.
-     - Allow user to set/update a "Project Name" (e.g., "Johnson Residence Living Room") for the current design project, stored in `ScriptProperties` of the Active Project Sheet.
-     - The tool reads the Master Data Sheet ID (using `SpreadsheetApp.openById(ScriptProperties.getProperty('DATA_SHEET_ID'))`) and Project Name from `ScriptProperties` upon loading.
+     - **Master Template Setup (Manual, One-Time Admin Task):**
+       - The designated "Master Template" Google Sheet requires specific script properties to be manually set by an administrator via File > Project Properties > Script Properties:
+         - `IS_MASTER_TEMPLATE` (String): Set to `'true'`. Identifies this sheet as the master source.
+         - `MASTER_TEMPLATE_ACTUAL_ID` (String): Set to the actual Google Sheet file ID of this Master Template itself. Used for self-identification.
+         - `DATA_SHEET_ID` (String): Set to the file ID of the shared Master Data Sheet (which contains master lists for rooms, categories, items, etc.). This ID will be inherited by all new projects created from this template.
+       - Important: Project-specific properties like `PROJECT_NAME` and `PROJECT_INITIALIZED` must NOT be set or must be cleared from the Master Template's script properties. The `DATA_SHEET_ID` set here is the *default* for new projects.
+     - **Project Creation from Master (User-Initiated via UI):**
+       - When the Master Template sheet is opened, the `onOpen` script checks if `IS_MASTER_TEMPLATE` is `'true'` and if `MASTER_TEMPLATE_ACTUAL_ID` matches the current file's ID.
+       - If true, it presents the user with a choice (e.g., UI prompt or custom menu): "Create NEW project from this template" or "Edit Master Template content".
+       - If "Create NEW project" is chosen:
+         - The script prompts the user to enter a "Project Name".
+         - The script then creates a copy of the active Master Template sheet using `SpreadsheetApp.getActiveSpreadsheet().copy('[Project Name] - Budget Sheet')`.
+         - Crucially, this copy inherits all script properties from the Master Template, including `IS_MASTER_TEMPLATE`, `MASTER_TEMPLATE_ACTUAL_ID`, and the pre-configured `DATA_SHEET_ID`.
+         - The user is alerted that the new project file has been created and should be opened to complete initialization.
+     - **New Project Copy Initialization (Automatic on First Open of the Copy):**
+       - When a newly created project copy (e.g., "My Client Project - Budget Sheet") is opened by any user for the first time:
+         - The `onOpen` script in the copy detects its state: `IS_MASTER_TEMPLATE` is `'true'` (inherited), `MASTER_TEMPLATE_ACTUAL_ID` is present (inherited) but does *not* match the *current* file's ID, and `PROJECT_INITIALIZED` is not `'true'` (or is absent).
+         - The script automatically extracts the base "Project Name" from the current file name (e.g., "My Client Project" from "My Client Project - Budget Sheet").
+         - The script **does not prompt the user for the Master Data Sheet ID**. It uses the `DATA_SHEET_ID` value that was inherited directly from the Master Template's script properties.
+         - The script then finalizes the project copy's configuration by setting its script properties:
+           - `PROJECT_NAME`: Set to the extracted base name (e.g., "My Client Project").
+           - `PROJECT_INITIALIZED`: Set to `'true'`. This marks the project as fully configured.
+           - `IS_MASTER_TEMPLATE`: Set to `'false'`. This sheet is now a project, not a master.
+           - `MASTER_TEMPLATE_ACTUAL_ID`: This property is deleted from the project copy as it's no longer relevant.
+           - The `DATA_SHEET_ID` (inherited from master) is retained and is now the active data sheet for this project.
+         - An alert message confirms successful initialization, e.g., "Project 'My Client Project' has been initialized using Data Sheet ID: [value of inherited DATA_SHEET_ID]. Standard menus are now active."
+     - **Initialized Project Operation (Normal Use):**
+       - On subsequent opens of an initialized project (where `PROJECT_INITIALIZED` is `'true'`):
+         - The `onOpen` script confirms `IS_MASTER_TEMPLATE` is `false` and `MASTER_TEMPLATE_ACTUAL_ID` is absent (and may perform self-correction if these are unexpectedly found, logging a warning).
+         - The script proceeds to load standard project menus and functionalities, using the `PROJECT_NAME` and `DATA_SHEET_ID` stored in its own script properties.
+     - **Manual Project Initialization (Fallback for Unconfigured or Externally Copied Sheets):**
+       - A menu option, e.g., `Project Manager > Setup > Initialize Sheet as Project Manually`, is available for sheets that are not the Master Template and are not yet initialized (e.g., a sheet copied manually outside the script, or if the automatic initialization failed for some reason).
+       - This function will:
+         - Prompt for "Project Name", suggesting a default extracted from the current file name if possible.
+         - Check if a `DATA_SHEET_ID` property already exists (e.g., inherited from a master if it was a copy that failed to auto-initialize). If found, it may confirm with the user if they want to use this ID, or prompt for a new one if it seems invalid or is missing.
+         - If no valid `DATA_SHEET_ID` is found or confirmed, it will prompt the user to input the `DATA_SHEET_ID` manually.
+         - Once a valid Project Name and `DATA_SHEET_ID` are obtained, it sets/updates the script properties: `PROJECT_NAME`, `DATA_SHEET_ID`, `PROJECT_INITIALIZED='true'`, `IS_MASTER_TEMPLATE='false'`, and ensures `MASTER_TEMPLATE_ACTUAL_ID` is cleared/deleted.
+         - It may also offer to rename the current file to the standard `[Project Name] - Budget Sheet` format if it doesn't already match.
+     - **Edit Project Configuration (for Initialized Projects):**
+       - An existing menu option, e.g., `Project Manager > Setup > Edit Project Configuration`, allows the user to view and update the `PROJECT_NAME` and `DATA_SHEET_ID` for an already initialized project. This is useful for correcting errors or changing the linked Master Data Sheet post-initialization.
    - **Master Data Management (via UI interacting with Master Data Sheet)** (Priority: High)
      - **Master Rooms List (from Master Data Sheet):**
        - Allow user to add new room names to the master list in the Master Data Sheet (e.g., via `getRooms`, `getRoomNamesFromSheet`).
@@ -79,13 +116,41 @@
      - **Room Category Assignment in Main Content**: Users can manage room category assignments directly in the main content area. This includes selecting a project room and then assigning/unassigning master category types to it. (New)
 ## 5. User experience
 ### 5.1. Entry points & first-time user flow
-- Users access the tool via a custom menu item in Google Sheets, e.g., "Setup Sheet" > "Open Project Manager" (or a similar submenu item that launches the main UI).
-- **First-Time Setup (Manual):** The initial script setup, including setting the `DATA_SHEET_ID` and potentially a default `Project Name` in `ScriptProperties`, is handled manually by an administrator or the user themself through a separate process or script function. The main project building UI assumes these properties are set.
-- The UI will load the Project Name from `ScriptProperties` to display it, confirming context for the user.
+- Users access the tool via a custom menu item in Google Sheets. The `onOpen` function dynamically determines the sheet's state (Master Template, New Project Copy pending initialization, Initialized Project, or Unconfigured Sheet) and adjusts available menu options and behavior accordingly.
+- **Master Template First-Time Setup (Manual Admin Task - One Time):**
+  - An administrator or designated setup user manually opens the script editor for the Google Sheet file intended to be the Master Template.
+  - Navigates to File > Project Properties > Script Properties tab.
+  - Adds (or edits if existing) the following script properties:
+    - Key: `IS_MASTER_TEMPLATE`, Value: `true` (as a string: `'true'`)
+    - Key: `MASTER_TEMPLATE_ACTUAL_ID`, Value: The actual file ID of this Master Template sheet (copied from its URL)
+    - Key: `DATA_SHEET_ID`, Value: The file ID of the shared Master Data Sheet that new projects will use by default
+  - Ensures any project-specific properties like `PROJECT_NAME` or `PROJECT_INITIALIZED` are NOT present or are explicitly cleared from the Master Template's script properties.
+- **User Creating a New Project (from the Master Template):**
+  - User opens the designated Master Template Google Sheet.
+  - The `onOpen` script detects it's the master. A UI prompt (or custom menu) appears: "This is the Master Template. What would you like to do?" with options like "Create a NEW project from this template" and "Continue editing Master Template content".
+  - User selects "Create a NEW project...".
+  - A prompt asks: "Please enter the base Project Name for the new project:".
+  - User enters, for example, "Johnson Residence Phase 1".
+  - The script executes `SpreadsheetApp.getActiveSpreadsheet().copy('Johnson Residence Phase 1 - Budget Sheet')`.
+  - An alert confirms: "New project file 'Johnson Residence Phase 1 - Budget Sheet' has been created. Please open this new file from your Google Drive to complete its setup."
+- **User Opening a New Project Copy for the First Time (Automatic Initialization):**
+  - User opens the newly created file "Johnson Residence Phase 1 - Budget Sheet" from their Google Drive.
+  - The `onOpen` script in this copy runs and identifies it as a new, uninitialized copy (because `IS_MASTER_TEMPLATE` is `'true'` and `MASTER_TEMPLATE_ACTUAL_ID` doesn't match the current file's ID, and `PROJECT_INITIALIZED` is not `'true'`).
+  - The script automatically performs the following actions *without further user prompts for these specific items* (extracts "Johnson Residence Phase 1" as the Project Name from the file name, reads the `DATA_SHEET_ID` that was inherited from the Master Template, sets `PROJECT_NAME` to "Johnson Residence Phase 1", sets `PROJECT_INITIALIZED` to `'true'`, sets `IS_MASTER_TEMPLATE` to `'false'`, deletes the `MASTER_TEMPLATE_ACTUAL_ID` property, and sets `DATA_SHEET_ID` to the inherited value).
+  - An alert appears: "Project 'Johnson Residence Phase 1' has been initialized successfully. It will use Data Sheet ID: [the inherited DATA_SHEET_ID]. The standard project menus are now available."
+  - The full set of project-specific menus (e.g., 'Open Dashboard', 'Edit Project Configuration') are now loaded by `onOpen`.
+- **User Opening an Already Initialized Project (Normal Operation):**
+  - User re-opens "Johnson Residence Phase 1 - Budget Sheet" at a later time.
+  - The `onOpen` script identifies it as an initialized project (`PROJECT_INITIALIZED` is `'true'`).
+  - The standard project menus are loaded. The UI, when opened, will display "Johnson Residence Phase 1" as the project name and use the configured `DATA_SHEET_ID` for its operations.
+- **User Opening an Unconfigured Sheet (e.g., a blank sheet or a copy made outside the script):**
+  - User opens a Google Sheet that is not the Master Template and has not been through the script's initialization process.
+  - The `onOpen` script finds no `IS_MASTER_TEMPLATE='true'` property (or it's false) and no `PROJECT_INITIALIZED='true'` property.
+  - A limited menu is displayed, primarily offering an option like `Project Manager > Setup > Initialize Sheet as Project Manually...`.
 
 ### 5.2. Core experience
 - **Step 1: Launch Project Manager UI**
-  - User clicks the designated menu item (e.g., "Setup Sheet" > "Open Project Manager").
+  - User clicks the designated menu item (e.g., "Open Dashboard" or potentially an item under a "Project Manager" main menu).
   - *Good Experience:* The UI (dialog with a sidebar) loads quickly, displaying the current Project Name. The sidebar allows navigation between Rooms, Master Lists (if editing masters is part of this UI), etc.
 - **Step 2: Manage/Select Rooms for the Current Project**
   - The UI displays a list of rooms currently selected for the project (initially empty or loaded from `_TempSelectedRooms`).

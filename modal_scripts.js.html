@@ -859,76 +859,102 @@
 
       // Save all items data to the server
       function saveAllItemsFromDashboard() {
-        console.log('Starting save process for all items (row number strategy).');
+        console.log('Starting save process for all items');
         
-        const dialog = document.querySelector('.app-container');
-        const sheetId = dialog ? dialog.getAttribute('data-sheet-id') : null;
+        showDashboardLoading('Saving items...');
+        const mainContentContainer = document.getElementById('mainContent');
+        if (mainContentContainer) {
+            // Use the specific loading state requested by the user
+            mainContentContainer.innerHTML = `
+              <div class="loading-state">
+                <div class="spinner"></div>
+                <p>Saving items...</p>
+              </div>`;
+        }
         
-        if (!sheetId) {
-          showDashboardStatusMessage('Error: Main Spreadsheet ID not found. Cannot save items.', true, 'main');
-          console.error('Main sheet ID not found for saving items.');
-          return;
+        // Sort dashboardItemData.items by room name, then by item name BEFORE sending to server
+        if (Array.isArray(dashboardItemData.items)) {
+            dashboardItemData.items.sort((a, b) => {
+                const roomA = String(a.room || '').toUpperCase();
+                const roomB = String(b.room || '').toUpperCase();
+                if (roomA === roomB) {
+                    const itemAname = String(a.item || '').toUpperCase();
+                    const itemBname = String(b.item || '').toUpperCase();
+                    return itemAname.localeCompare(itemBname);
+                }
+                return roomA.localeCompare(roomB);
+            });
+            console.log('dashboardItemData.items sorted by room and item name BEFORE creating itemsFromUIData.');
+        }
+        
+        // Rebuild itemsByRoom from the sorted items to ensure internal consistency if needed elsewhere before save response
+        // Though itemsFromUIData is the primary data source for the save call.
+        dashboardItemData.itemsByRoom = {};
+        if (Array.isArray(dashboardItemData.items)) {
+            dashboardItemData.items.forEach(item => {
+                const roomKey = item.room || 'Unassigned'; 
+                if (!dashboardItemData.itemsByRoom[roomKey]) {
+                    dashboardItemData.itemsByRoom[roomKey] = [];
+                }
+                dashboardItemData.itemsByRoom[roomKey].push(item);
+            });
         }
 
-        showDashboardLoading('Saving items to Master Item List...');
-        
-        // Collect items: existing items will have item.rowNumber, new items will have item.id (e.g., 'new_...')
-        // No special processing needed here, just pass the items as they are in dashboardItemData.
-        // The server-side `saveItemsToMasterList` is designed to differentiate them.
         const itemsFromUIData = dashboardItemData.items ? [...dashboardItemData.items] : [];
-        console.log('Items collected from dashboardItemData.items for saving:', itemsFromUIData.length, itemsFromUIData);
+        console.log('Items collected from dashboardItemData.items for saving (should be sorted):', itemsFromUIData.length);
         
         if (itemsFromUIData.length === 0) {
-          // If there are no items, we still call the server function, 
-          // as it might be designed to clear the sheet or handle this case specifically.
-          console.log('No items in UI to save, proceeding with save call to potentially clear sheet or handle empty state.');
+          hideDashboardLoading();
+          showDashboardStatusMessage('No items to save.', false, 'main');
+          return; 
         }
-        
-google.script.run
+
+        google.script.run
           .withSuccessHandler(function(result) {
+            console.log('Server response for saveItemsToMasterList operation:', result);
             hideDashboardLoading();
-            console.log('Save operation server response:', result);
-
-            if (result && result.success) {
-              showDashboardStatusMessage('Items saved successfully to Master Item List! (' + (result.count || 0) + ' items processed)', false, 'main');
+            
+            if (result.success) {
+              showDashboardStatusMessage(`Successfully saved ${result.count} items. Closing...`, false, 'main');
               
-              // CRITICAL: Replace client-side item data with the authoritative list from the server.
-              // The server returns ALL items as they are now in the sheet, with correct rowNumbers.
-              // New items will have their originalTemporaryId mapped, which we don't strictly need if we fully replace.
-              dashboardItemData.items = result.items || [];
-              console.log('dashboardItemData.items completely replaced with server response:', dashboardItemData.items);
-
-              // Rebuild itemsByRoom from the new master items list
-              dashboardItemData.itemsByRoom = {};
-              dashboardItemData.items.forEach(item => {
-                if (!dashboardItemData.itemsByRoom[item.room]) {
-                  dashboardItemData.itemsByRoom[item.room] = [];
+              // Update and sort dashboardItemData.items from server response (confirms server state)
+              if (result.items) {
+                dashboardItemData.items = result.items || [];
+                if (Array.isArray(dashboardItemData.items)) {
+                  dashboardItemData.items.sort((a, b) => {
+                    const roomA = String(a.room || '').toUpperCase();
+                    const roomB = String(b.room || '').toUpperCase();
+                    if (roomA === roomB) {
+                      const itemAname = String(a.item || '').toUpperCase();
+                      const itemBname = String(b.item || '').toUpperCase();
+                      return itemAname.localeCompare(itemBname);
+                    }
+                    return roomA.localeCompare(roomB);
+                  });
                 }
-                dashboardItemData.itemsByRoom[item.room].push(item);
-              });
-              console.log('dashboardItemData.itemsByRoom rebuilt:', dashboardItemData.itemsByRoom);
-
-              // Re-render the item update interface with the new, authoritative data
-              // This ensures UI consistency, including correct rowNumbers for all items.
-              if (typeof renderItemUpdateInterface === 'function') {
-                // Pass a copy of dashboardItemData to avoid direct modification issues if any
-                const currentDataForRender = {
-                    selectedRooms: dashboardItemData.selectedRooms, 
-                    items: [...dashboardItemData.items], 
-                    itemsByRoom: {...dashboardItemData.itemsByRoom},
-                    availableItems: dashboardItemData.availableItems, // Preserve these if they are still valid
-                    combinedItems: dashboardItemData.combinedItems
-                };
-                renderItemUpdateInterface(currentDataForRender);
-                console.log('Item update interface re-rendered after save.');
-              } else {
-                console.error('renderItemUpdateInterface function not found after save.');
+                // Rebuild itemsByRoom based on the newly sorted items from server.
+                dashboardItemData.itemsByRoom = {};
+                dashboardItemData.items.forEach(item => {
+                  const roomKey = item.room || 'Unassigned'; 
+                  if (!dashboardItemData.itemsByRoom[roomKey]) {
+                    dashboardItemData.itemsByRoom[roomKey] = [];
+                  }
+                  dashboardItemData.itemsByRoom[roomKey].push(item);
+                });
+                console.log('dashboardItemData updated and sorted from server response.');
               }
+              
+              setTimeout(function() {
+                google.script.host.close();
+              }, 1500); 
 
-            } else {
+            } else { // Save failed
               let errorMessage = 'Failed to save items.';
               if (result && result.error) {
                 errorMessage = result.error;
+              }
+              if (result && result.backupSheetName) { 
+                errorMessage += ` A backup was created: ${result.backupSheetName}`;
               }
               if (result && result.invalidItems && result.invalidItems.length > 0) {
                 errorMessage += ` (${result.invalidItems.length} invalid items found). Check console for details.`;
@@ -939,11 +965,11 @@ google.script.run
             }
           })
           .withFailureHandler(function(error) {
+            console.error('Client-side error during save operation:', error);
             hideDashboardLoading();
-            showDashboardStatusMessage('An error occurred while saving items: ' + error.message, true, 'main');
-            console.error('Server call to saveItemsToMasterList failed:', error);
+            showDashboardStatusMessage('Client Error: ' + (error.message || error), true, 'main');
           })
-          .saveItemsToMasterList(itemsFromUIData, sheetId);
+          .saveItemsToMasterList(itemsFromUIData); // Pass sorted items
       }
 
       // This function is now effectively replaced by the success handler logic within saveAllItemsFromDashboard
@@ -2780,100 +2806,6 @@ google.script.run
         updateRoomBudgetDisplay(roomName);
       }
       
-      // Save all items data to the server
-      function saveAllItemsFromDashboard() {
-        console.log('Starting save process for all items');
-        // console.log('Total items in dashboardItemData:', dashboardItemData.items.length); // Will be logged by _getAndPrepareDashboardItems
-        
-        const dialog = document.querySelector('.app-container');
-        const sheetId = dialog ? dialog.getAttribute('data-sheet-id') : null;
-        
-        showDashboardLoading('Saving items...');
-        
-        // Get all items from the current UI state. These are considered the source of truth.
-        const itemsFromUIData = dashboardItemData.items ? [...dashboardItemData.items] : [];
-        console.log('Items collected from dashboardItemData.items for saving:', itemsFromUIData.length);
-        // It's crucial that itemsFromUIData contains all necessary fields, including specFfe.
-        // The server will sort and validate these.
-        
-        if (itemsFromUIData.length === 0) {
-          hideDashboardLoading();
-          showDashboardStatusMessage('No items to save.', false); // Not an error, just nothing to do.
-          // Optionally, call server to clear the sheet if that's desired for an empty save.
-          // For now, just return if truly nothing to send.
-          // To clear the sheet, send an empty array to saveItemsToMasterList.
-        }
-
-        // The server-side saveItemsToMasterList will handle validation and sorting.
-        // We pass the current state of items from the UI.
-        google.script.run
-          .withSuccessHandler(function(result) {
-            console.log('Server response for saveItemsToMasterList operation:', result);
-            hideDashboardLoading();
-            
-            if (result.success) {
-              showDashboardStatusMessage(`Successfully saved ${result.count} items. ${result.backupSheetName ? 'Backup created: ' + result.backupSheetName : ''}`, false);
-              
-              // CRITICAL: Full data refresh based on server response
-              if (result.items) {
-                // 1. Replace dashboardItemData.items with the authoritative list from the server
-                dashboardItemData.items = result.items; 
-                console.log('dashboardItemData.items replaced with server data:', dashboardItemData.items.length);
-
-                // 2. Rebuild dashboardItemData.itemsByRoom from the new dashboardItemData.items
-                dashboardItemData.itemsByRoom = {};
-                dashboardItemData.items.forEach(item => {
-                  if (!dashboardItemData.itemsByRoom[item.room]) {
-                    dashboardItemData.itemsByRoom[item.room] = [];
-                  }
-                  dashboardItemData.itemsByRoom[item.room].push(item);
-                });
-                console.log('dashboardItemData.itemsByRoom rebuilt.');
-
-                // 3. Re-render the entire item update interface
-                // This ensures UI matches the sheet's sorted order and all values.
-                // We need to pass the full dashboardItemData, not just result or result.items,
-                // as renderItemUpdateInterface expects availableItems, combinedItems etc.
-                // Ensure dashboardItemData still contains necessary fields like availableItems, combinedItems if they are not part of result.items.
-                // For now, assuming renderItemUpdateInterface can handle dashboardItemData directly after it has been updated.
-                if (typeof renderItemUpdateInterface === 'function') {
-                    console.log('Re-rendering UI with refreshed data...');
-                    renderItemUpdateInterface(dashboardItemData); 
-                } else {
-                    console.error('renderItemUpdateInterface function is not defined. UI will be stale.');
-                    showDashboardStatusMessage('Data saved, but UI refresh failed. Please reload.', true);
-                }
-              } else {
-                // Should not happen if result.success is true and result.count > 0
-                console.warn('Save successful, but no items returned from server. UI may be stale.');
-              }
-            } else {
-              console.error('Server reported error during save:', result.error || 'Unknown error');
-              let errorMsg = 'Error: ' + (result.error || 'Failed to save items.');
-              if (result.backupSheetName) {
-                errorMsg += ` A backup was created: ${result.backupSheetName}`;
-              }
-              showDashboardStatusMessage(errorMsg, true);
-            }
-          })
-          .withFailureHandler(function(error) {
-            console.error('Client-side error during save operation:', error);
-            hideDashboardLoading();
-            showDashboardStatusMessage('Client Error: ' + (error.message || error), true);
-          })
-          .saveItemsToMasterList(itemsFromUIData, sheetId); // Pass current items and sheetId
-      }
-      
-      // Helper function to update item IDs after saving
-      // THIS FUNCTION IS NOW LARGELY OBSOLETE due to the full refresh strategy.
-      // It can be removed or heavily simplified if specific parts are still needed for other flows (unlikely for this save operation).
-      // For now, let's comment it out to ensure it's not accidentally used by the save success handler.
-      /*
-      function updateItemIdsAfterSave(savedItemsFromServer) { 
-        // ... old logic ...
-      }
-      */
-      
       // Autocomplete functionality
       let currentFocus = -1;
       let lastActiveInput = null;
@@ -3348,7 +3280,7 @@ google.script.run
           <div style="margin-right: 50px;">Room Totals:</div>
           <div style="width: 130px; text-align: right;">$${formatCurrency(roomTotals.lowTotal)}</div>
           <div style="width: 130px; text-align: right;">$${formatCurrency(roomTotals.highTotal)}</div>
-          <div style="width: 100px;"></div>
+          <div style="width: 190px;"></div>
         `;
       }
 
@@ -3519,7 +3451,7 @@ google.script.run
         updateRoomBudgetDisplay(roomName);
         
         // Refresh the quick-add buttons to remove the one we just added
-        refreshQuickAddButtons(roomName);
+        //refreshQuickAddButtons(roomName);
       }
 
       /**
@@ -3832,8 +3764,8 @@ google.script.run
               target.classList.contains('room-input') ||
               target.classList.contains('item-input') ||
               target.classList.contains('type-input') ||
-              target.classList.contains('quantity-input')
-            ) {
+              target.classList.contains('quantity-input') ||
+              target.classList.contains('spec-ffe-select')) { // Added .spec-ffe-select
               if (target.dataset.room && target.dataset.index !== undefined && target.dataset.field) {
                 updateItemSelectionData(target.dataset.room, target.dataset.index, target.dataset.field, target.value);
               }
@@ -4491,10 +4423,28 @@ google.script.run
 
     // Rebuild dashboardItemData.items from the normalized itemsByRoom for consistency
     Object.keys(dashboardItemData.itemsByRoom).forEach(roomKey => {
-        dashboardItemData.itemsByRoom[roomKey].forEach(item => {
-            dashboardItemData.items.push(item); // item already has correct .room property
-        });
+        const itemsForRoom = dashboardItemData.itemsByRoom[roomKey];
+        if (Array.isArray(itemsForRoom)) {
+            itemsForRoom.forEach(item => {
+                dashboardItemData.items.push(item); 
+            });
+        }
     });
+
+    // Sort dashboardItemData.items by room name, then by item name
+    if (Array.isArray(dashboardItemData.items)) {
+        dashboardItemData.items.sort((a, b) => {
+            const roomA = String(a.room || '').toUpperCase();
+            const roomB = String(b.room || '').toUpperCase();
+            if (roomA === roomB) {
+                const itemAname = String(a.item || '').toUpperCase();
+                const itemBname = String(b.item || '').toUpperCase();
+                return itemAname.localeCompare(itemBname);
+            }
+            return roomA.localeCompare(roomB);
+        });
+        console.log('dashboardItemData.items sorted by room and item name in renderItemUpdateInterface.');
+    }
     
     // Check if we have combinedItems property - this needs to use the new dashboardItemData
     if (!dashboardItemData.combinedItems || !Array.isArray(dashboardItemData.combinedItems)) {
@@ -4502,7 +4452,6 @@ google.script.run
       if (dashboardItemData.availableItems && Array.isArray(dashboardItemData.availableItems)) {
         dashboardItemData.combinedItems = dashboardItemData.availableItems.map(item => {
           if (typeof item === 'string') return item;
-          // Ensure type and item properties exist before trying to combine
           const typeStr = item.type || '';
           const itemStr = item.item || '';
           return typeStr && itemStr ? `${typeStr} : ${itemStr}` : (itemStr || typeStr || '');
@@ -4519,7 +4468,6 @@ google.script.run
     container.className = 'item-update-content';
     container.style.padding = '20px';
     
-    // Add help icon with tooltip instead of static instructions
     const helpContainer = document.createElement('div');
     helpContainer.className = 'tooltip';
     helpContainer.style.position = 'absolute';
@@ -4538,15 +4486,15 @@ google.script.run
     helpContainer.appendChild(tooltipText);
     container.appendChild(helpContainer);
     
-    // Group items by room first - using the globally normalized dashboardItemData
     const itemsByRoomForUiDisplay = {}; 
     if (dashboardItemData.selectedRooms && dashboardItemData.itemsByRoom) {
-        dashboardItemData.selectedRooms.forEach(room => {
+        // Iterate over selectedRooms which should define the display order of room sections
+        // The actual room names in itemsByRoom are already normalized.
+        dashboardItemData.selectedRooms.sort((a,b) => String(a).localeCompare(String(b))).forEach(room => { // Ensure selectedRooms is sorted for display
             itemsByRoomForUiDisplay[room] = dashboardItemData.itemsByRoom[room] || [];
         });
     }
     
-    // Create the sticky filter and save button container
     const stickyContainer = document.createElement('div');
     stickyContainer.id = 'sticky-filter-save-container';
     stickyContainer.style.position = 'sticky';
@@ -4560,7 +4508,6 @@ google.script.run
     stickyContainer.style.borderBottom = '1px solid rgba(0,0,0,0.1)';
     stickyContainer.style.marginBottom = '15px';
     
-    // Add room filter
     const filterContainer = document.createElement('div');
     filterContainer.id = 'filter-container';
     filterContainer.style.display = 'flex';
@@ -4585,7 +4532,6 @@ google.script.run
     filterContainer.appendChild(filterLabel);
     filterContainer.appendChild(roomFilter);
     
-    // Create save button for the sticky container
     const saveButton = document.createElement('button');
     saveButton.className = 'btn';
     saveButton.addEventListener('click', saveAllItemsFromDashboard);
@@ -4598,32 +4544,27 @@ google.script.run
     saveButton.appendChild(saveIcon);
     saveButton.appendChild(document.createTextNode('Save All Items'));
        
-    // Create actions container in the sticky header
     const actionsContainer = document.createElement('div');
     actionsContainer.style.display = 'flex';
     actionsContainer.style.gap = '10px';
     actionsContainer.appendChild(saveButton);
     
-    // Add filter and actions to sticky container
     stickyContainer.appendChild(filterContainer);
     stickyContainer.appendChild(actionsContainer);
-    
-    // Add sticky container to main container
     container.appendChild(stickyContainer);
     
-    // Populate filter dropdown with rooms
-    Object.keys(itemsByRoomForUiDisplay).sort().forEach(room => {
+    // Populate filter dropdown with rooms (already sorted via itemsByRoomForUiDisplay keys)
+    Object.keys(itemsByRoomForUiDisplay).forEach(room => { // No sort needed here as itemsByRoomForUiDisplay keys are from sorted selectedRooms
       const option = document.createElement('option');
       option.value = room;
       option.textContent = room;
       roomFilter.appendChild(option);
     });
     
-    // Create a DocumentFragment to hold all room containers before appending to the main container
     const roomsFragment = document.createDocumentFragment();
     
-    // Create room sections
-    Object.keys(itemsByRoomForUiDisplay).sort().forEach(room => {
+    // Create room sections based on the sorted order in itemsByRoomForUiDisplay
+    Object.keys(itemsByRoomForUiDisplay).forEach(room => {
       const currentRoomItems = itemsByRoomForUiDisplay[room];
       
       // Create room container
@@ -4632,13 +4573,11 @@ google.script.run
       roomContainer.id = `room-container-${room.replace(/\s+/g, '-')}`;
       roomContainer.dataset.room = room;
       
-      // Add room title
       const roomTitle = document.createElement('div');
       roomTitle.className = 'room-title';
       roomTitle.textContent = room;
       roomContainer.appendChild(roomTitle);
       
-      // Add column headers
       const headers = document.createElement('div');
       headers.className = 'column-headers';
       
@@ -4681,27 +4620,25 @@ google.script.run
       
       roomContainer.appendChild(headers);
       
-      // Add items container
       const itemsContainer = document.createElement('div');
       itemsContainer.className = 'items-container';
       itemsContainer.id = `items-${room.replace(/\s+/g, '-')}`;
       
-      // Use a DocumentFragment for batching item row appends
       const itemsFragment = document.createDocumentFragment();
-      // Add each item
+      // Items within currentRoomItems are already sorted by item name due to earlier sort of dashboardItemData.items
       currentRoomItems.forEach((item, index) => {
-        const itemRow = createItemRow(item, index, room); // Assumes createItemRow is available and compatible
+        const itemRow = createItemRow(item, index, room); 
         itemsFragment.appendChild(itemRow);
       });
-      itemsContainer.appendChild(itemsFragment); // Append all item rows at once
+      itemsContainer.appendChild(itemsFragment); 
       
-      // Add delegated event listeners to itemsContainer
       itemsContainer.addEventListener('change', function(event) {
         const target = event.target;
         if (target.classList.contains('item-input') ||
             target.classList.contains('type-input') ||
             target.classList.contains('quantity-input') ||
-            target.classList.contains('budget-input')) {
+            target.classList.contains('budget-input') ||
+            target.classList.contains('spec-ffe-select')) { 
           if (target.dataset.room && target.dataset.index !== undefined && target.dataset.field) {
             updateItemData(target.dataset.room, target.dataset.index, target.dataset.field, target.value);
           }
@@ -4713,7 +4650,8 @@ google.script.run
         if (target.classList.contains('item-input') ||
             target.classList.contains('type-input') ||
             target.classList.contains('quantity-input') ||
-            target.classList.contains('budget-input')) {
+            target.classList.contains('budget-input') ||
+            target.classList.contains('spec-ffe-select')) { 
           if (target.dataset.room && target.dataset.index !== undefined && target.dataset.field) {
             updateItemData(target.dataset.room, target.dataset.index, target.dataset.field, target.value);
           }
@@ -4731,7 +4669,6 @@ google.script.run
 
       roomContainer.appendChild(itemsContainer);
       
-      // Create the button row for "Add Item" and quick-add buttons
       const addMoreRow = document.createElement('div');
       addMoreRow.className = 'add-more-row';
       
@@ -4749,59 +4686,47 @@ google.script.run
       addItemButton.appendChild(document.createTextNode(' Add Item'));
       addMoreRow.appendChild(addItemButton);
       
-      const suggestedItems = getSuggestedItemsForRoom(room);
+      // const suggestedItems = getSuggestedItemsForRoom(room);
       
-      const quickAddContainer = document.createElement('div');
-      quickAddContainer.className = 'quick-add-container';
+      // const quickAddContainer = document.createElement('div');
+      // quickAddContainer.className = 'quick-add-container';
       
-      if (!dashboardItemData.visibleSuggestedItems) {
-        dashboardItemData.visibleSuggestedItems = {};
-      }
+      // if (!dashboardItemData.visibleSuggestedItems) {
+      //   dashboardItemData.visibleSuggestedItems = {};
+      // }
       
-      const availableSuggestions = suggestedItems.filter(item => 
-        !itemExistsInRoom(dashboardItemData.itemsByRoom[room] || [], item)
-      );
+      // const availableSuggestions = suggestedItems.filter(item => 
+      //   !itemExistsInRoom(dashboardItemData.itemsByRoom[room] || [], item)
+      // );
       
-      dashboardItemData.visibleSuggestedItems[room] = availableSuggestions.slice(0, 5);
+      // dashboardItemData.visibleSuggestedItems[room] = availableSuggestions.slice(0, 5);
       
-      dashboardItemData.visibleSuggestedItems[room].forEach(itemObj => {
-        const quickAddButton = document.createElement('button');
-        quickAddButton.className = 'quick-add-btn';
-        quickAddButton.textContent = `Add ${itemObj.name}`;
+      // dashboardItemData.visibleSuggestedItems[room].forEach(itemObj => {
+      //   const quickAddButton = document.createElement('button');
+      //   quickAddButton.className = 'quick-add-btn';
+      //   quickAddButton.textContent = `Add ${itemObj.name}`;
         
-        quickAddButton.addEventListener('click', function() {
-          addSpecificItemToRoom(room, itemObj.name, itemObj.type);
-        });
+      //   quickAddButton.addEventListener('click', function() {
+      //     addSpecificItemToRoom(room, itemObj.name, itemObj.type);
+      //   });
         
-        quickAddContainer.appendChild(quickAddButton);
-      });
+      //   quickAddContainer.appendChild(quickAddButton);
+      // });
       
-      if (quickAddContainer.children.length > 0) {
-        addMoreRow.appendChild(quickAddContainer);
-      }
+      // if (quickAddContainer.children.length > 0) {
+      //   addMoreRow.appendChild(quickAddContainer);
+      // }
       
       roomContainer.appendChild(addMoreRow);
-      
-      updateRoomBudgetDisplay(room);
-      
+      updateRoomBudgetDisplay(room); // Call this to create the budget display for the room
       roomsFragment.appendChild(roomContainer);
     });
     
     container.appendChild(roomsFragment);
     
-    Object.keys(itemsByRoomForUiDisplay).sort().forEach(room => {
-      updateRoomBudgetDisplay(room);
-    });
-    
     document.getElementById('mainContent').innerHTML = '';
     document.getElementById('mainContent').appendChild(container);
     
-    setTimeout(() => {
-      console.log('Applying budget summary updates after DOM render');
-      Object.keys(itemsByRoomForUiDisplay).sort().forEach(room => {
-        updateRoomBudgetDisplay(room);
-      });
-    }, 50);
   }
 
   // Function to filter rooms in the dashboard

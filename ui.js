@@ -1,33 +1,33 @@
 /**
  * Adds custom menus to the spreadsheet UI.
  */
-function onOpen() {
-  try {
-    const ui = SpreadsheetApp.getUi();
+// function onOpen() {  // This function is now handled in Code.js
+//   try {
+//     const ui = SpreadsheetApp.getUi();
       
-    // Client Dashboard menu
-    ui.createMenu('Project Manager')
-      // Calls showProjectDashboard to open the default view (e.g., Home)
-      // Pass null or a default tab ID if your Project_Details_ expects one for the main view
-      .addItem('Open Dashboard', 'showProjectDashboardDefault') 
-      // Calls showProjectDashboard with 'roomManagerView' to open the Room Manager tab
-      // .addItem('1. Select Rooms', 'showProjectDashboardRoomManager') 
-      // New menu item
-      // .addItem('2. Select Room Categories', 'showProjectDashboardRoomCategories')
-      // New menu item
-      // .addItem('3. Select Items', 'showProjectDashboardItems')
-      .addToUi();
+//     // Client Dashboard menu
+//     ui.createMenu('Project Manager')
+//       // Calls showProjectDashboard to open the default view (e.g., Home)
+//       // Pass null or a default tab ID if your Project_Details_ expects one for the main view
+//       .addItem('Open Dashboard', 'showProjectDashboardDefault') 
+//       // Calls showProjectDashboard with 'roomManagerView' to open the Room Manager tab
+//       // .addItem('1. Select Rooms', 'showProjectDashboardRoomManager') 
+//       // New menu item
+//       // .addItem('2. Select Room Categories', 'showProjectDashboardRoomCategories')
+//       // New menu item
+//       // .addItem('3. Select Items', 'showProjectDashboardItems')
+//       .addToUi();
     
-      ui.createMenu('Sheet Manager')
-      .addItem('Split Items by SPEC/FFE', 'splitItemsByFFE')
-      .addItem('Update Budget from SPEC', 'updateBudgetFromSpecItems')
-      .addToUi();
+//       ui.createMenu('Sheet Manager')
+//       .addItem('Split Items by SPEC/FFE', 'splitItemsByFFE')
+//       .addItem('Update Budget from SPEC', 'updateBudgetFromSpecItems')
+//       .addToUi();
       
-  } catch (error) {
-    Logger.log(`Error in onOpen: ${error.message}`);
-    SpreadsheetApp.getUi().alert(`Configuration Error: ${error.message}`);
-  }
-}
+//   } catch (error) {
+//     Logger.log(`Error in onOpen: ${error.message}`);
+//     SpreadsheetApp.getUi().alert(`Configuration Error: ${error.message}`);
+//   }
+// }
 
 // Wrapper function for default dashboard view
 function showProjectDashboardDefault() {

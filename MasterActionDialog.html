@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body {
+        font-family: 'Lato', sans-serif;
+        margin: 0;
+        padding: 20px;
+        color: #212529;
+        line-height: 1.4;
+        font-size: 14px;
+      }
+      .container {
+        width: 100%;
+        max-width: 450px;
+        margin: auto;
+      }
+      .section {
+        background-color: #ffffff;
+        padding: 20px;
+        margin-bottom: 20px;
+      }
+      p, label {
+        margin-top: 0;
+        margin-bottom: 10px;
+        font-size: 14px;
+      }
+      label {
+        font-weight: 500;
+        color: #333;
+      }
+      .button-group {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-top: 20px;
+      }
+      button {
+        font-family: 'Tenor Sans', sans-serif;
+        background-color: #26717D;
+        color: #FFFFFF;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 4px;
+        font-size: 14px;
+        font-weight: 400;
+        cursor: pointer;
+        text-align: center;
+        transition: all 0.2s ease;
+      }
+      button:hover {
+        background-color: #1d5b65;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      button.secondary {
+        background-color: #f1f1f1;
+        color: #333;
+        border: 1px solid #B2C8CB;
+      }
+      button.secondary:hover {
+        background-color: #e0e0e0;
+        border-color: #99a9ac;
+        transform: translateY(-1px);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      }
+      input[type="text"] {
+        font-family: 'Lato', sans-serif;
+        width: calc(100% - 22px);
+        padding: 10px;
+        margin-bottom: 15px;
+        border: 1px solid #B2C8CB;
+        border-radius: 4px;
+        font-size: 14px;
+        background-color: #FFFFFF;
+        color: #000000;
+        box-sizing: border-box;
+      }
+      input[type="text"]:focus {
+        border-color: #26717D;
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(38, 113, 125, 0.1);
+      }
+      .hidden {
+        display: none !important;
+      }
+      #loading {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+      }
+      .dialog-spinner {
+        width: 30px;
+        height: 30px;
+        border: 3px solid rgba(38, 113, 125, 0.2);
+        border-top-color: #26717D;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      #resultMessage {
+         margin-top: 15px;
+         padding: 10px;
+         border-radius: 4px;
+      }
+      #resultMessage p {
+        margin-bottom: 8px;
+        word-wrap: break-word;
+      }
+      #resultMessage a {
+        color: #1d5b65;
+        text-decoration: underline;
+        font-weight: 500;
+      }
+      #resultMessage a:hover {
+        color: #26717D;
+        text-decoration: underline;
+      }
+      .result-success {
+        background-color: rgba(38, 113, 125, 0.1);
+        color: #26717D;
+        border: 1px solid rgba(38, 113, 125, 0.2);
+      }
+      .result-error {
+        background-color: #ffebee;
+        color: #c62828;
+        border: 1px solid #ffcdd2;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div id="projectNameSection" class="section">
+        <p>This is the Master Template. Please enter a name to create a new project.</p>
+        <label for="projectNameInput">Enter the Project Name:</label>
+        <input type="text" id="projectNameInput" placeholder="Project Name">
+        <div class="button-group">
+          <button id="btnSubmitProjectName">Submit & Create Project</button>
+          <button id="btnCloseDialog" class="secondary">Close</button>
+        </div>
+      </div>
+
+      <div id="loading" class="hidden">
+        <div class="dialog-spinner"></div>
+      </div>
+      <div id="resultMessage"></div>
+    </div>
+
+    <script>
+      document.getElementById('btnSubmitProjectName').addEventListener('click', function() {
+        const projectName = document.getElementById('projectNameInput').value;
+        if (!projectName || projectName.trim() === "") {
+          showResultMessage('<p>Project Name cannot be empty.</p>', false);
+          return;
+        }
+        showLoading();
+        google.script.run
+          .withSuccessHandler(showSuccess)
+          .withFailureHandler(onFailure)
+          .handleCreateProjectFromMaster(projectName.trim());
+      });
+
+      document.getElementById('btnCloseDialog').addEventListener('click', function() {
+        google.script.host.close();
+      });
+
+      function showLoading() {
+        document.getElementById('projectNameSection').classList.add('hidden');
+        document.getElementById('resultMessage').innerHTML = '';
+        document.getElementById('resultMessage').className = '';
+        document.getElementById('loading').classList.remove('hidden');
+      }
+
+      function hideLoading() {
+        document.getElementById('loading').classList.add('hidden');
+      }
+
+      function showSuccess(result) {
+        hideLoading();
+        if (result.success) {
+          let messageHtml = `<p>${result.message}</p>`;
+          if (result.url && result.fileName) {
+            messageHtml += `<p>New project: <a href="${result.url}" target="_blank">${result.fileName}</a></p>`;
+            messageHtml += `<p><strong>Important:</strong> After opening the new file, please use the "Project Manager > Setup > Initialize this Sheet as Project" menu to complete the setup.</p>`;
+          }
+          showResultMessage(messageHtml, true);
+          document.getElementById('projectNameSection').classList.add('hidden');
+        } else {
+          showResultMessage(`<p>${result.message || 'An unknown error occurred.'}</p>`, false);
+          document.getElementById('projectNameSection').classList.remove('hidden');
+        }
+      }
+
+      function onFailure(error) {
+        hideLoading();
+        showResultMessage(`<p>Error: ${error.message || 'An unexpected error occurred.'}</p>`, false);
+        document.getElementById('projectNameSection').classList.remove('hidden');
+      }
+
+      function showResultMessage(message, isSuccess) {
+        const resultDiv = document.getElementById('resultMessage');
+        resultDiv.innerHTML = message;
+        if (isSuccess) {
+          resultDiv.className = 'result-success';
+        } else {
+          resultDiv.className = 'result-error';
+        }
+        resultDiv.classList.remove('hidden');
+      }
+      
+      function clearResultMessage() {
+         const resultDiv = document.getElementById('resultMessage');
+         resultDiv.innerHTML = '';
+         resultDiv.className = '';
+         resultDiv.classList.add('hidden');
+      }
+      
+      window.addEventListener('load', function() {
+        if (document.getElementById('loading').classList.contains('hidden') && 
+            document.getElementById('resultMessage').classList.contains('hidden')) {
+          document.getElementById('projectNameSection').classList.remove('hidden');
+        }
+      });
+
+    </script>
+  </body>
+</html> 
