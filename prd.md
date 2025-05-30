@@ -3,7 +3,7 @@
 ## 1. Product overview
 ### 1.1 Document title and version
 - PRD: Norton Project Sheet
-- Version: 1.4.1 (Fixed formula bug in SPEC sheet generation)
+- Version: 1.4.2 (Added FFE to Pricing sheet data copy)
 
 ### 1.2 Product summary
    - This Google App Script assists users in building and maintaining a Google Sheet to manage interior design projects using a dialog UI. It allows users to select rooms for the project and manage those rooms (add, update, and delete).
@@ -108,6 +108,7 @@
      - The script will populate the following columns: `ROOM`, `TYPE`, `ITEM`, `QUANTITY`.
      - The script will also create headers for the following columns, which are intended for manual user input directly in the sheet: `LOW`, `LOW TOTAL`, `HIGH`, `HIGH TOTAL`, `SPEC/FFE`.
      - Ensure data in the script-populated columns (`ROOM`, `TYPE`, `ITEM`, `QUANTITY`) updates dynamically or via a "refresh/re-populate" action when changes are made to the current project configuration in the UI (and thus to the temporary sheets).
+     - **FFE to Pricing Sheet Data Copy (New):** After the "FFE" sheet is generated, the script will automatically create/update a sheet named "Pricing". It will copy the following columns from the "FFE" sheet: `ROOM`, `TYPE`, `ITEM`, `QUANTITY`, `LOW TOTAL`, `HIGH TOTAL`. These will be copied to the "Pricing" sheet with the headers: `Room`, `Item Type`, `Item Name`, `Quantity`, `Budget Low`, `Budget High` respectively, on a row-by-row basis.
    - **User Interface (UI) Management** (Priority: High)
      - Provide a clear, intuitive, and responsive dialog UI for all management and selection functions.
      - UI should clearly distinguish between managing master data and building the current project.
@@ -247,6 +248,9 @@ Sarah, a Lead Interior Designer, wants to quickly create accurate and profession
      - Key activities: Review and optimize the function that populates the final output tab.
 
 ## 8. Changelog
+### Version 1.4.2 (YYYY-MM-DD)
+- Added functionality to copy specific columns from the generated "FFE" sheet to a "Pricing" sheet. The copied columns are ROOM, TYPE, ITEM, QUANTITY, LOW TOTAL, HIGH TOTAL from FFE, mapped to Room, Item Type, Item Name, Quantity, Budget Low, Budget High in the Pricing sheet.
+
 ### Version 1.4.1 (YYYY-MM-DD)
 - **Fix**: Corrected an issue in the `_processAndCopyItemsInternal` function where formulas for "Low Total" and "High Total" columns in the "SPEC" sheet were referencing incorrect cells due to an additional "ACTUAL PRICE" column. The formulas are now dynamically generated using A1 notation based on the "SPEC" sheet's specific column layout for "QUANTITY", "LOW", and "HIGH" to ensure accurate calculations.
 

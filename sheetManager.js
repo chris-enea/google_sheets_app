@@ -100,6 +100,19 @@ function splitItemsByFFE() { // Renaming this might be good later, but UI calls 
     true // deleteSpecFfeColumnInTarget (true for FFE as header is copied then col deleted)
   );
 
+  // --- Copy FFE data to Pricing Sheet ---
+  const pricingSheetName = "Pricing";
+  const ffeSourceColumnsForPricing = ["ROOM", "TYPE", "ITEM", "QUANTITY", "LOW TOTAL", "HIGH TOTAL"];
+  const pricingTargetColumns = ["Room", "Item Type", "Item Name", "Quantity", "Budget Low", "Budget High"];
+  
+  // Check if ffeSheetName is valid (it's defined earlier in FFE Processing Configuration)
+  if (ffeSheetName) {
+    _copyFFEDataToPriceSheet(ss, ffeSheetName, pricingSheetName, ffeSourceColumnsForPricing, pricingTargetColumns);
+  } else {
+    SpreadsheetApp.getUi().alert("FFE sheet name was not defined. Cannot copy to Pricing sheet.");
+    // This case should ideally not be reached if FFE processing ran.
+  }
+
   // --- SPEC Processing Configuration ---
   const allowancesSheetName = "SPEC";
   const allowancesTargetHeaders = [
@@ -590,4 +603,134 @@ function updateBudgetFromSpecItems() {
   }
 
   ui.alert(`Budget sheet updated: ${updatedCount} item(s) updated, ${addedCount} item(s) added.`);
+}
+
+// --- Function to copy specified columns from FFE to Price Sheet ---
+/**
+ * Copies specified columns from the FFE sheet to the Price sheet.
+ * Assumes row-by-row correspondence after headers.
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss The active spreadsheet.
+ * @param {string} ffeSheetName The name of the source FFE sheet.
+ * @param {string} pricingSheetName The name of the target Pricing sheet.
+ * @param {Array<string>} ffeSourceHeaders Array of header names of columns to copy from FFE sheet.
+ * @param {Array<string>} pricingTargetHeaders Array of header names for the Pricing sheet (in corresponding order to ffeSourceHeaders).
+ */
+function _copyFFEDataToPriceSheet(ss, ffeSheetName, pricingSheetName, ffeSourceHeaders, pricingTargetHeaders) {
+  const ui = SpreadsheetApp.getUi();
+
+  const ffeSheet = ss.getSheetByName(ffeSheetName);
+  if (!ffeSheet) {
+    ui.alert(`Sheet "${ffeSheetName}" not found. Cannot copy data to "${pricingSheetName}".`);
+    return;
+  }
+
+  const ffeDataRange = ffeSheet.getDataRange();
+  const ffeValues = ffeDataRange.getValues();
+
+  if (ffeValues.length <= 1) { // Only headers or empty
+    ui.alert(`Sheet "${ffeSheetName}" has no data to copy to "${pricingSheetName}".`);
+    return; // Stop if FFE has no data, as there's nothing to copy.
+  }
+
+  const ffeHeaderRow = ffeValues[0].map(String);
+  const ffeSourceIndices = ffeSourceHeaders.map(header => ffeHeaderRow.indexOf(header));
+
+  const missingSourceHeadersInFFE = [];
+  ffeSourceHeaders.forEach((header, index) => {
+    if (ffeSourceIndices[index] === -1) {
+      missingSourceHeadersInFFE.push(header);
+    }
+  });
+
+  if (missingSourceHeadersInFFE.length > 0) {
+    ui.alert(`The following source columns were not found in the "${ffeSheetName}" sheet: ${missingSourceHeadersInFFE.join(', ')}. Cannot copy data to "${pricingSheetName}".`);
+    return;
+  }
+
+  const ffeDataRows = [];
+  if (ffeValues.length > 1) {
+    for (let i = 1; i < ffeValues.length; i++) {
+      const ffeRow = ffeValues[i];
+      const pricingRowValues = ffeSourceIndices.map(sourceIndex => ffeRow[sourceIndex]);
+      ffeDataRows.push(pricingRowValues);
+    }
+  }
+  
+  if (ffeDataRows.length === 0) { // Should be caught by ffeValues.length <=1, but as a safeguard.
+      ui.alert(`Sheet "${ffeSheetName}" has no data rows to copy to "${pricingSheetName}".`);
+      return;
+  }
+
+  let pricingSheet = ss.getSheetByName(pricingSheetName);
+  let targetColumnIndicesInPricingSheet = []; // To store 1-based column numbers
+  let writeHeaders = false;
+
+  if (!pricingSheet) {
+    pricingSheet = ss.insertSheet(pricingSheetName);
+    writeHeaders = true;
+    // The target columns are simply 1 to N in this new sheet
+    targetColumnIndicesInPricingSheet = pricingTargetHeaders.map((_, i) => i + 1);
+    Logger.log(`Created sheet "${pricingSheetName}". Headers will be written.`);
+  } else {
+    const actualPricingSheetHeaders = pricingSheet.getRange(1, 1, 1, pricingSheet.getLastColumn()).getValues()[0].map(String);
+    const missingTargetHeadersInPricing = [];
+    
+    // Populate targetColumnIndicesInPricingSheet based on presence of pricingTargetHeaders
+    for (const targetHeader of pricingTargetHeaders) {
+      const index = actualPricingSheetHeaders.indexOf(targetHeader);
+      if (index === -1) {
+        missingTargetHeadersInPricing.push(targetHeader);
+      } else {
+        targetColumnIndicesInPricingSheet.push(index + 1); // 1-based column index
+      }
+    }
+
+    if (missingTargetHeadersInPricing.length > 0) {
+      ui.alert(`The "${pricingSheetName}" sheet is missing the following required columns: "${missingTargetHeadersInPricing.join(', ')}". Please add these columns or ensure they are named correctly in the first row.`);
+      return;
+    }
+    
+    // Check for existing data in target columns from row 2 downwards
+    if (pricingSheet.getLastRow() > 1) {
+      for (const colIndexOneBased of targetColumnIndicesInPricingSheet) {
+        const columnDataRange = pricingSheet.getRange(2, colIndexOneBased, pricingSheet.getLastRow() - 1, 1);
+        const columnValues = columnDataRange.getValues();
+        // Check if any cell in the column (from row 2) has content
+        if (columnValues.flat().some(cell => cell !== "" && cell !== null)) {
+          ui.alert(`The "${pricingSheetName}" sheet already contains data in one or more target columns (e.g., ${pricingTargetHeaders.join('/')}) starting from row 2. Please clear this data manually if you wish to proceed.`);
+          return;
+        }
+      }
+    }
+    Logger.log(`Found required headers in "${pricingSheetName}". Target columns are clear from row 2.`);
+  }
+
+  // Write headers if the sheet was newly created
+  if (writeHeaders) {
+    pricingSheet.getRange(1, 1, 1, pricingTargetHeaders.length).setValues([pricingTargetHeaders]).setFontWeight("bold");
+    Logger.log(`Wrote headers to new sheet "${pricingSheetName}".`);
+  }
+  
+  // Write FFE data to the identified target columns in Pricing sheet
+  // This check ensures we have a valid mapping of target columns before attempting to write
+  if (ffeDataRows.length > 0 && targetColumnIndicesInPricingSheet.length === pricingTargetHeaders.length) {
+    for (let rowIndex = 0; rowIndex < ffeDataRows.length; rowIndex++) {
+      const rowData = ffeDataRows[rowIndex]; // This is an array of values from FFE for one row
+      for (let colDataIndex = 0; colDataIndex < rowData.length; colDataIndex++) {
+        const targetSheetCol = targetColumnIndicesInPricingSheet[colDataIndex];
+        pricingSheet.getRange(rowIndex + 2, targetSheetCol).setValue(rowData[colDataIndex]);
+      }
+    }
+    Logger.log(`Copied ${ffeDataRows.length} data rows to specific columns in "${pricingSheetName}".`);
+  } else if (ffeDataRows.length > 0) {
+      Logger.log(`Mismatch between number of target columns identified (${targetColumnIndicesInPricingSheet.length}) and number of source columns mapped (${pricingTargetHeaders.length}). Data not written to "${pricingSheetName}".`);
+      // This case implies an issue with populating targetColumnIndicesInPricingSheet correctly.
+  }
+
+  // Auto-resize the target columns in the pricing sheet
+  if (targetColumnIndicesInPricingSheet.length > 0) {
+    for (const colIndexOneBased of targetColumnIndicesInPricingSheet) {
+      pricingSheet.autoResizeColumn(colIndexOneBased);
+    }
+  }
 } 

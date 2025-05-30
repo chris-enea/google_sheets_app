@@ -2269,13 +2269,14 @@
       
       // Add a new item to a room
       function addItemToRoom(roomName) {
-        const roomItems = dashboardItemData.itemsByRoom[roomName] || [];
-        console.log('dashboardItemData.itemsByRoom[roomName]:', dashboardItemData.itemsByRoom[roomName]);
+        const dataRoomKey = roomName.toUpperCase(); // Use uppercase key for data access
+        const roomItems = dashboardItemData.itemsByRoom[dataRoomKey] || [];
+        console.log('dashboardItemData.itemsByRoom[', dataRoomKey, ']:', roomItems);
         
         // Create new item object with temporary ID
         const newItem = {
           id: 'new_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9), // Temporary unique ID
-          room: roomName,
+          room: roomName, // Keep original case for item.room property
           type: '',
           item: '',
           quantity: 1,
@@ -2287,30 +2288,31 @@
           isNew: true // Flag to indicate this is a newly added item
         };
         
-        // Make sure the room container exists in the data structure
-        if (!dashboardItemData.itemsByRoom[roomName]) {
-          // console.log('Creating new room array for:', roomName); // Removed
-          dashboardItemData.itemsByRoom[roomName] = [];
+        // Make sure the room container exists in the data structure using the uppercase key
+        if (!dashboardItemData.itemsByRoom[dataRoomKey]) {
+          dashboardItemData.itemsByRoom[dataRoomKey] = [];
         }
         
-        // Add the new item to the room's items array
-        dashboardItemData.itemsByRoom[roomName].push(newItem);
+        // Add the new item to the room's items array using the uppercase key
+        dashboardItemData.itemsByRoom[dataRoomKey].push(newItem);
         
         // Make sure it's also added to the main items array
         dashboardItemData.items.push(newItem);
 
-        console.log('dashboardItemData.itemsByRoom[roomName]:', dashboardItemData.itemsByRoom[roomName]);
-        // Get the container and add the new row
+        console.log('dashboardItemData.itemsByRoom[', dataRoomKey, '] after push:', dashboardItemData.itemsByRoom[dataRoomKey]);
+        // Get the container (DOM ID uses original case)
         const container = document.getElementById(`items-${roomName.replace(/\s+/g, '-')}`);
-        const newIndex = dashboardItemData.itemsByRoom[roomName].length - 1;
-        const newRow = createItemRow(newItem, newIndex, roomName);
+        // Get the newIndex from the array keyed by dataRoomKey (uppercase)
+        const newIndex = dashboardItemData.itemsByRoom[dataRoomKey].length - 1;
+        // createItemRow expects roomName in original case for dataset attributes
+        const newRow = createItemRow(newItem, newIndex, roomName); 
         
         // Add new row to the DOM
         container.appendChild(newRow);
         
-        // Focus on the new input
+        // Focus on the new item input
         setTimeout(() => {
-          const itemInput = newRow.querySelector('.item-input');
+          const itemInput = newRow.querySelector('.item-input'); // Changed back to .item-input
           if (itemInput) {
             itemInput.focus();
           }
@@ -2325,34 +2327,57 @@
         }
         
         // Update the budget summary row for this room
-        updateRoomBudgetDisplay(roomName);
+        //updateRoomBudgetDisplay(roomName);
       }
       
       // Delete an item row
       function deleteItemRow(roomName, index) {
         if (confirm('Are you sure you want to delete this item?')) {
+          const containerId = `items-${roomName.replace(/\s+/g, '-')}`;
+          const roomContainer = document.getElementById(containerId);
+
+          // Show loading state in the specific room container
+          if (roomContainer) {
+            renderUIState(roomContainer, 'loading', 'Deleting item...');
+          }
+
           // Remove from data structure
           const roomItems = dashboardItemData.itemsByRoom[roomName] || [];
           if (roomItems[index]) {
-            // Find the item in the overall items array
-            const itemToRemove = roomItems[index];
-            const overallIndex = dashboardItemData.items.findIndex(item => 
-              item === itemToRemove || 
-              (item.room === roomName && item.item === itemToRemove.item)
-            );
-            
-            if (overallIndex !== -1) {
-              dashboardItemData.items.splice(overallIndex, 1);
-            }
-            
-            // Remove from room items
+            const itemToDelete = roomItems[index]; // Get a reference before splicing
+
+            // Remove from room-specific array first
             roomItems.splice(index, 1);
             
-            // Refresh the entire room section to update indices
-            refreshRoomItemsDisplay(roomName);
+            // Find and remove from the main 'dashboardItemData.items' array
+            // It's crucial to find the exact item instance or a reliable unique ID.
+            // If itemToDelete has a unique 'id' property (e.g., 'row_X' or 'new_Y'), use that.
+            // Otherwise, match by content, which can be less reliable if items are identical.
+            let overallIndex = -1;
+            if (itemToDelete.id) {
+              overallIndex = dashboardItemData.items.findIndex(item => item.id === itemToDelete.id);
+            } else {
+              // Fallback to content matching if no ID (less ideal)
+              overallIndex = dashboardItemData.items.findIndex(item => 
+                item.room === roomName && 
+                item.item === itemToDelete.item &&
+                item.type === itemToDelete.type // Add more fields for uniqueness if needed
+                // Potentially compare quantity or other fields if items can be truly identical otherwise
+              );
+            }
+
+            if (overallIndex !== -1) {
+              dashboardItemData.items.splice(overallIndex, 1);
+              console.log('Item removed from dashboardItemData.items at index:', overallIndex);
+            } else {
+              console.warn('Could not find the exact item to remove in dashboardItemData.items. Item details:', itemToDelete);
+              // Potentially alert the user or log a more significant error if this happens,
+              // as it indicates a discrepancy between itemsByRoom and items.
+            }
             
-            // If this was the last item in the room and we're filtering by this room,
-            // switch back to "All Rooms" view
+            // --- Immediate UI Updates ---
+            // refreshRoomItemsDisplay(roomName); // Refresh the specific room's display - Defer this until after save
+            
             if (roomItems.length === 0) {
               const currentFilter = document.getElementById('room-filter').value;
               if (currentFilter === roomName) {
@@ -2360,53 +2385,149 @@
                 filterRoomsInDashboard();
               }
             }
-            
-            // Update the budget summary row for this room
-            updateRoomBudgetDisplay(roomName);
-            
-            // Show status message
-            showDashboardStatusMessage('Item deleted successfully');
-            
-            // Refresh quick-add buttons to show the button for the deleted item if it was in the suggested items
-            refreshQuickAddButtons(roomName);
+            //updateRoomBudgetDisplay(roomName);
+            showDashboardStatusMessage('Item deleted. Saving changes...', false, 'main'); // Updated message
+
+            // --- Call saveItemsToMasterList ---
+            // showDashboardLoading('Saving changes to sheet...'); // Global loading is still useful
+
+            google.script.run
+              .withSuccessHandler(function(saveResult) {
+                // hideDashboardLoading(); // Global loading is still useful
+                if (saveResult.success && saveResult.items) {
+                  showDashboardStatusMessage(`Item deleted and changes saved successfully. ${saveResult.count} items now on sheet.`, false, 'main');
+                  console.log('Successfully deleted item and saved the list. Server response details:', saveResult);
+
+                  // IMPORTANT: Update client-side data with the server's response
+                  dashboardItemData.items = saveResult.items || [];
+                  
+                  // Rebuild itemsByRoom from the authoritative server response
+                  dashboardItemData.itemsByRoom = {};
+                  dashboardItemData.items.forEach(item => {
+                    // Ensure item.room is treated as uppercase, as server returns it this way.
+                    const rKey = (item.room || 'UNASSIGNED').toUpperCase(); 
+                    if (!dashboardItemData.itemsByRoom[rKey]) {
+                      dashboardItemData.itemsByRoom[rKey] = [];
+                    }
+                    dashboardItemData.itemsByRoom[rKey].push(item);
+                  });
+                  
+                  // --- Enhanced Debug Logging ---
+                  const uppercasedRefreshRoomKey = roomName.toUpperCase();
+                  console.log("[Delete Success] Preparing to refresh UI for room:", roomName, "(Original Case)");
+                  console.log("[Delete Success] Uppercase key for data:", uppercasedRefreshRoomKey);
+                  console.log("[Delete Success] Available keys in itemsByRoom after rebuild:", Object.keys(dashboardItemData.itemsByRoom));
+                  const itemsForThisRoomAfterRebuild = dashboardItemData.itemsByRoom[uppercasedRefreshRoomKey];
+                  console.log("[Delete Success] Items for this room (using uppercase key) after rebuild:", JSON.parse(JSON.stringify(itemsForThisRoomAfterRebuild || [])));
+                  
+                  // Log a sample of what the server returned for this specific room to verify its presence and casing
+                  const serverItemsForThisRoom = (saveResult.items || []).filter(item => (item.room || '').toUpperCase() === uppercasedRefreshRoomKey);
+                  console.log("[Delete Success] Server items for this room (filtered from saveResult.items):", JSON.parse(JSON.stringify(serverItemsForThisRoom)));
+                  // --- End Enhanced Debug Logging ---
+                  
+                  // Re-render the specific room's items. This will clear the loading state.
+                  refreshRoomItemsDisplay(roomName); 
+                  //updateRoomBudgetDisplay(roomName); 
+
+                } else {
+                  console.error('Failed to save after deletion:', saveResult.error);
+                  showDashboardStatusMessage('Error: Could not save changes to the sheet after deleting item. ' + (saveResult.error || "Unknown server error."), true, 'main');
+                  // ATTEMPT TO ROLLBACK (Conceptual - might be complex depending on item ID strategy)
+                  // This is a simplified rollback: re-add itemToDelete to local data and refresh.
+                  // A more robust rollback would involve re-fetching the state before delete.
+                  dashboardItemData.itemsByRoom[roomName].splice(index, 0, itemToDelete); // Add back at original index
+                  dashboardItemData.items.splice(overallIndex !== -1 ? overallIndex : 0, 0, itemToDelete); // Add back to main list
+                  
+                  // Refresh display, which should clear loading and show restored items or an error if refresh fails.
+                  refreshRoomItemsDisplay(roomName);
+                  //updateRoomBudgetDisplay(roomName);
+                  // Optionally, explicitly show an error in the room container if refresh doesn't handle it well.
+                  if (roomContainer) {
+                     renderUIState(roomContainer, 'error', 'Save failed. Item restored locally.');
+                  }
+                  showDashboardStatusMessage('Save failed. Local changes have been temporarily restored. Please try saving all items manually or refresh.', true, 'main');
+                }
+              })
+              .withFailureHandler(function(error) {
+                // hideDashboardLoading(); // Global loading is still useful
+                console.error('Error calling saveItemsToMasterList after delete:', error);
+                showDashboardStatusMessage('Client Error: Failed to communicate with server to save deletion. ' + error.message, true, 'main');
+                // ATTEMPT TO ROLLBACK (Conceptual)
+                dashboardItemData.itemsByRoom[roomName].splice(index, 0, itemToDelete);
+                dashboardItemData.items.splice(overallIndex !== -1 ? overallIndex : 0, 0, itemToDelete);
+
+                // Refresh display, which should clear loading and show restored items or an error if refresh fails.
+                refreshRoomItemsDisplay(roomName);
+                //updateRoomBudgetDisplay(roomName);
+                // Optionally, explicitly show an error in the room container if refresh doesn't handle it well.
+                if (roomContainer) {
+                  renderUIState(roomContainer, 'error', 'Save failed. Item restored locally.');
+                }
+                showDashboardStatusMessage('Communication error. Local changes have been temporarily restored. Please try saving all items manually or refresh.', true, 'main');
+              })
+              .saveItemsToMasterList(dashboardItemData.items); // Pass the globally updated and correct items array
+
+          } else {
+            console.warn("Item at index " + index + " in room " + roomName + " not found in dashboardItemData.itemsByRoom.");
           }
         }
       }
       
       // Refresh the display of all items for a room
-      function refreshRoomItemsDisplay(roomName) {
-        const roomItems = dashboardItemData.itemsByRoom[roomName] || [];
-        const container = document.getElementById(`items-${roomName.replace(/\s+/g, '-')}`);
+      function refreshRoomItemsDisplay(roomName) { // roomName is the original case, used for DOM IDs
+        const uppercasedDataKey = roomName.toUpperCase();
+        const roomItems = dashboardItemData.itemsByRoom[uppercasedDataKey] || [];
         
-        // Clear the container
-        container.innerHTML = '';
+        const containerId = `items-${roomName.replace(/\s+/g, '-')}`; // DOM ID uses original case
+        const container = document.getElementById(containerId);
         
-        // Use a DocumentFragment for batching item row appends
-        const itemsFragment = document.createDocumentFragment();
-        // Regenerate all item rows
-        roomItems.forEach((item, index) => {
-          const newRow = createItemRow(item, index, roomName);
-          itemsFragment.appendChild(newRow);
-        });
-        container.appendChild(itemsFragment); // Append all item rows at once
+        if (!container) {
+          console.error(`refreshRoomItemsDisplay: Items container '${containerId}' not found for room '${roomName}'. Cannot refresh.`);
+          return; 
+        }
         
-        // Update the budget summary for this room
-        updateRoomBudgetDisplay(roomName);
+        container.innerHTML = ''; // Clear previous items
+        
+        if (roomItems.length > 0) {
+          const itemsFragment = document.createDocumentFragment();
+          roomItems.forEach((item, index) => {
+            // createItemRow needs the original roomName case for its data attributes if they affect DOM or subsequent lookups by original case
+            const newRow = createItemRow(item, index, roomName); 
+            itemsFragment.appendChild(newRow);
+          });
+          container.appendChild(itemsFragment);
+        } else {
+          // Display a message if there are no items for this room after the update
+          container.innerHTML = '<div class="empty-state-compact" style="padding: 10px; text-align: center; color: #777;">No items in this room.</div>';
+          console.log(`refreshRoomItemsDisplay: No items to display for room '${roomName}' (data key '${uppercasedDataKey}'). Displaying empty message.`);
+        }
+        
+        // updateRoomBudgetDisplay is also called with original roomName case for DOM ID consistency.
+        // It will internally use .toUpperCase() for data access.
+        //updateRoomBudgetDisplay(roomName);
       }
       
       // Update item data when inputs change
-      function updateItemData(roomName, index, field, value) {
+      function updateItemData(roomName, index, field, value) { // roomName is original case from dataset
         const idx = parseInt(index);
-        const roomItems = dashboardItemData.itemsByRoom[roomName] || [];
+        const dataRoomKey = roomName.toUpperCase(); // Use uppercase key for data access
+        
+        // Ensure the itemsByRoom[dataRoomKey] exists.
+        if (!dashboardItemData.itemsByRoom || !dashboardItemData.itemsByRoom[dataRoomKey]) {
+            console.error(`Room key '${dataRoomKey}' (from room '${roomName}') not found in dashboardItemData.itemsByRoom, or itemsByRoom is undefined. Cannot update item.`);
+            return;
+        }
+        // Access the array for the uppercase key. The 'index' parameter is correct for THIS array.
+        const roomItems = dashboardItemData.itemsByRoom[dataRoomKey]; 
         
         if (idx < 0 || idx >= roomItems.length) {
-          console.error(`Invalid index: ${idx}. Room ${roomName} items length: ${roomItems.length}`);
+          console.error(`Invalid index: ${idx}. Room '${roomName}' (key '${dataRoomKey}') items length: ${roomItems.length}. This index came from dataset.index and should be valid for the array keyed by dataRoomKey.`);
           return;
         }
         
-        const item = roomItems[idx];
-        console.log(`Updating ${field} for item in ${roomName} at index ${idx} to value: ${value}`);
-        console.log('Item before update:', JSON.stringify(item));
+        const item = roomItems[idx]; // This should now be the correct item
+        console.log(`Updating ${field} for item in ${roomName} (key ${dataRoomKey}) at index ${idx} to value: ${value}`);
+        console.log('Item before update:', JSON.parse(JSON.stringify(item))); // Log a deep copy
         
         if (field === 'quantity') {
           item[field] = parseInt(value) || 1;
@@ -2424,10 +2545,8 @@
             item.highBudgetTotal = null;
           }
         } else if (field === 'lowBudget' || field === 'highBudget') {
-          // Handle empty string input (make it null), otherwise parse as float
           item[field] = value === '' ? null : (parseFloat(value) || (parseFloat(value) === 0 ? 0 : null));
           
-          // Recalculate totals
           const qty = item.quantity || 1;
           if (field === 'lowBudget') {
             if (item.lowBudget !== null && !isNaN(item.lowBudget)) {
@@ -2435,7 +2554,7 @@
             } else {
               item.lowBudgetTotal = null;
             }
-          } else {
+          } else { // highBudget
             if (item.highBudget !== null && !isNaN(item.highBudget)) {
               item.highBudgetTotal = item.highBudget * qty;
             } else {
@@ -2447,30 +2566,30 @@
           if (field === 'item' || field === 'type') {
             item[field] = value.toUpperCase();
           } else {
-            // For any other fields (though not expected here for string values other than item/type)
-            item[field] = value;
+            item[field] = value; // Handles specFfe, etc.
           }
         }
         
-        console.log('Item after update:', JSON.stringify(item));
+        console.log('Item after update:', JSON.parse(JSON.stringify(item))); // Log a deep copy
         
-        // Find the same item in the main items array and update it too
         const mainIndex = dashboardItemData.items.findIndex(i => 
           i === item || 
           (i.id && item.id && i.id === item.id) ||
-          (i.room === roomName && i.item === item.item && i.type === item.type)
+          (i.room === roomName && item.item && i.item === item.item && item.type && i.type === item.type && i.quantity === item.quantity) 
         );
         
         if (mainIndex >= 0) {
-          console.log(`Updating main items array at index ${mainIndex}`);
-          // Update the corresponding fields, not just the one field
-          dashboardItemData.items[mainIndex] = { ...item };
+          if (dashboardItemData.items[mainIndex] !== item) {
+             console.log(`Updating item in main items array at index ${mainIndex} by replacing it.`);
+             dashboardItemData.items[mainIndex] = item; 
+          } else {
+             console.log(`Item in main items array at index ${mainIndex} is the same reference, already updated.`);
+          }
         } else {
-          console.warn(`Couldn't find item in main items array. Room: ${roomName}, Index: ${idx}, Field: ${field}`);
+          console.warn(`Couldn't find exact item in main items array to update. Room: ${roomName}, Index in room: ${idx}. This might be okay for new items if main list is robustly synced elsewhere.`);
         }
         
-        // Update the budget summary row for this room
-        updateRoomBudgetDisplay(roomName);
+        //updateRoomBudgetDisplay(roomName); // Uses original case roomName for DOM ID
       }
       
       // Autocomplete functionality
@@ -2900,16 +3019,16 @@
        * Updates the budget summary row for a specific room
        * @param {string} roomName - The name of the room to update the budget summary for
        */
-      function updateRoomBudgetDisplay(roomName) {
-        // Get the room container
-        const roomContainer = document.getElementById(`room-container-${roomName.replace(/\s+/g, '-')}`);
+      function updateRoomBudgetDisplay(roomName) { // roomName is original case, used for DOM IDs
+        const roomContainerId = `room-container-${roomName.replace(/\s+/g, '-')}`;
+        const roomContainer = document.getElementById(roomContainerId);
         if (!roomContainer) {
-          console.warn(`Room container not found for ${roomName}`);
+          console.warn(`updateRoomBudgetDisplay: Room container '${roomContainerId}' not found for room '${roomName}'.`);
           return;
         }
         
-        // Get the current room items
-        const roomItems = dashboardItemData.itemsByRoom[roomName] || [];
+        const uppercasedDataKey = roomName.toUpperCase();
+        const roomItems = dashboardItemData.itemsByRoom[uppercasedDataKey] || [];
         
         // Calculate updated budget totals
         const roomTotals = calculateRoomBudgetTotals(roomItems);
@@ -3115,7 +3234,7 @@
         }
         
         // Update the budget summary row for this room
-        updateRoomBudgetDisplay(roomName);
+        //updateRoomBudgetDisplay(roomName);
         
         // Refresh the quick-add buttons to remove the one we just added
         //refreshQuickAddButtons(roomName);
@@ -4056,52 +4175,58 @@
       return;
     }
     
-    console.log('Data received in renderItemUpdateInterface:', data);
+    console.log('Data received in renderItemUpdateInterface:', JSON.parse(JSON.stringify(data)));
     
-    // Normalize itemsByRoom keys and item.room properties
+    // Normalize itemsByRoom keys to be UPPERCASE, but ensure item.room property remains original case.
     const normalizedItemsByRoom = {};
     if (data.itemsByRoom && data.selectedRooms) {
-        data.selectedRooms.forEach(selectedRoomName => {
-            const actualKeyInDataItemsByRoom = Object.keys(data.itemsByRoom).find(
-                k => k.toUpperCase() === selectedRoomName.toUpperCase()
+        data.selectedRooms.forEach(selectedRoomNameOriginalCase => { 
+            const selectedRoomNameUppercase = selectedRoomNameOriginalCase.toUpperCase();
+            
+            const actualKeyFromServer = Object.keys(data.itemsByRoom).find(
+                k => k.toUpperCase() === selectedRoomNameUppercase
             );
             
-            if (actualKeyInDataItemsByRoom) {
-                const itemsForThisRoom = Array.isArray(data.itemsByRoom[actualKeyInDataItemsByRoom]) 
-                                           ? data.itemsByRoom[actualKeyInDataItemsByRoom] 
-                                           : [];
-                normalizedItemsByRoom[selectedRoomName] = itemsForThisRoom.map(item => ({
-                    ...item,
-                    room: selectedRoomName // Ensure item.room matches canonical key
-                }));
-            } else {
-                normalizedItemsByRoom[selectedRoomName] = [];
+            let itemsFromServerForThisRoom = [];
+            if (actualKeyFromServer) {
+                itemsFromServerForThisRoom = Array.isArray(data.itemsByRoom[actualKeyFromServer]) 
+                                   ? data.itemsByRoom[actualKeyFromServer] 
+                                   : [];
             }
+
+            normalizedItemsByRoom[selectedRoomNameUppercase] = itemsFromServerForThisRoom.map(item => ({
+                ...item,
+                // Crucially, ensure the item.room property reflects the original/display case,
+                // even if the source data had inconsistent casing for item.room.
+                // We trust selectedRoomNameOriginalCase as the canonical display name for this room.
+                room: selectedRoomNameOriginalCase 
+            }));
         });
     }
 
-    // Update the global dashboardItemData with normalized data
+    // Update the global dashboardItemData
     dashboardItemData = {
-        ...data, // Spread original data first
-        itemsByRoom: normalizedItemsByRoom, // Override with normalized version
-        selectedRooms: data.selectedRooms ? [...data.selectedRooms] : [], // Ensure selectedRooms is a fresh copy
-        items: [] // Initialize items, will be rebuilt below
+        ...data, 
+        itemsByRoom: normalizedItemsByRoom, // Keys are now UPPERCASE
+        selectedRooms: data.selectedRooms ? [...data.selectedRooms].sort((a,b) => String(a).localeCompare(String(b))) : [], // Keep original case, sorted for UI
+        items: [] 
     };
 
-    // Rebuild dashboardItemData.items from the normalized itemsByRoom for consistency
-    Object.keys(dashboardItemData.itemsByRoom).forEach(roomKey => {
-        const itemsForRoom = dashboardItemData.itemsByRoom[roomKey];
-        if (Array.isArray(itemsForRoom)) {
-            itemsForRoom.forEach(item => {
+    // Rebuild dashboardItemData.items from the newly normalized itemsByRoom
+    // Ensure item.room in this flat list is the original case name.
+    Object.keys(dashboardItemData.itemsByRoom).forEach(roomKeyUppercase => {
+        const itemsInRoom = dashboardItemData.itemsByRoom[roomKeyUppercase];
+        if (Array.isArray(itemsInRoom)) {
+            itemsInRoom.forEach(item => { // item already has item.room as original case from mapping above
                 dashboardItemData.items.push(item); 
             });
         }
     });
 
-    // Sort dashboardItemData.items by room name, then by item name
+    // Sort dashboardItemData.items by original room name (item.room), then by item name
     if (Array.isArray(dashboardItemData.items)) {
         dashboardItemData.items.sort((a, b) => {
-            const roomA = String(a.room || '').toUpperCase();
+            const roomA = String(a.room || '').toUpperCase(); // For sorting, using uppercase is robust
             const roomB = String(b.room || '').toUpperCase();
             if (roomA === roomB) {
                 const itemAname = String(a.item || '').toUpperCase();
@@ -4110,10 +4235,9 @@
             }
             return roomA.localeCompare(roomB);
         });
-        console.log('dashboardItemData.items sorted by room and item name in renderItemUpdateInterface.');
+        console.log('dashboardItemData.items sorted. Count:', dashboardItemData.items.length);
     }
     
-    // Check if we have combinedItems property - this needs to use the new dashboardItemData
     if (!dashboardItemData.combinedItems || !Array.isArray(dashboardItemData.combinedItems)) {
       console.warn('combinedItems is missing or not an array, initializing from availableItems in normalized dashboardItemData');
       if (dashboardItemData.availableItems && Array.isArray(dashboardItemData.availableItems)) {
@@ -4130,7 +4254,6 @@
       }
     }
     
-    // Create container for all room sections
     const container = document.createElement('div');
     container.className = 'item-update-content';
     container.style.padding = '20px';
@@ -4153,12 +4276,14 @@
     helpContainer.appendChild(tooltipText);
     container.appendChild(helpContainer);
     
+    // Build itemsByRoomForUiDisplay: keys are original-case room names (for UI titles, dataset.room)
+    // Values are arrays of items fetched from dashboardItemData.itemsByRoom (which uses UPPERCASE keys)
     const itemsByRoomForUiDisplay = {}; 
     if (dashboardItemData.selectedRooms && dashboardItemData.itemsByRoom) {
-        // Iterate over selectedRooms which should define the display order of room sections
-        // The actual room names in itemsByRoom are already normalized.
-        dashboardItemData.selectedRooms.sort((a,b) => String(a).localeCompare(String(b))).forEach(room => { // Ensure selectedRooms is sorted for display
-            itemsByRoomForUiDisplay[room] = dashboardItemData.itemsByRoom[room] || [];
+        // dashboardItemData.selectedRooms contains original case names (e.g., "Basement Bath"), sorted.
+        dashboardItemData.selectedRooms.forEach(originalCaseRoomName => { 
+            const uppercaseRoomKey = originalCaseRoomName.toUpperCase();
+            itemsByRoomForUiDisplay[originalCaseRoomName] = dashboardItemData.itemsByRoom[uppercaseRoomKey] || [];
         });
     }
     
@@ -4220,29 +4345,29 @@
     stickyContainer.appendChild(actionsContainer);
     container.appendChild(stickyContainer);
     
-    // Populate filter dropdown with rooms (already sorted via itemsByRoomForUiDisplay keys)
-    Object.keys(itemsByRoomForUiDisplay).forEach(room => { // No sort needed here as itemsByRoomForUiDisplay keys are from sorted selectedRooms
+    // Populate filter dropdown with original-case room names from itemsByRoomForUiDisplay keys
+    Object.keys(itemsByRoomForUiDisplay).forEach(originalCaseRoomName => {
       const option = document.createElement('option');
-      option.value = room;
-      option.textContent = room;
+      option.value = originalCaseRoomName; // Filter will use original case
+      option.textContent = originalCaseRoomName;
       roomFilter.appendChild(option);
     });
     
     const roomsFragment = document.createDocumentFragment();
     
-    // Create room sections based on the sorted order in itemsByRoomForUiDisplay
-    Object.keys(itemsByRoomForUiDisplay).forEach(room => {
-      const currentRoomItems = itemsByRoomForUiDisplay[room];
+    // Create room sections. Iterate using itemsByRoomForUiDisplay (keys are original case)
+    Object.keys(itemsByRoomForUiDisplay).forEach(roomDisplayNameOriginalCase => {
+      const currentRoomItems = itemsByRoomForUiDisplay[roomDisplayNameOriginalCase];
       
-      // Create room container
       const roomContainer = document.createElement('div');
       roomContainer.className = 'room-container';
-      roomContainer.id = `room-container-${room.replace(/\s+/g, '-')}`;
-      roomContainer.dataset.room = room;
+      // DOM ID and dataset.room use original case for consistency with filterRoomsInDashboard
+      roomContainer.id = `room-container-${roomDisplayNameOriginalCase.replace(/\s+/g, '-')}`; // CORRECTED REGEX (single backslash)
+      roomContainer.dataset.room = roomDisplayNameOriginalCase; 
       
       const roomTitle = document.createElement('div');
       roomTitle.className = 'room-title';
-      roomTitle.textContent = room;
+      roomTitle.textContent = roomDisplayNameOriginalCase; // Display original case
       roomContainer.appendChild(roomTitle);
       
       const headers = document.createElement('div');
@@ -4268,37 +4393,40 @@
       highBudgetHeader.className = 'column-header budget-header';
       highBudgetHeader.textContent = 'High Budget';
       
+      const specFfeHeader = document.createElement('div');
+      specFfeHeader.className = 'column-header spec-ffe-header';
+      specFfeHeader.textContent = 'SPEC/FFE';
+
       const actionsHeader = document.createElement('div');
       actionsHeader.className = 'column-header actions-header';
-      actionsHeader.textContent = 'Remove Item';
+      actionsHeader.textContent = 'Delete';
       
       headers.appendChild(itemHeader);
       headers.appendChild(typeHeader);
       headers.appendChild(quantityHeader);
       headers.appendChild(lowBudgetHeader);
       headers.appendChild(highBudgetHeader);
-      
-      const specFfeHeader = document.createElement('div');
-      specFfeHeader.className = 'column-header spec-ffe-header'; // You might want to style this
-      specFfeHeader.textContent = 'SPEC/FFE';
       headers.appendChild(specFfeHeader);
-
       headers.appendChild(actionsHeader);
       
       roomContainer.appendChild(headers);
       
       const itemsContainer = document.createElement('div');
       itemsContainer.className = 'items-container';
-      itemsContainer.id = `items-${room.replace(/\s+/g, '-')}`;
+      itemsContainer.id = `items-${roomDisplayNameOriginalCase.replace(/\s+/g, '-')}`; // CORRECTED REGEX (single backslash)
       
-      const itemsFragment = document.createDocumentFragment();
-      // Items within currentRoomItems are already sorted by item name due to earlier sort of dashboardItemData.items
+      const itemsFragmentInner = document.createDocumentFragment();
       currentRoomItems.forEach((item, index) => {
-        const itemRow = createItemRow(item, index, room); 
-        itemsFragment.appendChild(itemRow);
+        // createItemRow gets roomDisplayNameOriginalCase for its roomName param.
+        // This sets dataset.room to original case.
+        // The 'index' is the 0-based index from currentRoomItems array.
+        const itemRow = createItemRow(item, index, roomDisplayNameOriginalCase); 
+        itemsFragmentInner.appendChild(itemRow);
       });
-      itemsContainer.appendChild(itemsFragment); 
+      itemsContainer.appendChild(itemsFragmentInner); 
       
+      // Event listeners remain the same, they use dataset.room (original case)
+      // which then gets converted to uppercase in updateItemData/deleteItemRow for itemsByRoom access.
       itemsContainer.addEventListener('change', function(event) {
         const target = event.target;
         if (target.classList.contains('item-input') ||
@@ -4329,6 +4457,7 @@
         const target = event.target;
         if (target.classList.contains('delete-button')) {
           if (target.dataset.room && target.dataset.index !== undefined) {
+            // deleteItemRow internally converts target.dataset.room (original case) to uppercase for itemsByRoom access.
             deleteItemRow(target.dataset.room, target.dataset.index);
           }
         }
@@ -4342,7 +4471,8 @@
       const addItemButton = document.createElement('button');
       addItemButton.className = 'add-item-btn';
       addItemButton.addEventListener('click', function() {
-        addItemToRoom(room);
+        // addItemToRoom internally converts roomDisplayNameOriginalCase to uppercase for itemsByRoom access.
+        addItemToRoom(roomDisplayNameOriginalCase);
       });
       
       const buttonIcon = document.createElement('i');
@@ -4353,39 +4483,9 @@
       addItemButton.appendChild(document.createTextNode(' Add Item'));
       addMoreRow.appendChild(addItemButton);
       
-      // const suggestedItems = getSuggestedItemsForRoom(room);
-      
-      // const quickAddContainer = document.createElement('div');
-      // quickAddContainer.className = 'quick-add-container';
-      
-      // if (!dashboardItemData.visibleSuggestedItems) {
-      //   dashboardItemData.visibleSuggestedItems = {};
-      // }
-      
-      // const availableSuggestions = suggestedItems.filter(item => 
-      //   !itemExistsInRoom(dashboardItemData.itemsByRoom[room] || [], item)
-      // );
-      
-      // dashboardItemData.visibleSuggestedItems[room] = availableSuggestions.slice(0, 5);
-      
-      // dashboardItemData.visibleSuggestedItems[room].forEach(itemObj => {
-      //   const quickAddButton = document.createElement('button');
-      //   quickAddButton.className = 'quick-add-btn';
-      //   quickAddButton.textContent = `Add ${itemObj.name}`;
-        
-      //   quickAddButton.addEventListener('click', function() {
-      //     addSpecificItemToRoom(room, itemObj.name, itemObj.type);
-      //   });
-        
-      //   quickAddContainer.appendChild(quickAddButton);
-      // });
-      
-      // if (quickAddContainer.children.length > 0) {
-      //   addMoreRow.appendChild(quickAddContainer);
-      // }
-      
       roomContainer.appendChild(addMoreRow);
-      updateRoomBudgetDisplay(room); // Call this to create the budget display for the room
+      // updateRoomBudgetDisplay expects original case room name for DOM lookups
+      updateRoomBudgetDisplay(roomDisplayNameOriginalCase); 
       roomsFragment.appendChild(roomContainer);
     });
     
