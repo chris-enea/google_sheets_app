@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap">
+    <style>
+      body { 
+        padding: 12px; 
+        font-family: 'Roboto', sans-serif;
+        background-color: #fafafa;
+        margin: 0;
+        color: #202124;
+      }
+      
+      .mdc-card {
+        padding: 16px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      }
+
+      .page-title {
+        color: #000;
+        font-size: 16px;
+        font-weight: 500;
+        margin: 0 0 20px 0;
+      }
+
+      .form-field {
+        margin-bottom: 16px;
+        width: 100%;
+      }
+
+      .field-label {
+        color: #5f6368;
+        font-size: 12px;
+        font-weight: 500;
+        margin-bottom: 4px;
+        display: block;
+      }
+
+      input[type="email"],
+      input[type="text"] {
+        width: 100%;
+        padding: 8px;
+        font-size: 14px;
+        border: 1px solid #dadce0;
+        border-radius: 4px;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+
+      input[type="email"]:focus,
+      input[type="text"]:focus {
+        border-color: #1a73e8;
+      }
+
+      input.invalid {
+        border-color: #d93025;
+      }
+
+      #emailBodyPreview {
+        margin-top: 8px;
+        padding: 12px;
+        border: 1px solid #dadce0;
+        border-radius: 4px;
+        background-color: white;
+        max-height: 300px;
+        overflow-y: auto;
+        font-size: 13px;
+        transition: max-height 0.3s ease-in-out;
+      }
+
+      #emailBodyPreview.expanded {
+        max-height: 80vh;
+      }
+
+      .preview-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 4px;
+      }
+
+      .expand-button {
+        background: none;
+        border: none;
+        color: #1a73e8;
+        cursor: pointer;
+        padding: 4px 8px;
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        border-radius: 4px;
+        transition: background-color 0.2s;
+      }
+
+      .expand-button:hover {
+        background-color: rgba(26, 115, 232, 0.04);
+      }
+
+      .expand-button .material-icons {
+        font-size: 16px;
+      }
+
+      .error-message {
+        color: #d93025;
+        font-size: 11px;
+        margin-top: 4px;
+      }
+
+      .send-button {
+        background-color: #1a73e8;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 0 16px;
+        height: 32px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background-color 0.2s;
+      }
+
+      .send-button:hover {
+        background-color: #1557b0;
+      }
+
+      .send-button:disabled {
+        background-color: rgba(26, 115, 232, 0.5);
+        cursor: not-allowed;
+      }
+
+      .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.9);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+      }
+
+      .status-message {
+        margin-top: 12px;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-size: 13px;
+        display: none;
+      }
+
+      .status-message.success {
+        background-color: #e6f4ea;
+        color: #137333;
+      }
+
+      .status-message.error {
+        background-color: #fce8e6;
+        color: #d93025;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 13px;
+      }
+
+      th, td {
+        border: 1px solid #dadce0;
+        padding: 8px;
+        text-align: left;
+      }
+
+      th {
+        background-color: #f8f9fa;
+        font-weight: 500;
+      }
+
+      .email-body-editor {
+        width: 100%;
+        min-height: 300px;
+        padding: 12px;
+        font-size: 13px;
+        font-family: 'Roboto', sans-serif;
+        border: 1px solid #dadce0;
+        border-radius: 4px;
+        outline: none;
+        transition: border-color 0.2s, max-height 0.3s ease-in-out;
+        overflow-y: auto;
+        background-color: white;
+      }
+
+      .email-body-editor:focus {
+        border-color: #1a73e8;
+      }
+
+      .email-body-editor.expanded {
+        max-height: 80vh;
+      }
+
+      [contenteditable=true]:empty:before {
+        content: attr(placeholder);
+        color: #666;
+        font-style: italic;
+      }
+
+      /* Table styles for the editor */
+      .email-body-editor table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 8px 0;
+      }
+
+      .email-body-editor th,
+      .email-body-editor td {
+        border: 1px solid #dadce0;
+        padding: 8px;
+        text-align: left;
+      }
+
+      .email-body-editor th {
+        background-color: #f8f9fa;
+        font-weight: 500;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="loading-overlay" id="loadingOverlay">
+      <div class="material-icons" style="color: #1a73e8; font-size: 24px;">sync</div>
+    </div>
+
+    <div class="mdc-card">
+      <h1 class="page-title">Email Details</h1>
+
+      <div class="form-field">
+        <label class="field-label" for="vendorEmail">To:</label>
+        <input type="email" id="vendorEmail" value="<?!= defaultEmail ?>" required>
+        <div class="error-message" id="emailError"></div>
+      </div>
+
+      <div class="form-field">
+        <label class="field-label" for="emailSubject">Subject:</label>
+        <input type="text" id="emailSubject" value="<?!= defaultSubject ?>" required>
+        <div class="error-message" id="subjectError"></div>
+      </div>
+
+      <div class="form-field">
+        <div class="preview-header">
+          <label class="field-label">Email Body:</label>
+          <button type="button" class="expand-button" id="expandButton">
+            <span class="material-icons">unfold_more</span>
+            <span class="button-text">Expand Editor</span>
+          </button>
+        </div>
+        <div id="emailBodyPreview" class="email-body-editor" contenteditable="true">
+          <?!= htmlBodyContent ?>
+        </div>
+        <input type="hidden" id="plainBodyContent" value="<?!= plainBodyContent ?>">
+        <input type="hidden" id="rowsToUpdate" value='<?!= rowsToUpdateJson ?>'>
+      </div>
+
+      <button class="send-button" id="sendButton">
+        <span id="sendButtonText">Create Draft</span>
+        <span class="material-icons" id="loadingSpinner" style="display: none; margin-left: 8px; font-size: 16px;">sync</span>
+      </button>
+
+      <div id="statusMessage" class="status-message"></div>
+    </div>
+
+    <script>
+      const sendButton = document.getElementById('sendButton');
+      const sendButtonText = document.getElementById('sendButtonText');
+      const loadingSpinner = document.getElementById('loadingSpinner');
+      const statusDiv = document.getElementById('statusMessage');
+      const loadingOverlay = document.getElementById('loadingOverlay');
+      const vendorEmail = document.getElementById('vendorEmail');
+      const emailSubject = document.getElementById('emailSubject');
+      const emailError = document.getElementById('emailError');
+      const subjectError = document.getElementById('subjectError');
+      const emailBodyPreview = document.getElementById('emailBodyPreview');
+      const expandButton = document.getElementById('expandButton');
+      const expandIcon = expandButton.querySelector('.material-icons');
+      const expandText = expandButton.querySelector('.button-text');
+
+      // Add expand/collapse functionality
+      let isExpanded = false;
+      expandButton.addEventListener('click', () => {
+        isExpanded = !isExpanded;
+        emailBodyPreview.classList.toggle('expanded', isExpanded);
+        expandIcon.textContent = isExpanded ? 'unfold_less' : 'unfold_more';
+        expandText.textContent = isExpanded ? 'Collapse Editor' : 'Expand Editor';
+      });
+
+      // Add input validation
+      vendorEmail.addEventListener('input', validateEmail);
+      emailSubject.addEventListener('input', validateSubject);
+
+      function validateEmail() {
+        const email = vendorEmail.value.trim();
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        
+        if (!email) {
+          showError(vendorEmail, emailError, 'Email is required');
+          return false;
+        }
+        if (!emailRegex.test(email)) {
+          showError(vendorEmail, emailError, 'Invalid email format');
+          return false;
+        }
+        
+        clearError(vendorEmail, emailError);
+        return true;
+      }
+
+      function validateSubject() {
+        const subject = emailSubject.value.trim();
+        
+        if (!subject) {
+          showError(emailSubject, subjectError, 'Subject is required');
+          return false;
+        }
+        
+        clearError(emailSubject, subjectError);
+        return true;
+      }
+
+      function showError(input, errorElement, message) {
+        input.classList.add('invalid');
+        errorElement.textContent = message;
+      }
+
+      function clearError(input, errorElement) {
+        input.classList.remove('invalid');
+        errorElement.textContent = '';
+      }
+
+      function validateForm() {
+        const isEmailValid = validateEmail();
+        const isSubjectValid = validateSubject();
+        return isEmailValid && isSubjectValid;
+      }
+
+      sendButton.addEventListener('click', sendEmail);
+
+      function sendEmail() {
+        if (!validateForm()) {
+          return;
+        }
+
+        setLoadingState(true);
+        clearStatus();
+
+        const emailDetails = {
+          recipient: vendorEmail.value.trim(),
+          subject: emailSubject.value.trim(),
+          htmlBody: document.getElementById('emailBodyPreview').innerHTML,
+          plainBody: stripHtml(document.getElementById('emailBodyPreview').innerHTML),
+          rowsToUpdateJson: document.getElementById('rowsToUpdate').value
+        };
+
+        loadingOverlay.style.display = 'flex';
+
+        google.script.run
+          .withSuccessHandler(onDraftCreated)
+          .withFailureHandler(onSendFailure)
+          .createAndOpenDraft(emailDetails);
+      }
+
+      function onDraftCreated(result) {
+        if (result.success) {
+          showStatus("Draft created and opened in Gmail", "success");
+        setLoadingState(false);
+        loadingOverlay.style.display = 'none';
+        
+          // Open the draft URL
+          if (result.url) {
+            window.open(result.url, '_blank');
+          }
+          
+        setTimeout(() => {
+          google.script.host.close();
+        }, 2500);
+        } else {
+          onSendFailure(new Error(result.message || "Failed to create draft"));
+        }
+      }
+
+      function onSendFailure(error) {
+        showStatus("Error: " + error.message, "error");
+        setLoadingState(false);
+        loadingOverlay.style.display = 'none';
+      }
+
+      function setLoadingState(isLoading) {
+        sendButton.disabled = isLoading;
+        loadingSpinner.style.display = isLoading ? 'inline-block' : 'none';
+        sendButtonText.textContent = isLoading ? 'Creating...' : 'Create Draft';
+      }
+
+      function showStatus(message, type) {
+        statusDiv.textContent = message;
+        statusDiv.className = `status-message ${type}`;
+        statusDiv.style.display = 'block';
+      }
+
+      function clearStatus() {
+        statusDiv.textContent = '';
+        statusDiv.style.display = 'none';
+        statusDiv.className = 'status-message';
+      }
+
+      // Function to strip HTML tags for plain text version
+      function stripHtml(html) {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        return doc.body.textContent || '';
+      }
+    </script>
+  </body>
+</html>

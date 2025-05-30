@@ -981,7 +981,7 @@ function onOpen(e) {
       // Add "Open Dashboard" here, but it will be checked for initialization
       projectManagerMenu.addItem('Open Dashboard', 'openDashboard');
       projectManagerMenu.addToUi();
-
+    
       ui.alert(
         'Sheet Not Configured',
         'This sheet is not yet configured as a project. Please use the "Project Manager > Setup > Initialize this Sheet as Project" menu item to configure it.',
@@ -1026,6 +1026,10 @@ function loadStandardMenus(ui, scriptProps, isMaster, isInitialized) {
     projectManagerMenu.addItem('Split Items by SPEC/FFE', 'splitItemsByFFE');
     // Add other Sheet Manager items here if needed in the future
     projectManagerMenu.addToUi();
+    // Vendor Actions menu
+    ui.createMenu('Vendor Requests')
+    .addItem('Email Price Requests...', 'openEmailSidebar')
+    .addToUi();
   }
 }
 

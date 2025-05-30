@@ -726,11 +726,4 @@ function _copyFFEDataToPriceSheet(ss, ffeSheetName, pricingSheetName, ffeSourceH
       Logger.log(`Mismatch between number of target columns identified (${targetColumnIndicesInPricingSheet.length}) and number of source columns mapped (${pricingTargetHeaders.length}). Data not written to "${pricingSheetName}".`);
       // This case implies an issue with populating targetColumnIndicesInPricingSheet correctly.
   }
-
-  // Auto-resize the target columns in the pricing sheet
-  if (targetColumnIndicesInPricingSheet.length > 0) {
-    for (const colIndexOneBased of targetColumnIndicesInPricingSheet) {
-      pricingSheet.autoResizeColumn(colIndexOneBased);
-    }
-  }
 } 
