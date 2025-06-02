@@ -979,7 +979,7 @@ function onOpen(e) {
       setupSubMenu.addItem('Initialize this Sheet as Project', 'initializeAsProjectManually');
       projectManagerMenu.addSubMenu(setupSubMenu);
       // Add "Open Dashboard" here, but it will be checked for initialization
-      projectManagerMenu.addItem('Open Dashboard', 'openDashboard');
+      // projectManagerMenu.addItem('Open Dashboard', 'openDashboard');
       projectManagerMenu.addToUi();
     
       ui.alert(

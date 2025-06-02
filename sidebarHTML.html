@@ -41,7 +41,8 @@
       }
 
       input[type="email"],
-      input[type="text"] {
+      input[type="text"],
+      select {
         width: 100%;
         padding: 8px;
         font-size: 14px;
@@ -52,11 +53,13 @@
       }
 
       input[type="email"]:focus,
-      input[type="text"]:focus {
+      input[type="text"]:focus,
+      select:focus {
         border-color: #1a73e8;
       }
 
-      input.invalid {
+      input.invalid,
+      select.invalid {
         border-color: #d93025;
       }
 
@@ -121,7 +124,8 @@
         font-size: 13px;
         font-weight: 500;
         cursor: pointer;
-        width: 100%;
+        flex-grow: 1;
+        margin: 0 4px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -135,6 +139,21 @@
       .send-button:disabled {
         background-color: rgba(26, 115, 232, 0.5);
         cursor: not-allowed;
+      }
+
+      .send-button.secondary {
+        background-color: #e8f0fe;
+        color: #1967d2;
+      }
+
+      .send-button.secondary:hover {
+        background-color: #d2e3fc;
+      }
+
+      .button-container {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 20px;
       }
 
       .loading-overlay {
@@ -166,6 +185,11 @@
       .status-message.error {
         background-color: #fce8e6;
         color: #d93025;
+      }
+
+      .status-message.info {
+        background-color: #e8f0fe;
+        color: #1967d2;
       }
 
       table {
@@ -254,6 +278,13 @@
       </div>
 
       <div class="form-field">
+        <label class="field-label" for="fromEmail">From:</label>
+        <select id="fromEmail" name="fromEmail"></select>
+        <div class="error-message" id="fromEmailError"></div>
+        <div class="status-message info" id="fromEmailStatus" style="font-size: 11px; margin-top: 4px; padding: 4px 8px; background-color: #e8f0fe; color: #1967d2; display: none;"></div>
+      </div>
+
+      <div class="form-field">
         <div class="preview-header">
           <label class="field-label">Email Body:</label>
           <button type="button" class="expand-button" id="expandButton">
@@ -268,10 +299,16 @@
         <input type="hidden" id="rowsToUpdate" value='<?!= rowsToUpdateJson ?>'>
       </div>
 
-      <button class="send-button" id="sendButton">
-        <span id="sendButtonText">Create Draft</span>
-        <span class="material-icons" id="loadingSpinner" style="display: none; margin-left: 8px; font-size: 16px;">sync</span>
-      </button>
+      <div class="button-container">
+        <button class="send-button" id="createDraftButton">
+          <span id="createDraftButtonText">Create Draft</span>
+          <span class="material-icons" id="createDraftLoadingSpinner" style="display: none; margin-left: 8px; font-size: 16px;">sync</span>
+        </button>
+        <button class="send-button secondary" id="sendEmailButton">
+          <span id="sendEmailButtonText">Send Email</span>
+          <span class="material-icons" id="sendEmailLoadingSpinner" style="display: none; margin-left: 8px; font-size: 16px;">sync</span>
+        </button>
+      </div>
 
       <div id="statusMessage" class="status-message"></div>
     </div>
@@ -291,6 +328,24 @@
       const expandIcon = expandButton.querySelector('.material-icons');
       const expandText = expandButton.querySelector('.button-text');
 
+      // New/updated DOM elements
+      const createDraftButton = document.getElementById('createDraftButton');
+      const createDraftButtonText = document.getElementById('createDraftButtonText');
+      const createDraftLoadingSpinner = document.getElementById('createDraftLoadingSpinner');
+      
+      const sendEmailButton = document.getElementById('sendEmailButton');
+      const sendEmailButtonText = document.getElementById('sendEmailButtonText');
+      const sendEmailLoadingSpinner = document.getElementById('sendEmailLoadingSpinner');
+      
+      const fromEmailSelect = document.getElementById('fromEmail');
+      const fromEmailError = document.getElementById('fromEmailError');
+      const fromEmailStatus = document.getElementById('fromEmailStatus');
+
+      // Data passed from server-side (ui.js)
+      const currentUserPrimaryEmail = "<?!= userPrimaryEmail ?>";
+      const currentUserAliases = JSON.parse('<?!= userAliases ?>' || '[]');
+      const preferredDefaultSender = "<?!= preferredSenderAlias ?>";
+
       // Add expand/collapse functionality
       let isExpanded = false;
       expandButton.addEventListener('click', () => {
@@ -303,6 +358,7 @@
       // Add input validation
       vendorEmail.addEventListener('input', validateEmail);
       emailSubject.addEventListener('input', validateSubject);
+      fromEmailSelect.addEventListener('change', validateFromEmail);
 
       function validateEmail() {
         const email = vendorEmail.value.trim();
@@ -333,6 +389,16 @@
         return true;
       }
 
+      function validateFromEmail() {
+        const from = fromEmailSelect.value;
+        if (!from) {
+          showError(fromEmailSelect, fromEmailError, '\'From\' address is required.');
+          return false;
+        }
+        clearError(fromEmailSelect, fromEmailError);
+        return true;
+      }
+
       function showError(input, errorElement, message) {
         input.classList.add('invalid');
         errorElement.textContent = message;
@@ -346,17 +412,20 @@
       function validateForm() {
         const isEmailValid = validateEmail();
         const isSubjectValid = validateSubject();
-        return isEmailValid && isSubjectValid;
+        const isFromEmailValid = validateFromEmail();
+        return isEmailValid && isSubjectValid && isFromEmailValid;
       }
 
-      sendButton.addEventListener('click', sendEmail);
+      // Ensure createDraftButton and sendEmailButton have correct listeners
+      createDraftButton.addEventListener('click', handleCreateDraft);
+      sendEmailButton.addEventListener('click', handleSendEmail);
 
-      function sendEmail() {
+      function handleCreateDraft() {
         if (!validateForm()) {
           return;
         }
 
-        setLoadingState(true);
+        setLoadingState(true, 'createDraft');
         clearStatus();
 
         const emailDetails = {
@@ -364,7 +433,8 @@
           subject: emailSubject.value.trim(),
           htmlBody: document.getElementById('emailBodyPreview').innerHTML,
           plainBody: stripHtml(document.getElementById('emailBodyPreview').innerHTML),
-          rowsToUpdateJson: document.getElementById('rowsToUpdate').value
+          rowsToUpdateJson: document.getElementById('rowsToUpdate').value,
+          fromEmail: fromEmailSelect.value
         };
 
         loadingOverlay.style.display = 'flex';
@@ -375,35 +445,76 @@
           .createAndOpenDraft(emailDetails);
       }
 
+      function handleSendEmail() {
+        if (!validateForm()) {
+          return;
+        }
+        setLoadingState(true, 'sendEmail');
+        clearStatus();
+
+        const emailDetails = {
+          recipient: vendorEmail.value.trim(),
+          subject: emailSubject.value.trim(),
+          htmlBody: document.getElementById('emailBodyPreview').innerHTML,
+          plainBody: stripHtml(document.getElementById('emailBodyPreview').innerHTML),
+          rowsToUpdateJson: document.getElementById('rowsToUpdate').value,
+          fromEmail: fromEmailSelect.value
+        };
+        loadingOverlay.style.display = 'flex';
+        google.script.run
+          .withSuccessHandler(onEmailSent)
+          .withFailureHandler(onSendFailure)
+          .sendEmailDirectly(emailDetails);
+      }
+
       function onDraftCreated(result) {
         if (result.success) {
-          showStatus("Draft created and opened in Gmail", "success");
-        setLoadingState(false);
-        loadingOverlay.style.display = 'none';
-        
-          // Open the draft URL
+          showStatus(result.message || "Draft created and opened in Gmail", "success");
+          setLoadingState(false, 'createDraft');
+          loadingOverlay.style.display = 'none';
+          
           if (result.url) {
             window.open(result.url, '_blank');
           }
           
-        setTimeout(() => {
-          google.script.host.close();
-        }, 2500);
+          setTimeout(() => {
+            google.script.host.close();
+          }, 2500);
         } else {
           onSendFailure(new Error(result.message || "Failed to create draft"));
         }
       }
 
+      function onEmailSent(result) {
+        if (result.success) {
+          showStatus(result.message || "Email sent successfully!", "success");
+          setLoadingState(false, 'sendEmail');
+          loadingOverlay.style.display = 'none';
+          setTimeout(() => {
+            google.script.host.close();
+          }, 2500);
+        } else {
+          onSendFailure(new Error(result.message || "Failed to send email"));
+        }
+      }
+
       function onSendFailure(error) {
         showStatus("Error: " + error.message, "error");
-        setLoadingState(false);
+        setLoadingState(false, 'createDraft');
+        setLoadingState(false, 'sendEmail');
         loadingOverlay.style.display = 'none';
       }
 
-      function setLoadingState(isLoading) {
-        sendButton.disabled = isLoading;
-        loadingSpinner.style.display = isLoading ? 'inline-block' : 'none';
-        sendButtonText.textContent = isLoading ? 'Creating...' : 'Create Draft';
+      function setLoadingState(isLoading, actionType) {
+        if (actionType === 'createDraft') {
+          createDraftButton.disabled = isLoading;
+          createDraftLoadingSpinner.style.display = isLoading ? 'inline-block' : 'none';
+          createDraftButtonText.textContent = isLoading ? 'Creating...' : 'Create Draft';
+        } else if (actionType === 'sendEmail') {
+          sendEmailButton.disabled = isLoading;
+          sendEmailLoadingSpinner.style.display = isLoading ? 'inline-block' : 'none';
+          sendEmailButtonText.textContent = isLoading ? 'Sending...' : 'Send Email';
+        }
       }
 
       function showStatus(message, type) {
@@ -418,11 +529,57 @@
         statusDiv.className = 'status-message';
       }
 
-      // Function to strip HTML tags for plain text version
       function stripHtml(html) {
         const doc = new DOMParser().parseFromString(html, 'text/html');
         return doc.body.textContent || '';
       }
+
+      // Populate From Email Dropdown
+      function populateFromEmailDropdown() {
+        let availableSenders = [];
+        if (currentUserPrimaryEmail) {
+          availableSenders.push(currentUserPrimaryEmail);
+        }
+        currentUserAliases.forEach(alias => {
+          if (availableSenders.indexOf(alias) === -1) {
+            availableSenders.push(alias);
+          }
+        });
+
+        if (availableSenders.length === 0) {
+          fromEmailStatus.textContent = 'Could not load any sending email addresses for your account.';
+          fromEmailStatus.style.display = 'block';
+          showError(fromEmailSelect, fromEmailError, 'No sending addresses available.');
+          return;
+        }
+
+        availableSenders.forEach(email => {
+          const option = document.createElement('option');
+          option.value = email;
+          option.textContent = email;
+          fromEmailSelect.appendChild(option);
+        });
+
+        // Set default selection and status message
+        let isPreferredSenderAvailable = availableSenders.indexOf(preferredDefaultSender) !== -1;
+        if (isPreferredSenderAvailable) {
+          fromEmailSelect.value = preferredDefaultSender;
+        } else if (currentUserPrimaryEmail) {
+          fromEmailSelect.value = currentUserPrimaryEmail;
+          if (preferredDefaultSender) { // Only show message if a preferred sender was configured but not usable
+            fromEmailStatus.textContent = `Note: The default address '${preferredDefaultSender}' is not available for your account. Using your primary email.`;
+            fromEmailStatus.style.display = 'block';
+          }
+        } else if (availableSenders.length > 0) {
+          fromEmailSelect.value = availableSenders[0]; // Fallback to the first available if primary isn't there (shouldn't happen)
+        }
+        validateFromEmail(); // Validate after setting default
+      }
+
+      document.addEventListener('DOMContentLoaded', function() {
+        populateFromEmailDropdown();
+        // Any other DOMContentLoaded initialization
+      });
     </script>
   </body>
 </html>

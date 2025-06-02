@@ -22,8 +22,8 @@ function generateEmailBodies(itemsToEmail, customMessage = '') {
           <thead style="background-color: #f2f2f2;">
             <tr>
               <th style="padding: 5px; text-align: left;">Description</th>
-              ${CONFIG.SKU_NUMBER_COL_INDEX ? '<th style="padding: 5px; text-align: left;">SKU</th>' : ''}
-              ${CONFIG.MANUFACTURER_COL_INDEX ? '<th style="padding: 5px; text-align: left;">Manufacturer</th>' : ''}
+              ${CONFIG.SKU_NUMBER_COL_NAME ? '<th style="padding: 5px; text-align: left;">SKU</th>' : ''}
+              ${CONFIG.MANUFACTURER_COL_NAME ? '<th style="padding: 5px; text-align: left;">Manufacturer</th>' : ''}
             </tr>
           </thead>
           <tbody>
@@ -51,8 +51,8 @@ function generateEmailBodies(itemsToEmail, customMessage = '') {
                   ${fullDescription}
                   ${item.dimensions ? '<br>Dimensions: ' + item.dimensions : ''}
                 </td>
-                ${CONFIG.SKU_NUMBER_COL_INDEX ? '<td style="padding: 5px;">' + (item.partNumber || '') + '</td>' : ''}
-                ${CONFIG.MANUFACTURER_COL_INDEX ? '<td style="padding: 5px;">' + (item.manufacturer || '') + '</td>' : ''}
+                ${CONFIG.SKU_NUMBER_COL_NAME ? '<td style="padding: 5px;">' + (item.partNumber || '') + '</td>' : ''}
+                ${CONFIG.MANUFACTURER_COL_NAME ? '<td style="padding: 5px;">' + (item.manufacturer || '') + '</td>' : ''}
             </tr>
         `;
         }
@@ -77,95 +77,88 @@ function generateEmailBodies(itemsToEmail, customMessage = '') {
   }
   
   /**
-   * Sends the email using data submitted from the sidebar.
+   * Sends the email directly using data submitted from the sidebar.
+   * @param {object} emailDetails - Object containing recipient, subject, htmlBody, plainBody, rowsToUpdateJson, fromEmail.
+   * @return {object} An object with success status and a message string.
    */
-  function sendEmailFromSidebar(emailDetails) {
+  function sendEmailDirectly(emailDetails) {
     try {
-      validateConfig();
-      
-      // Input validation
+      // Input validation (basic)
       if (!emailDetails || typeof emailDetails !== 'object') {
-        throw new Error("Invalid email details format");
+        return { success: false, message: "Invalid email details format." };
       }
-  
-      const requiredFields = ['recipient', 'subject', 'htmlBody', 'rowsToUpdateJson'];
+      const requiredFields = ['recipient', 'subject', 'htmlBody', 'rowsToUpdateJson', 'fromEmail'];
       for (const field of requiredFields) {
         if (!emailDetails[field]) {
-          throw new Error(`Missing required field: ${field}`);
+          return { success: false, message: `Missing required field: ${field}` };
         }
       }
-  
       if (!isValidEmail(emailDetails.recipient)) {
-        throw new Error("Invalid recipient email address format");
+        return { success: false, message: "Invalid recipient email address format." };
+      }
+      if (!isValidEmail(emailDetails.fromEmail)) {
+        // This should be caught by client-side, but good to double check
+        return { success: false, message: "Invalid 'From' email address format." };
       }
   
-      // Get the sheet name for the subject
-      const ss = SpreadsheetApp.getActiveSpreadsheet();
-      const sheetName = ss.getName();
+      const projectName = getProjectNameFromProperties();
+      const finalSubject = `${CONFIG.EMAIL_SUBJECT_PREFIX} - ${projectName} - ${CONFIG.YOUR_COMPANY_NAME}`;
   
-      // Sanitize inputs
-      const sanitizedDetails = {
-        recipient: sanitizeInput(emailDetails.recipient),
-        subject: `${CONFIG.EMAIL_SUBJECT_PREFIX} - ${sheetName} - ${CONFIG.YOUR_COMPANY_NAME}`,
-        htmlBody: emailDetails.htmlBody, // Already sanitized in generateEmailBodies
-        plainBody: emailDetails.plainBody || "See HTML body.",
-        rowsToUpdateJson: emailDetails.rowsToUpdateJson
-      };
-  
-      // Send email with timeout
-      const startTime = new Date().getTime();
-      try {
-        GmailApp.sendEmail(
-          sanitizedDetails.recipient,
-          sanitizedDetails.subject,
-          sanitizedDetails.plainBody,
-          {
-            htmlBody: sanitizedDetails.htmlBody,
-            name: CONFIG.YOUR_COMPANY_NAME
-          }
-        );
-      } catch (e) {
-        if (e.message.includes("PERMISSION_DENIED")) {
-          throw new Error("Please authorize the script to send emails. Click 'Run' and accept the permissions when prompted.");
+      GmailApp.sendEmail(
+        emailDetails.recipient,
+        finalSubject, // Use the server-generated subject for consistency
+        emailDetails.plainBody || "See HTML body.",
+        {
+          htmlBody: emailDetails.htmlBody,
+          name: CONFIG.YOUR_COMPANY_NAME,
+          from: emailDetails.fromEmail // Use the 'fromEmail' passed from the client
         }
-        throw e;
-      }
-  
-      // Check for timeout
-      if (new Date().getTime() - startTime > CONFIG.EMAIL_SEND_TIMEOUT_MS) {
-        throw new Error("Email sending timed out");
-      }
+      );
+      Logger.log(`Email sent to ${emailDetails.recipient} from ${emailDetails.fromEmail} with subject: ${finalSubject}`);
   
       // Update sheet
-      const rowsToUpdate = JSON.parse(sanitizedDetails.rowsToUpdateJson);
+      const rowsToUpdate = JSON.parse(emailDetails.rowsToUpdateJson);
       if (rowsToUpdate.length > 0) {
         const ss = SpreadsheetApp.getActiveSpreadsheet();
         const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
         
         if (!sheet) {
-          throw new Error(`Sheet ${CONFIG.SHEET_NAME} not found during update phase`);
-        }
-  
-        const now = new Date();
-        const timestamp = Utilities.formatDate(now, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm");
-  
-        for (const rowNum of rowsToUpdate) {
-          try {
-            if (CONFIG.STATUS_COL_INDEX) {
-              sheet.getRange(rowNum, CONFIG.STATUS_COL_INDEX).setValue(`Emailed ${timestamp}`);
+          // Log error but don't let sheet update failure prevent success message for email send
+          Logger.log(`Sheet ${CONFIG.SHEET_NAME} not found during update phase after sending email.`);
+        } else {
+          const headerRowValues = sheet.getRange(CONFIG.HEADER_ROWS, 1, 1, sheet.getLastColumn()).getValues()[0];
+          function getColumnIndex(columnName, headerArray) {
+            const index = headerArray.indexOf(columnName);
+            if (index === -1) {
+              Logger.log(`Column "${columnName}" not found in header row. This column won't be updated.`);
+              return -1;
             }
-            sheet.getRange(rowNum, CONFIG.CHECKBOX_COL_INDEX).setValue(false);
-          } catch (e) {
-            Logger.log(`Error updating row ${rowNum}: ${e.message}`);
-            // Continue with other rows even if one fails
+            return index;
+          }
+          const statusColIdx = CONFIG.STATUS_COL_NAME ? getColumnIndex(CONFIG.STATUS_COL_NAME, headerRowValues) : -1;
+          const checkboxColIdx = getColumnIndex(CONFIG.CHECKBOX_COL_NAME, headerRowValues);
+          if (checkboxColIdx === -1) {
+              Logger.log(`Critical column "${CONFIG.CHECKBOX_COL_NAME}" not found. Cannot uncheck boxes.`);
+          } else {
+              const now = new Date();
+              const timestamp = Utilities.formatDate(now, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm");
+              for (const rowNum of rowsToUpdate) {
+                try {
+                  if (statusColIdx !== -1) {
+                    sheet.getRange(rowNum, statusColIdx + 1).setValue(`Emailed ${timestamp} (Sent from: ${emailDetails.fromEmail})`);
+                  }
+                  sheet.getRange(rowNum, checkboxColIdx + 1).setValue(false);
+                } catch (e) {
+                  Logger.log(`Error updating row ${rowNum} after sending email: ${e.message}`);
+                }
+              }
           }
         }
       }
-  
-      return "Email sent successfully!";
+      return { success: true, message: `Email successfully sent from ${emailDetails.fromEmail}!` };
     } catch (error) {
-      Logger.log(`Error in sendEmailFromSidebar: ${error.message}\nStack: ${error.stack}`);
-      throw new Error(`Failed to send email: ${error.message}`);
+      Logger.log(`Error in sendEmailDirectly: ${error.message}\nStack: ${error.stack}`);
+      return { success: false, message: `Failed to send email: ${error.message}` };
     }
   }
   
@@ -284,13 +277,12 @@ function generateEmailBodies(itemsToEmail, customMessage = '') {
       const { htmlBody, plainBody } = generateEmailBodies(vendor.items, customMessage);
       
       // Get the sheet name for the subject
-      const ss = SpreadsheetApp.getActiveSpreadsheet();
-      const sheetName = ss.getName();
+      const projectName = getProjectNameFromProperties();
       
       // Create a draft email
       GmailApp.createDraft(
         emailAddress,
-        `${CONFIG.EMAIL_SUBJECT_PREFIX} - ${sheetName}`,
+        `${CONFIG.EMAIL_SUBJECT_PREFIX} - ${projectName} - ${CONFIG.YOUR_COMPANY_NAME}`,
         plainBody,
         {
           htmlBody: htmlBody,
@@ -310,34 +302,43 @@ function generateEmailBodies(itemsToEmail, customMessage = '') {
    */
   function createAndOpenDraft(emailDetails) {
     try {
-      validateConfig();
-      
       // Input validation
       if (!emailDetails || typeof emailDetails !== 'object') {
-        throw new Error("Invalid email details format");
+        // Return error object for consistency with how client handles it
+        return { success: false, message: "Invalid email details format" };
       }
   
-      const requiredFields = ['recipient', 'subject', 'htmlBody', 'rowsToUpdateJson'];
+      // Add fromEmail to required fields check
+      const requiredFields = ['recipient', 'subject', 'htmlBody', 'rowsToUpdateJson', 'fromEmail'];
       for (const field of requiredFields) {
         if (!emailDetails[field]) {
-          throw new Error(`Missing required field: ${field}`);
+          return { success: false, message: `Missing required field: ${field}` };
         }
       }
   
       if (!isValidEmail(emailDetails.recipient)) {
-        throw new Error("Invalid recipient email address format");
+        return { success: false, message: "Invalid recipient email address format" };
+      }
+      if (!isValidEmail(emailDetails.fromEmail)) {
+         // This should be caught by client-side, but good to double check
+        return { success: false, message: "Invalid 'From' email address format." };
       }
   
-      // Create the draft email
-      const draft = GmailApp.createDraft(
+      const projectName = getProjectNameFromProperties();
+      const finalSubject = `${CONFIG.EMAIL_SUBJECT_PREFIX} - ${projectName} - ${CONFIG.YOUR_COMPANY_NAME}`;
+      let draft;
+  
+      draft = GmailApp.createDraft(
         emailDetails.recipient,
-        emailDetails.subject,
+        finalSubject, // Use server-generated subject
         emailDetails.plainBody || emailDetails.htmlBody,
         {
           htmlBody: emailDetails.htmlBody,
-          name: CONFIG.YOUR_COMPANY_NAME
+          name: CONFIG.YOUR_COMPANY_NAME,
+          from: emailDetails.fromEmail // Use the 'fromEmail' passed from the client
         }
       );
+      Logger.log(`Draft created for ${emailDetails.recipient} from ${emailDetails.fromEmail} with subject ${finalSubject}`);
   
       // Update sheet
       const rowsToUpdate = JSON.parse(emailDetails.rowsToUpdateJson);
@@ -348,20 +349,34 @@ function generateEmailBodies(itemsToEmail, customMessage = '') {
         if (!sheet) {
           throw new Error(`Sheet ${CONFIG.SHEET_NAME} not found during update phase`);
         }
-  
-        const now = new Date();
-        const timestamp = Utilities.formatDate(now, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm");
-  
-        for (const rowNum of rowsToUpdate) {
-          try {
-            if (CONFIG.STATUS_COL_INDEX) {
-              sheet.getRange(rowNum, CONFIG.STATUS_COL_INDEX).setValue(`Draft created ${timestamp}`);
-            }
-            sheet.getRange(rowNum, CONFIG.CHECKBOX_COL_INDEX).setValue(false);
-          } catch (e) {
-            Logger.log(`Error updating row ${rowNum}: ${e.message}`);
-            // Continue with other rows even if one fails
+
+        const headerRowValues = sheet.getRange(CONFIG.HEADER_ROWS, 1, 1, sheet.getLastColumn()).getValues()[0];
+        function getColumnIndex(columnName, headerArray) {
+          const index = headerArray.indexOf(columnName);
+          if (index === -1) {
+            Logger.log(`Column "${columnName}" not found in header row. This column won't be updated.`);
+            return -1;
           }
+          return index;
+        }
+
+        const statusColIdx = CONFIG.STATUS_COL_NAME ? getColumnIndex(CONFIG.STATUS_COL_NAME, headerRowValues) : -1;
+        const checkboxColIdx = getColumnIndex(CONFIG.CHECKBOX_COL_NAME, headerRowValues);
+        if (checkboxColIdx === -1) {
+            Logger.log(`Critical column "${CONFIG.CHECKBOX_COL_NAME}" not found. Cannot uncheck boxes.`);
+        } else {
+            const now = new Date();
+            const timestamp = Utilities.formatDate(now, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm");
+            for (const rowNum of rowsToUpdate) {
+              try {
+                if (statusColIdx !== -1) {
+                  sheet.getRange(rowNum, statusColIdx + 1).setValue(`Draft created ${timestamp} (From: ${emailDetails.fromEmail})`);
+                }
+                sheet.getRange(rowNum, checkboxColIdx + 1).setValue(false);
+              } catch (e) {
+                Logger.log(`Error updating row ${rowNum} after sending email: ${e.message}`);
+              }
+            }
         }
       }
   
@@ -372,7 +387,7 @@ function generateEmailBodies(itemsToEmail, customMessage = '') {
       return {
         success: true,
         url: draftUrl,
-        message: "Draft created successfully"
+        message: `Draft for ${emailDetails.recipient} created successfully from ${emailDetails.fromEmail}!` // Updated message
       };
     } catch (error) {
       Logger.log(`Error in createAndOpenDraft: ${error.message}\nStack: ${error.stack}`);
@@ -381,4 +396,4 @@ function generateEmailBodies(itemsToEmail, customMessage = '') {
         message: error.message
       };
     }
-  } 
+  }
